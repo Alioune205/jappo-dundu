@@ -1,6 +1,29 @@
+# ============================================================
+# Jappo Dundu — Backend Dependencies
+# ============================================================
+
+# --- Framework & API ---
 Django>=5.0
 djangorestframework>=3.15
+
+# --- Base de données ---
 psycopg2-binary>=2.9
+
+# --- Authentification & Sécurité (El Hadji Massogui Diop) ---
 djangorestframework-simplejwt>=5.3
 django-cors-headers>=4.3
+python-decouple>=3.8
+
+# --- WebSockets (El Hadji Massogui Diop) ---
 channels>=4.0
+channels-redis>=4.2
+daphne>=4.1
+
+# --- Machine Learning (El Hadji Massogui Diop) ---
+scikit-learn>=1.5
+pandas>=2.2
+numpy>=1.26
+joblib>=1.4
+
+# --- Serveur de production (El Hadji Massogui Diop) ---
+gunicorn>=22.0

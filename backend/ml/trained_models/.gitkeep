@@ -1,0 +1,2 @@
+# Ce dossier contient les modèles ML entraînés (.pkl)
+# Les fichiers modèles sont exclus du contrôle de version via .gitignore

@@ -1,0 +1,44 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.egg-info
+
+# Environnements virtuels
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fichiers d'environnement
+.env
+
+# Documentation et règles
+*.md
+!README.md
+
+# Docker
+docker-compose.yml
+Dockerfile
+
+# Fichiers de base de données locale
+db.sqlite3
+*.db
+
+# Logs
+*.log
+
+# Tests
+htmlcov/
+.coverage

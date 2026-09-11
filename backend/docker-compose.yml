@@ -1,0 +1,90 @@
+# ============================================================
+# Jappo Dundu — Docker Compose
+# Orchestre les services : Django + PostgreSQL + Redis
+#
+# Usage :
+#   docker-compose up -d          # Démarrer tous les services
+#   docker-compose up -d --build  # Rebuild et démarrer
+#   docker-compose down           # Arrêter tous les services
+#   docker-compose logs -f web    # Voir les logs du backend
+#
+# Auteur : El Hadji Massogui Diop
+# ============================================================
+
+services:
+  # --- Base de données PostgreSQL ---
+  db:
+    image: postgres:16-alpine
+    container_name: jappo_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-jappo_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-jappo_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # --- Redis (WebSockets & Cache) ---
+  redis:
+    image: redis:7-alpine
+    container_name: jappo_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Backend Django (API + WebSockets) ---
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jappo_web
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/1
+    ports:
+      - "8000:8000"
+    volumes:
+      # Volume de développement : hot-reload du code
+      - .:/app
+      # Persister les modèles ML entraînés
+      - ml_models:/app/ml/trained_models
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo '⏳ Application des migrations...' &&
+        python manage.py migrate --noinput &&
+        echo '✅ Migrations appliquées.' &&
+        echo '🚀 Démarrage du serveur Daphne...' &&
+        daphne -b 0.0.0.0 -p 8000 --access-log - core.asgi:application
+      "
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ml_models:
+    driver: local
