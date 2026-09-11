@@ -1,22 +1,37 @@
 """
-URL configuration for core project.
+URL configuration for Jappo Dundu backend.
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+Auteur initial : Pape Alioune Sene (structure)
+Routes sécurité/JWT/ML : El Hadji Massogui Diop
 """
+
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
+
+from security.authentication import (
+    JappoDunduTokenObtainPairView,
+    JappoDunduTokenRefreshView,
+)
 
 urlpatterns = [
+    # Admin Django
     path('admin/', admin.site.urls),
+
+    # === Authentification JWT (El Hadji Massogui Diop) ===
+    path(
+        'api/auth/token/',
+        JappoDunduTokenObtainPairView.as_view(),
+        name='token_obtain_pair',
+    ),
+    path(
+        'api/auth/token/refresh/',
+        JappoDunduTokenRefreshView.as_view(),
+        name='token_refresh',
+    ),
+
+    # === Sécurité & Monitoring (El Hadji Massogui Diop) ===
+    path('api/', include('security.urls')),
+
+    # === Machine Learning (El Hadji Massogui Diop) ===
+    path('api/ml/', include('ml.urls')),
 ]
