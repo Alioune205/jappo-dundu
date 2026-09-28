@@ -1,5 +1,5 @@
 """
-Configuration de l'interface d'administration pour l'application ML.
+Administration Django de l'application ML.
 
 Auteur : El Hadji Massogui Diop
 """
@@ -11,7 +11,7 @@ from .models import BloodStockRecord, MLModelMetadata, PredictionResult
 
 @admin.register(BloodStockRecord)
 class BloodStockRecordAdmin(admin.ModelAdmin):
-    """Administration des enregistrements de stock sanguin."""
+    """Historique des stocks (saisie manuelle possible)."""
 
     list_display = [
         'center_name',
@@ -22,8 +22,9 @@ class BloodStockRecordAdmin(admin.ModelAdmin):
         'units_donated',
         'units_used',
         'units_expired',
+        'source',
     ]
-    list_filter = ['region', 'blood_group', 'date']
+    list_filter = ['source', 'region', 'blood_group']
     search_fields = ['center_name']
     ordering = ['-date']
     date_hierarchy = 'date'
@@ -32,7 +33,7 @@ class BloodStockRecordAdmin(admin.ModelAdmin):
 
 @admin.register(PredictionResult)
 class PredictionResultAdmin(admin.ModelAdmin):
-    """Administration des résultats de prédiction."""
+    """Prédictions (lecture seule : produites par le modèle)."""
 
     list_display = [
         'center_name',
@@ -40,20 +41,26 @@ class PredictionResultAdmin(admin.ModelAdmin):
         'blood_group',
         'prediction_date',
         'predicted_units',
+        'days_of_supply',
         'risk_level',
         'confidence_score',
         'model_version',
-        'created_at',
     ]
     list_filter = ['risk_level', 'region', 'blood_group', 'model_version']
     search_fields = ['center_name']
-    ordering = ['-created_at']
+    ordering = ['prediction_date']
     list_per_page = 50
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(MLModelMetadata)
 class MLModelMetadataAdmin(admin.ModelAdmin):
-    """Administration des métadonnées des modèles ML."""
+    """Registre des modèles : cocher « actif » bascule le modèle utilisé."""
 
     list_display = [
         'version',
@@ -67,3 +74,14 @@ class MLModelMetadataAdmin(admin.ModelAdmin):
     ]
     list_filter = ['is_active', 'algorithm']
     ordering = ['-trained_at']
+    readonly_fields = [
+        'version',
+        'algorithm',
+        'trained_at',
+        'training_samples',
+        'mae',
+        'rmse',
+        'r2_score',
+        'metrics',
+        'model_file_path',
+    ]

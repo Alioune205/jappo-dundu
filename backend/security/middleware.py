@@ -1,110 +1,127 @@
 """
-Middleware de sécurité pour Jappo Dundu.
+Middleware de sécurité et d'observabilité pour Jappo Dundu.
 
-Fournit :
-- RequestLoggingMiddleware : Logging d'audit de toutes les requêtes API
-- SecurityHeadersMiddleware : En-têtes de sécurité HTTP
+- HealthCheckMiddleware : répond à /api/health/ avant toute autre couche
+  (validation d'ALLOWED_HOSTS, redirection HTTPS), pour les sondes Docker
+  et les load balancers.
+- RequestLoggingMiddleware : journal d'audit de chaque requête HTTP avec un
+  identifiant de corrélation (X-Request-ID).
+- SecurityHeadersMiddleware : en-têtes non couverts par Django
+  (Permissions-Policy, Cache-Control: no-store sur l'API).
 
 Auteur : El Hadji Massogui Diop
 """
 
 import logging
+import re
 import time
 import uuid
 
+from django.http import JsonResponse
 from django.utils.deprecation import MiddlewareMixin
+from rest_framework.throttling import BaseThrottle
 
 logger = logging.getLogger('jappo_dundu.security')
 
+HEALTH_PATH = '/api/health/'
+REQUEST_ID_HEADER = 'X-Request-ID'
+_SAFE_REQUEST_ID = re.compile(r'^[A-Za-z0-9._-]{8,64}$')
+
+
+def health_payload():
+    """Contenu de la sonde de vivacité (aucune dépendance externe)."""
+    return {
+        'status': 'healthy',
+        'service': 'Jappo Dundu API',
+        'version': '1.0.0',
+    }
+
+
+def get_client_ip(request):
+    """Adresse IP du client, avec la même règle que le throttling DRF.
+
+    Respecte ``REST_FRAMEWORK['NUM_PROXIES']`` : un en-tête
+    X-Forwarded-For forgé par le client ne peut pas usurper l'adresse.
+    """
+    return BaseThrottle().get_ident(request) or 'unknown'
+
+
+class HealthCheckMiddleware(MiddlewareMixin):
+    """Court-circuite /api/health/ (doit être le premier middleware)."""
+
+    def process_request(self, request):
+        if request.path == HEALTH_PATH and request.method in ('GET', 'HEAD'):
+            return JsonResponse(health_payload())
+        return None
+
 
 class RequestLoggingMiddleware(MiddlewareMixin):
-    """Middleware de logging d'audit des requêtes API.
+    """Journal d'audit des requêtes avec identifiant de corrélation.
 
-    Enregistre pour chaque requête :
-    - Un identifiant unique de requête
-    - La méthode HTTP et le chemin
-    - L'utilisateur authentifié (ou 'anonymous')
-    - L'adresse IP source
-    - Le code de statut de la réponse
-    - Le temps de traitement en millisecondes
+    Un X-Request-ID entrant (posé par le reverse proxy ou le client) est
+    réutilisé s'il est bien formé ; sinon un nouvel identifiant est généré.
     """
 
     def process_request(self, request):
-        """Initialise le chronomètre et l'ID de requête."""
+        incoming = request.headers.get(REQUEST_ID_HEADER, '')
+        request.request_id = (
+            incoming if _SAFE_REQUEST_ID.match(incoming) else uuid.uuid4().hex
+        )
         request._start_time = time.monotonic()
-        request._request_id = str(uuid.uuid4())[:8]
 
     def process_response(self, request, response):
-        """Enregistre les détails de la requête dans les logs."""
-        duration_ms = 0
-        if hasattr(request, '_start_time'):
-            duration_ms = (time.monotonic() - request._start_time) * 1000
+        request_id = getattr(request, 'request_id', None) or uuid.uuid4().hex
+        start = getattr(request, '_start_time', None)
+        duration_ms = (time.monotonic() - start) * 1000 if start else 0.0
 
-        request_id = getattr(request, '_request_id', 'unknown')
-        user = 'anonymous'
-        if hasattr(request, 'user') and request.user.is_authenticated:
-            user = request.user.username
+        user = getattr(request, 'user', None)
+        username = (
+            user.get_username()
+            if user is not None and user.is_authenticated
+            else 'anonymous'
+        )
 
-        client_ip = self._get_client_ip(request)
-
-        log_data = {
-            'request_id': request_id,
-            'method': request.method,
-            'path': request.path,
-            'user': user,
-            'ip': client_ip,
-            'status': response.status_code,
-            'duration_ms': round(duration_ms, 2),
-        }
-
-        # Niveau de log basé sur le code de statut
         if response.status_code >= 500:
-            logger.error("API Request: %(log_data)s", {'log_data': log_data})
+            level = logging.ERROR
         elif response.status_code >= 400:
-            logger.warning("API Request: %(log_data)s", {'log_data': log_data})
+            level = logging.WARNING
         else:
-            logger.info("API Request: %(log_data)s", {'log_data': log_data})
+            level = logging.INFO
 
-        # Ajouter l'ID de requête dans les headers de la réponse
-        response['X-Request-ID'] = request_id
+        logger.log(
+            level,
+            'request_id=%s method=%s path=%s status=%s duration_ms=%.1f '
+            'user=%s ip=%s',
+            request_id,
+            request.method,
+            request.path,
+            response.status_code,
+            duration_ms,
+            username,
+            get_client_ip(request),
+        )
 
+        response[REQUEST_ID_HEADER] = request_id
         return response
-
-    @staticmethod
-    def _get_client_ip(request):
-        """Extrait l'adresse IP du client, en tenant compte des proxys."""
-        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded_for:
-            return x_forwarded_for.split(',')[0].strip()
-        return request.META.get('REMOTE_ADDR', 'unknown')
 
 
 class SecurityHeadersMiddleware(MiddlewareMixin):
-    """Middleware ajoutant les en-têtes de sécurité HTTP.
+    """En-têtes de sécurité complémentaires à ceux de Django.
 
-    Implémente les bonnes pratiques OWASP pour la protection
-    contre les attaques XSS, clickjacking, MIME sniffing, etc.
+    Django fournit déjà X-Content-Type-Options, X-Frame-Options,
+    Referrer-Policy et Cross-Origin-Opener-Policy (voir settings).
     """
 
+    PERMISSIONS_POLICY = (
+        'geolocation=(), camera=(), microphone=(), payment=(), usb=()'
+    )
+
     def process_response(self, request, response):
-        # Protection contre le MIME type sniffing
-        response['X-Content-Type-Options'] = 'nosniff'
-
-        # Protection XSS (complément au CSP)
-        response['X-XSS-Protection'] = '1; mode=block'
-
-        # Empêcher l'embedding dans des iframes tierces
-        response['X-Frame-Options'] = 'DENY'
-
-        # Politique de référent stricte
-        response['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-
-        # Permissions Policy (anciennement Feature-Policy)
-        response['Permissions-Policy'] = (
-            'geolocation=(self), '
-            'camera=(), '
-            'microphone=(), '
-            'payment=()'
-        )
-
+        response.setdefault('Permissions-Policy', self.PERMISSIONS_POLICY)
+        # Les réponses de l'API (tokens, données médicales) ne doivent
+        # jamais être stockées par un cache navigateur ou intermédiaire.
+        if request.path.startswith('/api/') and not response.has_header(
+            'Cache-Control'
+        ):
+            response['Cache-Control'] = 'no-store'
         return response

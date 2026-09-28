@@ -1,16 +1,18 @@
 """
-Sérialiseurs DRF pour l'application ML de Jappo Dundu.
+Sérialiseurs DRF de l'application ML de Jappo Dundu.
 
 Auteur : El Hadji Massogui Diop
 """
 
 from rest_framework import serializers
 
+from .constants import BLOOD_GROUPS, REGIONS
 from .models import BloodStockRecord, MLModelMetadata, PredictionResult
+from .services.predictor import MAX_DAYS_AHEAD
 
 
 class BloodStockRecordSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour les enregistrements de stock sanguin."""
+    """Enregistrement de stock sanguin."""
 
     region_display = serializers.CharField(
         source='get_region_display', read_only=True
@@ -33,12 +35,13 @@ class BloodStockRecordSerializer(serializers.ModelSerializer):
             'units_donated',
             'units_used',
             'units_expired',
+            'source',
         ]
-        read_only_fields = ['id']
+        read_only_fields = fields
 
 
 class PredictionResultSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour les résultats de prédiction."""
+    """Prédiction de stock et niveau de risque."""
 
     region_display = serializers.CharField(
         source='get_region_display', read_only=True
@@ -61,41 +64,41 @@ class PredictionResultSerializer(serializers.ModelSerializer):
             'blood_group_display',
             'prediction_date',
             'predicted_units',
+            'lower_bound',
+            'upper_bound',
+            'days_of_supply',
             'risk_level',
             'risk_level_display',
             'confidence_score',
             'created_at',
             'model_version',
         ]
-        read_only_fields = [
-            'id',
-            'created_at',
-        ]
+        read_only_fields = fields
 
 
 class PredictionRequestSerializer(serializers.Serializer):
-    """Sérialiseur pour les requêtes de prédiction à la demande."""
+    """Paramètres d'une prédiction à la demande."""
 
     region = serializers.ChoiceField(
-        choices=BloodStockRecord.REGIONS,
+        choices=REGIONS,
         required=False,
         help_text="Filtrer par région (optionnel, toutes si non spécifié).",
     )
     blood_group = serializers.ChoiceField(
-        choices=BloodStockRecord.BLOOD_GROUPS,
+        choices=BLOOD_GROUPS,
         required=False,
         help_text="Filtrer par groupe sanguin (optionnel).",
     )
     days_ahead = serializers.IntegerField(
         min_value=1,
-        max_value=30,
+        max_value=MAX_DAYS_AHEAD,
         default=7,
-        help_text="Nombre de jours à prédire (1 à 30, défaut : 7).",
+        help_text=f"Nombre de jours à prédire (1 à {MAX_DAYS_AHEAD}, défaut : 7).",
     )
 
 
 class MLModelMetadataSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour les métadonnées du modèle ML."""
+    """Métadonnées et métriques du modèle ML."""
 
     class Meta:
         model = MLModelMetadata
@@ -108,14 +111,15 @@ class MLModelMetadataSerializer(serializers.ModelSerializer):
             'mae',
             'rmse',
             'r2_score',
+            'metrics',
             'is_active',
             'notes',
         ]
-        read_only_fields = ['id', 'trained_at']
+        read_only_fields = fields
 
 
 class PredictionSummarySerializer(serializers.Serializer):
-    """Sérialiseur pour le résumé des prédictions (dashboard)."""
+    """Synthèse des risques par région (tableau de bord)."""
 
     region = serializers.CharField()
     region_display = serializers.CharField()

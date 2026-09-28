@@ -1,67 +1,57 @@
+# syntax=docker/dockerfile:1
 # ============================================================
-# Jappo Dundu — Backend Dockerfile
-# Multi-stage build pour un déploiement léger et sécurisé
+# Jappo Dundu — Image du backend (API REST + WebSockets)
+#
+# Build multi-étapes : les dépendances sont installées dans un
+# environnement virtuel, seul ce venv est copié dans l'image finale.
+# Toutes les dépendances sont des wheels précompilées (psycopg2-binary,
+# numpy, scikit-learn...) : aucun compilateur dans l'image.
 #
 # Auteur : El Hadji Massogui Diop
 # ============================================================
 
-# --- Stage 1 : Base Python ---
-FROM python:3.12-slim AS base
+ARG PYTHON_VERSION=3.14
 
-# Empêcher Python de créer des fichiers .pyc et activer le flush immédiat
+# --- Étape 1 : dépendances ---
+FROM python:${PYTHON_VERSION}-slim AS builder
+
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN python -m venv /opt/venv
+ENV PATH=/opt/venv/bin:$PATH
+
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --only-binary=:all: -r /tmp/requirements.txt
+
+# --- Étape 2 : image d'exécution ---
+FROM python:${PYTHON_VERSION}-slim AS runtime
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PATH=/opt/venv/bin:$PATH
 
-# Installer les dépendances système nécessaires pour PostgreSQL et compilation
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        libpq-dev \
-        gcc \
-        libc6-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Utilisateur non privilégié
+RUN groupadd --system jappo \
+    && useradd --system --gid jappo --home-dir /app --shell /usr/sbin/nologin jappo
 
-# Créer un utilisateur non-root pour la sécurité
-RUN groupadd -r jappo && useradd -r -g jappo -d /app -s /sbin/nologin jappo
-
-# Définir le répertoire de travail
 WORKDIR /app
 
-# --- Stage 2 : Installation des dépendances ---
-FROM base AS dependencies
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=jappo:jappo . .
 
-# Copier uniquement le fichier requirements pour tirer parti du cache Docker
-COPY requirements.txt .
+# Répertoires inscriptibles (montés en volumes en production)
+RUN mkdir -p staticfiles ml/trained_models \
+    && chown jappo:jappo staticfiles ml/trained_models
 
-# Installer les dépendances Python
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
-# --- Stage 3 : Application finale ---
-FROM dependencies AS production
-
-# Copier tout le code source
-COPY . .
-
-# Créer les répertoires nécessaires
-RUN mkdir -p ml/trained_models staticfiles && \
-    chown -R jappo:jappo /app
-
-# Collecter les fichiers statiques
-RUN python manage.py collectstatic --noinput 2>/dev/null || true
-
-# Passer à l'utilisateur non-root
 USER jappo
 
-# Exposer le port de l'application
 EXPOSE 8000
 
-# Health check Docker
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/')" || exit 1
+# Sonde de vivacité : /api/health/ répond sans dépendre de la base
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/', timeout=4)"]
 
-# Commande de démarrage : Daphne (serveur ASGI pour WebSockets)
-CMD ["daphne", \
-     "-b", "0.0.0.0", \
-     "-p", "8000", \
-     "--access-log", "-", \
-     "core.asgi:application"]
+# Daphne : serveur ASGI (HTTP + WebSocket). Journal d'accès désactivé :
+# les requêtes sont journalisées par security.middleware (avec X-Request-ID).
+CMD ["daphne", "--bind", "0.0.0.0", "--port", "8000", "--verbosity", "0", "core.asgi:application"]

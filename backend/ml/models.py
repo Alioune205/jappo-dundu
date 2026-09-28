@@ -1,52 +1,34 @@
 """
-Modèles Django pour l'application ML de Jappo Dundu.
+Modèles Django de l'application ML de Jappo Dundu.
 
-Stocke les données nécessaires au système de prédiction des pénuries
-de sang : historique des stocks, résultats des prédictions et
-métadonnées des modèles entraînés.
+- BloodStockRecord : historique quotidien des stocks (données d'entraînement)
+- PredictionResult : prédictions de stock et niveau de risque de pénurie
+- MLModelMetadata  : registre des modèles entraînés (un seul actif)
 
 Auteur : El Hadji Massogui Diop
 """
 
-from django.db import models
 from django.core.validators import MinValueValidator
+from django.db import models, transaction
+
+from .constants import BLOOD_GROUPS, REGIONS
 
 
 class BloodStockRecord(models.Model):
-    """Enregistrement quotidien du stock de sang d'un centre.
+    """Stock d'un groupe sanguin dans un centre de transfusion, à une date.
 
-    Chaque ligne représente le stock d'un groupe sanguin
-    dans un centre de transfusion à une date donnée.
-    Ces données servent à entraîner le modèle de prédiction.
+    Identité comptable attendue d'un jour à l'autre :
+    stock(j) = stock(j-1) + dons(j) - utilisations(j) - péremptions(j).
     """
 
-    BLOOD_GROUPS = [
-        ('A+', 'A Positif'),
-        ('A-', 'A Négatif'),
-        ('B+', 'B Positif'),
-        ('B-', 'B Négatif'),
-        ('AB+', 'AB Positif'),
-        ('AB-', 'AB Négatif'),
-        ('O+', 'O Positif'),
-        ('O-', 'O Négatif'),
-    ]
+    # Conservés comme attributs de classe pour la compatibilité.
+    BLOOD_GROUPS = BLOOD_GROUPS
+    REGIONS = REGIONS
 
-    REGIONS = [
-        ('dakar', 'Dakar'),
-        ('thies', 'Thiès'),
-        ('saint_louis', 'Saint-Louis'),
-        ('kaolack', 'Kaolack'),
-        ('ziguinchor', 'Ziguinchor'),
-        ('tambacounda', 'Tambacounda'),
-        ('louga', 'Louga'),
-        ('fatick', 'Fatick'),
-        ('kolda', 'Kolda'),
-        ('matam', 'Matam'),
-        ('kaffrine', 'Kaffrine'),
-        ('kedougou', 'Kédougou'),
-        ('sedhiou', 'Sédhiou'),
-        ('diourbel', 'Diourbel'),
-    ]
+    class Source(models.TextChoices):
+        SYNTHETIC = 'synthetic', 'Synthétique (simulation)'
+        IMPORT = 'import', 'Import de fichier'
+        MANUAL = 'manual', 'Saisie manuelle'
 
     center_name = models.CharField(
         max_length=200,
@@ -70,7 +52,7 @@ class BloodStockRecord(models.Model):
     )
     units_available = models.PositiveIntegerField(
         verbose_name="Unités disponibles",
-        help_text="Nombre de poches de sang disponibles.",
+        help_text="Nombre de poches disponibles en fin de journée.",
     )
     units_donated = models.PositiveIntegerField(
         default=0,
@@ -87,12 +69,24 @@ class BloodStockRecord(models.Model):
         verbose_name="Unités périmées",
         help_text="Nombre de poches périmées retirées ce jour.",
     )
+    source = models.CharField(
+        max_length=20,
+        choices=Source.choices,
+        default=Source.MANUAL,
+        verbose_name="Source",
+        help_text="Origine de la donnée (simulation, import, saisie).",
+    )
 
     class Meta:
         verbose_name = "Enregistrement de stock sanguin"
         verbose_name_plural = "Enregistrements de stock sanguin"
         ordering = ['-date', 'region', 'blood_group']
-        unique_together = ['center_name', 'blood_group', 'date']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['center_name', 'blood_group', 'date'],
+                name='uniq_stock_center_group_date',
+            ),
+        ]
         indexes = [
             models.Index(
                 fields=['region', 'blood_group', 'date'],
@@ -112,10 +106,10 @@ class BloodStockRecord(models.Model):
 
 
 class PredictionResult(models.Model):
-    """Résultat d'une prédiction de stock de sang.
+    """Prédiction du stock d'un centre/groupe sanguin pour une date future.
 
-    Stocke les prédictions générées par le modèle ML pour
-    chaque centre, groupe sanguin et date future.
+    Une seule prédiction courante par (centre, groupe, date) : une nouvelle
+    exécution remplace la précédente.
     """
 
     RISK_LEVELS = [
@@ -130,12 +124,12 @@ class PredictionResult(models.Model):
     )
     region = models.CharField(
         max_length=50,
-        choices=BloodStockRecord.REGIONS,
+        choices=REGIONS,
         verbose_name="Région",
     )
     blood_group = models.CharField(
         max_length=3,
-        choices=BloodStockRecord.BLOOD_GROUPS,
+        choices=BLOOD_GROUPS,
         verbose_name="Groupe sanguin",
     )
     prediction_date = models.DateField(
@@ -145,7 +139,25 @@ class PredictionResult(models.Model):
     predicted_units = models.FloatField(
         verbose_name="Unités prédites",
         validators=[MinValueValidator(0)],
-        help_text="Nombre d'unités de sang prédit pour cette date.",
+        help_text="Stock prévu (poches) pour cette date.",
+    )
+    lower_bound = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name="Borne basse (P10)",
+        help_text="Stock sous lequel la valeur réelle a 10 % de chances d'être.",
+    )
+    upper_bound = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name="Borne haute (P90)",
+        help_text="Stock au-dessus duquel la valeur réelle a 10 % de chances d'être.",
+    )
+    days_of_supply = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name="Jours de stock",
+        help_text="Stock prévu divisé par la consommation quotidienne moyenne.",
     )
     risk_level = models.CharField(
         max_length=10,
@@ -155,7 +167,7 @@ class PredictionResult(models.Model):
     confidence_score = models.FloatField(
         default=0.0,
         verbose_name="Score de confiance",
-        help_text="Confiance du modèle dans cette prédiction (0 à 1).",
+        help_text="Probabilité estimée que le niveau de risque soit correct (0 à 1).",
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
@@ -170,7 +182,13 @@ class PredictionResult(models.Model):
     class Meta:
         verbose_name = "Prédiction"
         verbose_name_plural = "Prédictions"
-        ordering = ['-created_at', 'risk_level']
+        ordering = ['prediction_date', 'risk_level']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['center_name', 'blood_group', 'prediction_date'],
+                name='uniq_prediction_center_group_date',
+            ),
+        ]
         indexes = [
             models.Index(
                 fields=['region', 'blood_group', 'prediction_date'],
@@ -190,10 +208,10 @@ class PredictionResult(models.Model):
 
 
 class MLModelMetadata(models.Model):
-    """Métadonnées du modèle ML entraîné.
+    """Registre des modèles entraînés : métriques et fichier associé.
 
-    Garde une trace de chaque version du modèle entraîné,
-    avec ses métriques de performance et son chemin de stockage.
+    Un seul modèle peut être actif (garanti en base par une contrainte).
+    ``model_file_path`` contient le nom du fichier dans ``ML_MODEL_DIR``.
     """
 
     version = models.CharField(
@@ -203,7 +221,7 @@ class MLModelMetadata(models.Model):
     )
     algorithm = models.CharField(
         max_length=100,
-        default='RandomForestRegressor',
+        default='HistGradientBoostingRegressor',
         verbose_name="Algorithme",
     )
     trained_at = models.DateTimeField(
@@ -226,9 +244,15 @@ class MLModelMetadata(models.Model):
         default=0.0,
         verbose_name="R² Score",
     )
+    metrics = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Métriques détaillées",
+        help_text="Évaluation sur période de test (baseline, couverture, alertes).",
+    )
     model_file_path = models.CharField(
         max_length=500,
-        verbose_name="Chemin du fichier modèle",
+        verbose_name="Fichier du modèle",
     )
     is_active = models.BooleanField(
         default=True,
@@ -245,6 +269,13 @@ class MLModelMetadata(models.Model):
         verbose_name = "Métadonnées du modèle ML"
         verbose_name_plural = "Métadonnées des modèles ML"
         ordering = ['-trained_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['is_active'],
+                condition=models.Q(is_active=True),
+                name='uniq_active_ml_model',
+            ),
+        ]
 
     def __str__(self):
         return (
@@ -253,9 +284,10 @@ class MLModelMetadata(models.Model):
         )
 
     def save(self, *args, **kwargs):
-        """Désactive les autres modèles si celui-ci est activé."""
-        if self.is_active:
-            MLModelMetadata.objects.filter(is_active=True).exclude(
-                pk=self.pk
-            ).update(is_active=False)
-        super().save(*args, **kwargs)
+        """Désactive les autres modèles si celui-ci est activé (atomique)."""
+        with transaction.atomic():
+            if self.is_active:
+                MLModelMetadata.objects.filter(is_active=True).exclude(
+                    pk=self.pk
+                ).update(is_active=False)
+            super().save(*args, **kwargs)

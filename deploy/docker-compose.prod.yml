@@ -1,0 +1,109 @@
+# ============================================================
+# Jappo Dundu — Stack de PRODUCTION
+#
+#   Internet ──► Caddy (80/443, HTTPS automatique)
+#                 ├── /api/*, /admin/*, /ws/*  ──► web (Daphne : API + WebSockets)
+#                 ├── /static/*                ──► fichiers statiques Django
+#                 └── /*                       ──► frontend React (build)
+#                web ──► db (PostgreSQL/PostGIS), redis (Channels + cache)
+#
+# Seul Caddy est exposé ; la base et Redis restent sur le réseau interne.
+#
+# Usage (depuis deploy/, après avoir créé deploy/.env) :
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.prod.yml ps
+#   docker compose -f docker-compose.prod.yml logs -f web
+#
+# Voir deploy/README.md pour la procédure complète.
+#
+# Auteur : El Hadji Massogui Diop
+# ============================================================
+
+name: jappo-dundu
+
+services:
+  db:
+    image: postgis/postgis:16-3.5-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-jappo_db}
+      POSTGRES_USER: ${DB_USER:-jappo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD doit etre defini dans deploy/.env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Données éphémères (messages temps réel, compteurs de throttling)
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "volatile-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: ../backend
+    image: jappo-dundu-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      DEBUG: "False"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-jappo_db}
+      DB_USER: ${DB_USER:-jappo}
+      REDIS_URL: redis://redis:6379/1
+      CACHE_REDIS_URL: redis://redis:6379/2
+      # Caddy est l'unique proxy devant l'application
+      BEHIND_PROXY: "True"
+      NUM_PROXIES: "1"
+    volumes:
+      - static_files:/app/staticfiles
+      - ml_models:/app/ml/trained_models
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate --noinput
+      && python manage.py collectstatic --noinput
+      && python manage.py setup_roles
+      && exec daphne --bind 0.0.0.0 --port 8000 --verbosity 0 core.asgi:application"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - static_files:/srv/static:ro
+      - ${FRONTEND_DIST_DIR:-../frontend/dist}:/srv/frontend:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  static_files:
+  ml_models:
+  caddy_data:
+  caddy_config:

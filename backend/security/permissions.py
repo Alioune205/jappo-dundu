@@ -1,112 +1,98 @@
 """
-Permissions personnalisées basées sur les rôles pour Jappo Dundu.
+Permissions DRF basées sur les rôles pour Jappo Dundu.
 
-Définit les classes de permissions pour chaque type d'utilisateur
-de la plateforme : administrateur, personnel hospitalier, donneur,
-et conducteur d'ambulance.
+Usage dans une vue d'un autre module :
+
+    from security.permissions import IsAdminOrHospitalStaff
+
+    class MaVue(APIView):
+        permission_classes = [IsAdminOrHospitalStaff]
+
+Pour une combinaison de rôles non prévue ci-dessous :
+
+    from security.permissions import role_permission
+    from security.roles import Role
+
+    permission_classes = [role_permission(Role.ADMIN, Role.AMBULANCE_DRIVER)]
 
 Auteur : El Hadji Massogui Diop
 """
 
 from rest_framework.permissions import BasePermission
 
+from .roles import Role, user_has_role
 
-class IsAdmin(BasePermission):
+
+class HasAnyRole(BasePermission):
+    """Autorise l'accès si l'utilisateur possède au moins un des rôles."""
+
+    allowed_roles = frozenset()
+    message = "Vous n'avez pas le rôle requis pour cette action."
+
+    def has_permission(self, request, view):
+        return user_has_role(request.user, *self.allowed_roles)
+
+
+def role_permission(*roles, message=None):
+    """Fabrique une classe de permission pour une combinaison de rôles."""
+    if not roles:
+        raise ValueError("role_permission() exige au moins un rôle.")
+    attrs = {'allowed_roles': frozenset(Role(role) for role in roles)}
+    if message:
+        attrs['message'] = message
+    name = 'Has' + ''.join(Role(r).value.title().replace('_', '') for r in roles)
+    return type(name, (HasAnyRole,), attrs)
+
+
+class IsAdmin(HasAnyRole):
     """Accès réservé aux administrateurs de la plateforme."""
 
+    allowed_roles = frozenset({Role.ADMIN})
     message = "Accès réservé aux administrateurs."
 
-    def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and request.user.is_staff
-        )
 
+class IsHospitalStaff(HasAnyRole):
+    """Accès réservé au personnel hospitalier."""
 
-class IsHospitalStaff(BasePermission):
-    """Accès réservé au personnel hospitalier.
-
-    Vérifie que l'utilisateur possède le rôle 'hospital_staff'
-    dans ses groupes ou dans un champ `role` du profil.
-    """
-
+    allowed_roles = frozenset({Role.HOSPITAL_STAFF})
     message = "Accès réservé au personnel hospitalier."
 
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        # Vérification via les groupes Django
-        if request.user.groups.filter(name='hospital_staff').exists():
-            return True
-        # Vérification via un attribut `role` sur le modèle utilisateur
-        role = getattr(request.user, 'role', None)
-        return role == 'hospital_staff'
 
+class IsDonor(HasAnyRole):
+    """Accès réservé aux donneurs de sang inscrits."""
 
-class IsDonor(BasePermission):
-    """Accès réservé aux donneurs de sang inscrits.
-
-    Vérifie que l'utilisateur possède le rôle 'donor'
-    dans ses groupes ou dans un champ `role` du profil.
-    """
-
+    allowed_roles = frozenset({Role.DONOR})
     message = "Accès réservé aux donneurs."
 
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.user.groups.filter(name='donor').exists():
-            return True
-        role = getattr(request.user, 'role', None)
-        return role == 'donor'
 
+class IsAmbulanceDriver(HasAnyRole):
+    """Accès réservé aux conducteurs d'ambulance."""
 
-class IsAmbulanceDriver(BasePermission):
-    """Accès réservé aux conducteurs d'ambulance.
-
-    Vérifie que l'utilisateur possède le rôle 'ambulance_driver'
-    dans ses groupes ou dans un champ `role` du profil.
-    """
-
+    allowed_roles = frozenset({Role.AMBULANCE_DRIVER})
     message = "Accès réservé aux conducteurs d'ambulance."
 
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.user.groups.filter(name='ambulance_driver').exists():
-            return True
-        role = getattr(request.user, 'role', None)
-        return role == 'ambulance_driver'
 
+class IsAdminOrHospitalStaff(HasAnyRole):
+    """Accès autorisé pour les admins et le personnel hospitalier."""
 
-class IsAdminOrHospitalStaff(BasePermission):
-    """Accès autorisé pour les admins ET le personnel hospitalier."""
-
+    allowed_roles = frozenset({Role.ADMIN, Role.HOSPITAL_STAFF})
     message = "Accès réservé aux administrateurs ou au personnel hospitalier."
-
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.user.is_staff:
-            return True
-        if request.user.groups.filter(name='hospital_staff').exists():
-            return True
-        role = getattr(request.user, 'role', None)
-        return role == 'hospital_staff'
 
 
 class IsOwnerOrAdmin(BasePermission):
     """Accès autorisé au propriétaire de l'objet ou à un administrateur.
 
-    Nécessite que l'objet possède un attribut `user` ou `owner`
-    pointant vers l'utilisateur propriétaire.
+    L'objet doit exposer un attribut ``user`` ou ``owner`` pointant vers
+    l'utilisateur propriétaire.
     """
 
     message = "Vous ne pouvez accéder qu'à vos propres données."
 
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated)
+
     def has_object_permission(self, request, view, obj):
-        if request.user.is_staff:
+        if user_has_role(request.user, Role.ADMIN):
             return True
         owner = getattr(obj, 'user', None) or getattr(obj, 'owner', None)
-        return owner == request.user
+        return owner is not None and owner == request.user

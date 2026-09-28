@@ -1,0 +1,41 @@
+# ============================================================
+# Jappo Dundu — Reverse proxy Caddy
+#
+# SITE_ADDRESS :
+#   - un nom de domaine (ex. jappodundu.sn) : certificat HTTPS Let's Encrypt
+#     obtenu et renouvelé automatiquement (ports 80 et 443 ouverts) ;
+#   - ":80" : HTTP simple (tests locaux uniquement).
+#
+# Auteur : El Hadji Massogui Diop
+# ============================================================
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Fichiers statiques Django (admin), collectés dans un volume partagé
+	handle_path /static/* {
+		root * /srv/static
+		header Cache-Control "public, max-age=604800"
+		file_server
+	}
+
+	# API REST, administration et WebSockets
+	@backend path /api/* /admin /admin/* /ws/*
+	handle @backend {
+		reverse_proxy web:8000
+	}
+
+	# Frontend React (application monopage)
+	handle {
+		root * /srv/frontend
+		try_files {path} /index.html
+		file_server
+	}
+}

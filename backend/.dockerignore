@@ -1,44 +1,45 @@
+# Les motifs sont relatifs à la racine du contexte : "**/" est nécessaire
+# pour exclure aussi les sous-dossiers.
+
 # Git
 .git
 .gitignore
+**/.gitkeep
 
 # Python
-__pycache__
-*.py[cod]
-*$py.class
-*.egg-info
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+**/.pytest_cache
 
 # Environnements virtuels
-venv/
-env/
-ENV/
+venv
+env
+ENV
+.venv
 
-# IDE
-.vscode/
-.idea/
+# IDE / OS
+.vscode
+.idea
+**/.DS_Store
+**/Thumbs.db
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Fichiers d'environnement
+# Secrets et configuration locale
 .env
+.env.*
 
-# Documentation et règles
-*.md
-!README.md
-
-# Docker
-docker-compose.yml
-Dockerfile
-
-# Fichiers de base de données locale
-db.sqlite3
-*.db
-
-# Logs
-*.log
-
-# Tests
-htmlcov/
+# Artefacts locaux (générés dans le conteneur ou montés en volume)
+staticfiles
+ml/trained_models/*.joblib
+ml/trained_models/*.pkl
+ml/trained_models/*.tmp
+**/*.sqlite3
+**/*.db
+**/*.log
+htmlcov
 .coverage
+
+# Documentation et fichiers Docker
+**/*.md
+Dockerfile
+docker-compose*.yml

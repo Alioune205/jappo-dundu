@@ -1,384 +1,278 @@
 """
-Service d'entraînement du modèle ML de prédiction des pénuries de sang.
+Entraînement du modèle de prévision des pénuries de sang.
 
-Pipeline complet :
-1. Extraction des données depuis la base Django
-2. Feature engineering (temporelles, moyennes mobiles, lags)
-3. Entraînement RandomForestRegressor
-4. Validation croisée temporelle (TimeSeriesSplit)
-5. Évaluation (MAE, RMSE, R²)
-6. Sauvegarde du modèle et des métadonnées
+Pipeline :
+1. chargement de l'historique (BloodStockRecord) ;
+2. features sans fuite de données (voir ``forecasting``) ;
+3. découpage temporel : la période de test suit strictement la période
+   d'entraînement (aucune cible d'entraînement dans la période de test) ;
+4. trois modèles HistGradientBoosting : prévision centrale et quantiles
+   P10/P90 (intervalle de prédiction à 80 %) ;
+5. évaluation sur la période de test, comparée à la baseline naïve
+   « le stock reste identique » (persistance) ;
+6. ré-entraînement sur tout l'historique, puis sauvegarde et activation.
 
 Auteur : El Hadji Massogui Diop
 """
 
 import logging
-import os
 from datetime import datetime
 
-import joblib
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
+import sklearn
+from django.db import transaction
+from django.utils import timezone
+from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import TimeSeriesSplit
-from sklearn.preprocessing import LabelEncoder
+
+from . import registry, risk
+from .forecasting import (
+    CATEGORICAL_COLUMNS,
+    FEATURE_COLUMNS,
+    MAX_HORIZON,
+    MIN_HISTORY_DAYS,
+    RAW_COLUMNS,
+    add_origin_features,
+    build_panel,
+    make_training_rows,
+    predict_units,
+)
 
 logger = logging.getLogger('jappo_dundu.ml')
 
+QUANTILES = {'lower': 0.1, 'upper': 0.9}
+HORIZON_BUCKETS = {'1-3': (1, 3), '4-7': (4, 7), '8-14': (8, 14), '15-30': (15, 30)}
+MIN_TRAINING_ROWS = 500
+
 
 class BloodShortageTrainer:
-    """Pipeline d'entraînement pour la prédiction des pénuries de sang.
+    """Entraîne, évalue et enregistre le modèle de prévision."""
 
-    Entraîne un modèle RandomForest sur les données historiques
-    de stock sanguin pour prédire les stocks futurs.
-    """
+    ALGORITHM = 'HistGradientBoostingRegressor'
 
-    # Features utilisées par le modèle
-    FEATURE_COLUMNS = [
-        'region_encoded',
-        'blood_group_encoded',
-        'day_of_week',
-        'day_of_month',
-        'month',
-        'day_of_year',
-        'is_weekend',
-        'units_donated_lag1',
-        'units_donated_lag7',
-        'units_used_lag1',
-        'units_used_lag7',
-        'stock_lag1',
-        'stock_lag7',
-        'stock_lag14',
-        'stock_rolling_mean_7',
-        'stock_rolling_mean_14',
-        'stock_rolling_mean_30',
-        'stock_rolling_std_7',
-        'donation_rolling_mean_7',
-        'usage_rolling_mean_7',
-        'net_flow_lag1',
-        'net_flow_rolling_mean_7',
-    ]
-
-    TARGET_COLUMN = 'units_available'
-
-    def __init__(self, model_dir=None):
-        """Initialise le trainer.
-
-        Args:
-            model_dir: Répertoire de sauvegarde des modèles.
-                       Défaut : 'ml/trained_models/'
-        """
-        if model_dir is None:
-            from django.conf import settings
-            model_dir = os.path.join(
-                settings.BASE_DIR,
-                getattr(settings, 'ML_MODEL_DIR', 'ml/trained_models'),
-            )
-        self.model_dir = model_dir
-        os.makedirs(self.model_dir, exist_ok=True)
-
-        self.model = None
-        self.label_encoders = {}
+    def __init__(
+        self,
+        max_iter=300,
+        horizons_per_origin=6,
+        test_fraction=0.2,
+        seed=42,
+        max_horizon=MAX_HORIZON,
+    ):
+        if not 0 < test_fraction < 1:
+            raise ValueError("test_fraction doit être compris entre 0 et 1.")
+        self.max_iter = max_iter
+        self.horizons_per_origin = horizons_per_origin
+        self.test_fraction = test_fraction
+        self.seed = seed
+        self.max_horizon = max_horizon
+        self.models = None
         self.metrics = {}
+        self.data_end_date = None
 
-    def load_data_from_db(self):
-        """Charge les données d'entraînement depuis la base Django.
-
-        Returns:
-            pd.DataFrame: Données brutes depuis BloodStockRecord.
-        """
+    @staticmethod
+    def load_data_from_db(sources=None):
+        """Historique complet, éventuellement filtré par source."""
         from ml.models import BloodStockRecord
 
-        queryset = BloodStockRecord.objects.all().values(
-            'center_name', 'region', 'blood_group', 'date',
-            'units_available', 'units_donated', 'units_used', 'units_expired',
-        )
-
-        df = pd.DataFrame(list(queryset))
+        queryset = BloodStockRecord.objects.all()
+        if sources:
+            queryset = queryset.filter(source__in=sources)
+        df = pd.DataFrame(list(queryset.values_list(*RAW_COLUMNS)), columns=RAW_COLUMNS)
         if df.empty:
             raise ValueError(
-                "Aucune donnée d'entraînement trouvée en base. "
-                "Exécutez 'python manage.py generate_training_data' d'abord."
+                "Aucune donnée d'entraînement en base. Exécutez "
+                "'python manage.py generate_training_data' ou "
+                "'python manage.py import_stock_data <fichier.csv>'."
             )
-
-        df['date'] = pd.to_datetime(df['date'])
-        df = df.sort_values(['center_name', 'blood_group', 'date'])
-        df = df.reset_index(drop=True)
-
-        logger.info(
-            "Données chargées : %d enregistrements, %d centres",
-            len(df), df['center_name'].nunique(),
-        )
         return df
 
-    def engineer_features(self, df):
-        """Crée les features pour le modèle.
-
-        Args:
-            df: DataFrame avec les données brutes.
-
-        Returns:
-            pd.DataFrame enrichi avec les features temporelles,
-            les lags et les moyennes mobiles.
-        """
-        df = df.copy()
-
-        # === Encodage catégoriel ===
-        for col in ['region', 'blood_group']:
-            if col not in self.label_encoders:
-                le = LabelEncoder()
-                df[f'{col}_encoded'] = le.fit_transform(df[col])
-                self.label_encoders[col] = le
-            else:
-                le = self.label_encoders[col]
-                df[f'{col}_encoded'] = le.transform(df[col])
-
-        # === Features temporelles ===
-        df['day_of_week'] = df['date'].dt.dayofweek
-        df['day_of_month'] = df['date'].dt.day
-        df['month'] = df['date'].dt.month
-        df['day_of_year'] = df['date'].dt.dayofyear
-        df['is_weekend'] = (df['day_of_week'] >= 5).astype(int)
-
-        # === Lags et moyennes mobiles ===
-        # Grouper par centre et groupe sanguin pour les calculs
-        group_cols = ['center_name', 'blood_group']
-
-        for lag in [1, 7]:
-            df[f'units_donated_lag{lag}'] = (
-                df.groupby(group_cols)['units_donated']
-                .shift(lag)
-            )
-            df[f'units_used_lag{lag}'] = (
-                df.groupby(group_cols)['units_used']
-                .shift(lag)
-            )
-
-        for lag in [1, 7, 14]:
-            df[f'stock_lag{lag}'] = (
-                df.groupby(group_cols)['units_available']
-                .shift(lag)
-            )
-
-        # Moyennes mobiles du stock
-        for window in [7, 14, 30]:
-            df[f'stock_rolling_mean_{window}'] = (
-                df.groupby(group_cols)['units_available']
-                .transform(lambda x: x.rolling(window, min_periods=1).mean())
-            )
-
-        # Écart-type mobile (volatilité)
-        df['stock_rolling_std_7'] = (
-            df.groupby(group_cols)['units_available']
-            .transform(lambda x: x.rolling(7, min_periods=1).std())
-        )
-
-        # Moyennes mobiles des flux
-        df['donation_rolling_mean_7'] = (
-            df.groupby(group_cols)['units_donated']
-            .transform(lambda x: x.rolling(7, min_periods=1).mean())
-        )
-        df['usage_rolling_mean_7'] = (
-            df.groupby(group_cols)['units_used']
-            .transform(lambda x: x.rolling(7, min_periods=1).mean())
-        )
-
-        # Flux net (dons - utilisations)
-        df['net_flow_lag1'] = (
-            df.groupby(group_cols)['units_donated'].shift(1).fillna(0)
-            - df.groupby(group_cols)['units_used'].shift(1).fillna(0)
-        )
-        df['net_flow_rolling_mean_7'] = (
-            df.groupby(group_cols)['net_flow_lag1']
-            .transform(lambda x: x.rolling(7, min_periods=1).mean())
-        )
-
-        # Remplir les NaN restants
-        df = df.fillna(0)
-
-        logger.info(
-            "Feature engineering terminé : %d features créées",
-            len(self.FEATURE_COLUMNS),
-        )
-        return df
-
-    def train(self, df=None, n_estimators=200, test_size=0.2):
-        """Entraîne le modèle de prédiction.
-
-        Args:
-            df: DataFrame (optionnel, charge depuis la DB sinon).
-            n_estimators: Nombre d'arbres du RandomForest.
-            test_size: Proportion des données de test.
-
-        Returns:
-            dict: Métriques de performance du modèle.
-        """
+    def train(self, df=None):
+        """Entraîne et évalue le modèle ; retourne les métriques de test."""
         if df is None:
             df = self.load_data_from_db()
 
-        logger.info("Début de l'entraînement du modèle...")
+        featured = add_origin_features(build_panel(df))
+        rows = make_training_rows(
+            featured,
+            rng=np.random.default_rng(self.seed),
+            horizons_per_origin=self.horizons_per_origin,
+            max_horizon=self.max_horizon,
+        )
 
-        # Feature engineering
-        df = self.engineer_features(df)
-
-        # Séparer features et target
-        X = df[self.FEATURE_COLUMNS].values
-        y = df[self.TARGET_COLUMN].values
-
-        # Split temporel (pas de mélange aléatoire pour les séries temporelles)
-        split_idx = int(len(X) * (1 - test_size))
-        X_train, X_test = X[:split_idx], X[split_idx:]
-        y_train, y_test = y[:split_idx], y[split_idx:]
+        start, end = featured['date'].min(), featured['date'].max()
+        span_days = (end - start).days + 1
+        test_days = max(self.max_horizon, int(round(span_days * self.test_fraction)))
+        if span_days < test_days + MIN_HISTORY_DAYS + self.max_horizon:
+            raise ValueError(
+                f"Historique insuffisant ({span_days} jours) : au moins "
+                f"{test_days + MIN_HISTORY_DAYS + self.max_horizon} jours requis."
+            )
+        cutoff = end - pd.Timedelta(days=test_days)
+        train_rows = rows[rows['target_date'] <= cutoff]
+        test_rows = rows[rows['date'] > cutoff]
+        if len(train_rows) < MIN_TRAINING_ROWS or test_rows.empty:
+            raise ValueError("Pas assez d'exemples pour entraîner et évaluer le modèle.")
 
         logger.info(
-            "Split : %d entraînement, %d test",
-            len(X_train), len(X_test),
+            "Entraînement : %d exemples d'entraînement, %d de test (coupure %s)",
+            len(train_rows), len(test_rows), cutoff.date(),
         )
+        self.metrics = self._evaluate(self._fit(train_rows), test_rows)
 
-        # Entraînement du modèle
-        self.model = RandomForestRegressor(
-            n_estimators=n_estimators,
-            max_depth=20,
-            min_samples_split=10,
-            min_samples_leaf=5,
-            max_features='sqrt',
-            n_jobs=-1,
-            random_state=42,
-        )
-        self.model.fit(X_train, y_train)
-
-        # Prédictions sur le jeu de test
-        y_pred = self.model.predict(X_test)
-
-        # Métriques
-        self.metrics = {
-            'mae': round(mean_absolute_error(y_test, y_pred), 4),
-            'rmse': round(np.sqrt(mean_squared_error(y_test, y_pred)), 4),
-            'r2_score': round(r2_score(y_test, y_pred), 4),
-            'training_samples': len(X_train),
-            'test_samples': len(X_test),
-            'n_estimators': n_estimators,
-        }
-
+        # Modèle final : tout l'historique, pour exploiter les données récentes.
+        self.models = self._fit(rows)
+        self.data_end_date = end.date()
+        self.metrics.update({
+            'training_samples': int(len(rows)),
+            'test_samples': int(len(test_rows)),
+            'test_period_start': str((cutoff + pd.Timedelta(days=1)).date()),
+            'data_start': str(start.date()),
+            'data_end': str(end.date()),
+            'series': int(featured[['center_name', 'blood_group']].drop_duplicates().shape[0]),
+            'max_horizon_days': self.max_horizon,
+        })
         logger.info(
-            "Entraînement terminé — MAE=%.4f, RMSE=%.4f, R²=%.4f",
-            self.metrics['mae'],
-            self.metrics['rmse'],
-            self.metrics['r2_score'],
+            "Test : MAE=%.2f (persistance %.2f), couverture P10-P90=%.0f %%, "
+            "rappel des pénuries=%.0f %%",
+            self.metrics['mae'], self.metrics['baseline_mae'],
+            100 * self.metrics['interval_coverage'],
+            100 * (self.metrics['critical_recall'] or 0),
         )
-
-        # Validation croisée temporelle
-        self._cross_validate(X, y)
-
-        # Feature importance
-        self._log_feature_importance()
-
         return self.metrics
 
-    def _cross_validate(self, X, y, n_splits=5):
-        """Validation croisée temporelle.
-
-        Utilise TimeSeriesSplit pour respecter l'ordre chronologique
-        et valider la robustesse du modèle.
-        """
-        tscv = TimeSeriesSplit(n_splits=n_splits)
-        cv_scores = []
-
-        for fold, (train_idx, test_idx) in enumerate(tscv.split(X), 1):
-            X_cv_train, X_cv_test = X[train_idx], X[test_idx]
-            y_cv_train, y_cv_test = y[train_idx], y[test_idx]
-
-            cv_model = RandomForestRegressor(
-                n_estimators=100,
-                max_depth=15,
-                n_jobs=-1,
-                random_state=42,
-            )
-            cv_model.fit(X_cv_train, y_cv_train)
-            y_cv_pred = cv_model.predict(X_cv_test)
-
-            fold_r2 = r2_score(y_cv_test, y_cv_pred)
-            cv_scores.append(fold_r2)
-            logger.info("  CV Fold %d : R² = %.4f", fold, fold_r2)
-
-        self.metrics['cv_r2_mean'] = round(np.mean(cv_scores), 4)
-        self.metrics['cv_r2_std'] = round(np.std(cv_scores), 4)
-
-        logger.info(
-            "Validation croisée : R² moyen = %.4f (±%.4f)",
-            self.metrics['cv_r2_mean'],
-            self.metrics['cv_r2_std'],
+    def _regressor(self, **loss):
+        return HistGradientBoostingRegressor(
+            learning_rate=0.05,
+            max_iter=self.max_iter,
+            max_leaf_nodes=31,
+            min_samples_leaf=40,
+            l2_regularization=1.0,
+            categorical_features=[FEATURE_COLUMNS.index(c) for c in CATEGORICAL_COLUMNS],
+            early_stopping=True,
+            validation_fraction=0.1,
+            n_iter_no_change=20,
+            random_state=self.seed,
+            **loss,
         )
 
-    def _log_feature_importance(self):
-        """Affiche l'importance des features du modèle."""
-        if self.model is None:
-            return
+    def _fit(self, rows):
+        """Ajuste la prévision centrale et les deux quantiles."""
+        features, target = rows[FEATURE_COLUMNS], rows['target']
+        models = {'point': self._regressor(loss='squared_error')}
+        for name, quantile in QUANTILES.items():
+            models[name] = self._regressor(loss='quantile', quantile=quantile)
+        for model in models.values():
+            model.fit(features, target)
+        return models
 
-        importances = self.model.feature_importances_
-        feature_importance = sorted(
-            zip(self.FEATURE_COLUMNS, importances),
-            key=lambda x: x[1],
-            reverse=True,
-        )
+    def _evaluate(self, models, test_rows):
+        critical_days, warning_days = risk.thresholds()
+        actual = test_rows['target_units'].to_numpy()
+        persistence = test_rows['units_available'].to_numpy()
+        demand = test_rows['daily_demand'].to_numpy()
+        horizon = test_rows['horizon'].to_numpy()
+        point, lower, upper = predict_units(models, test_rows)
 
-        logger.info("Top 10 features les plus importantes :")
-        for feat, imp in feature_importance[:10]:
-            logger.info("  %s : %.4f", feat, imp)
+        mae = mean_absolute_error(actual, point)
+        baseline_mae = mean_absolute_error(actual, persistence)
+        actual_risk = risk.classify(actual, demand, critical_days, warning_days)
+        predicted_risk = risk.classify(point, demand, critical_days, warning_days)
+        baseline_risk = risk.classify(persistence, demand, critical_days, warning_days)
+        actual_critical = actual_risk == risk.CRITICAL
+        predicted_critical = predicted_risk == risk.CRITICAL
 
-    def save_model(self, version=None):
-        """Sauvegarde le modèle entraîné et ses métadonnées.
+        by_horizon = {}
+        for label, (low, high) in HORIZON_BUCKETS.items():
+            mask = (horizon >= low) & (horizon <= high)
+            if mask.any():
+                by_horizon[label] = {
+                    'mae': _round(mean_absolute_error(actual[mask], point[mask])),
+                    'baseline_mae': _round(
+                        mean_absolute_error(actual[mask], persistence[mask])
+                    ),
+                    'risk_accuracy': _round(
+                        np.mean(actual_risk[mask] == predicted_risk[mask])
+                    ),
+                    'baseline_risk_accuracy': _round(
+                        np.mean(actual_risk[mask] == baseline_risk[mask])
+                    ),
+                }
 
-        Args:
-            version: Version du modèle (défaut : timestamp).
-
-        Returns:
-            str: Chemin du fichier modèle sauvegardé.
-        """
-        if self.model is None:
-            raise ValueError("Aucun modèle entraîné à sauvegarder.")
-
-        if version is None:
-            version = datetime.now().strftime('%Y%m%d_%H%M%S')
-
-        model_filename = f'blood_shortage_model_v{version}.pkl'
-        model_path = os.path.join(self.model_dir, model_filename)
-
-        # Sauvegarder le modèle et les encodeurs ensemble
-        model_bundle = {
-            'model': self.model,
-            'label_encoders': self.label_encoders,
-            'feature_columns': self.FEATURE_COLUMNS,
-            'metrics': self.metrics,
-            'version': version,
-            'trained_at': datetime.now().isoformat(),
+        return {
+            'mae': _round(mae),
+            'rmse': _round(np.sqrt(mean_squared_error(actual, point))),
+            'r2_score': _round(r2_score(actual, point)),
+            'baseline_mae': _round(baseline_mae),
+            'skill_vs_baseline': _round(1 - mae / baseline_mae) if baseline_mae else None,
+            'interval_coverage': _round(np.mean((actual >= lower) & (actual <= upper))),
+            'risk_accuracy': _round(np.mean(actual_risk == predicted_risk)),
+            'baseline_risk_accuracy': _round(np.mean(actual_risk == baseline_risk)),
+            'critical_recall': _share(predicted_risk[actual_critical] != risk.NORMAL),
+            'baseline_critical_recall': _share(
+                baseline_risk[actual_critical] != risk.NORMAL
+            ),
+            'critical_precision': _share(actual_risk[predicted_critical] != risk.NORMAL),
+            'thresholds_days': {'critical': critical_days, 'warning': warning_days},
+            'by_horizon': by_horizon,
         }
 
-        joblib.dump(model_bundle, model_path)
-        logger.info("Modèle sauvegardé : %s", model_path)
+    def save_model(self, version=None):
+        """Sauvegarde le modèle, l'enregistre et l'active.
 
-        # Sauvegarder les métadonnées en base
-        self._save_metadata_to_db(version, model_path)
-
-        return model_path
-
-    def _save_metadata_to_db(self, version, model_path):
-        """Sauvegarde les métadonnées du modèle en base Django."""
+        Returns:
+            MLModelMetadata: l'entrée de registre créée.
+        """
         from ml.models import MLModelMetadata
 
-        MLModelMetadata.objects.create(
-            version=version,
-            algorithm='RandomForestRegressor',
-            training_samples=self.metrics.get('training_samples', 0),
-            mae=self.metrics.get('mae', 0),
-            rmse=self.metrics.get('rmse', 0),
-            r2_score=self.metrics.get('r2_score', 0),
-            model_file_path=model_path,
-            is_active=True,
-            notes=(
-                f"CV R²={self.metrics.get('cv_r2_mean', 'N/A')} "
-                f"(±{self.metrics.get('cv_r2_std', 'N/A')})"
-            ),
+        if self.models is None:
+            raise ValueError("Aucun modèle entraîné à sauvegarder.")
+
+        version = registry.validate_version(
+            version or timezone.now().strftime('%Y%m%d_%H%M%S')
         )
-        logger.info("Métadonnées du modèle sauvegardées en base.")
+        if MLModelMetadata.objects.filter(version=version).exists():
+            raise ValueError(f"La version {version} existe déjà.")
+
+        bundle = {
+            'format_version': registry.MODEL_FORMAT_VERSION,
+            'version': version,
+            'trained_at': datetime.now().astimezone().isoformat(),
+            'sklearn_version': sklearn.__version__,
+            'algorithm': self.ALGORITHM,
+            'models': self.models,
+            'feature_columns': FEATURE_COLUMNS,
+            'max_horizon': self.max_horizon,
+            'quantiles': QUANTILES,
+            'data_end_date': str(self.data_end_date),
+            'metrics': self.metrics,
+        }
+        filename = registry.save_bundle(bundle, version)
+
+        with transaction.atomic():
+            metadata = MLModelMetadata.objects.create(
+                version=version,
+                algorithm=self.ALGORITHM,
+                training_samples=self.metrics.get('training_samples', 0),
+                mae=self.metrics.get('mae', 0.0),
+                rmse=self.metrics.get('rmse', 0.0),
+                r2_score=self.metrics.get('r2_score', 0.0),
+                metrics=self.metrics,
+                model_file_path=filename,
+                is_active=True,
+                notes=(
+                    f"Baseline persistance MAE={self.metrics.get('baseline_mae')} ; "
+                    f"couverture P10-P90={self.metrics.get('interval_coverage')}"
+                ),
+            )
+        registry.clear_cache()
+        return metadata
+
+
+def _round(value, digits=4):
+    return round(float(value), digits)
+
+
+def _share(flags):
+    """Proportion de vrais (None si l'ensemble est vide)."""
+    return _round(np.mean(flags)) if len(flags) else None

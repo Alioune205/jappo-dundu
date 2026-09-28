@@ -8,28 +8,16 @@ Routes sécurité/JWT/ML : El Hadji Massogui Diop
 from django.contrib import admin
 from django.urls import include, path
 
-from security.authentication import (
-    JappoDunduTokenObtainPairView,
-    JappoDunduTokenRefreshView,
-)
+from security.urls import auth_urlpatterns
 
 urlpatterns = [
     # Admin Django
     path('admin/', admin.site.urls),
 
     # === Authentification JWT (El Hadji Massogui Diop) ===
-    path(
-        'api/auth/token/',
-        JappoDunduTokenObtainPairView.as_view(),
-        name='token_obtain_pair',
-    ),
-    path(
-        'api/auth/token/refresh/',
-        JappoDunduTokenRefreshView.as_view(),
-        name='token_refresh',
-    ),
+    path('api/auth/', include(auth_urlpatterns)),
 
-    # === Sécurité & Monitoring (El Hadji Massogui Diop) ===
+    # === Supervision (El Hadji Massogui Diop) ===
     path('api/', include('security.urls')),
 
     # === Machine Learning (El Hadji Massogui Diop) ===

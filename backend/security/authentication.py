@@ -1,87 +1,73 @@
 """
-Backend d'authentification JWT personnalisé pour Jappo Dundu.
+Authentification JWT de Jappo Dundu (SimpleJWT).
 
-Étend le comportement par défaut de SimpleJWT pour inclure
-les informations de rôle dans les tokens et gérer la
-rotation sécurisée des refresh tokens.
+- Claims enrichis avec les rôles (``role``, ``roles``) pour le routage
+  côté web/mobile, sans donnée personnelle (email, nom) dans le token.
+- Rotation des refresh tokens avec liste noire : un refresh token déjà
+  utilisé ou révoqué (logout) est refusé.
+- Limitation de débit dédiée sur la connexion (anti force brute).
 
 Auteur : El Hadji Massogui Diop
 """
 
-from rest_framework_simplejwt.serializers import (
-    TokenObtainPairSerializer,
-    TokenRefreshSerializer,
-)
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import (
+    TokenBlacklistView,
     TokenObtainPairView,
     TokenRefreshView,
+    TokenVerifyView,
 )
+
+from .roles import get_user_roles, primary_role
 
 
 class JappoDunduTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Sérialiseur JWT enrichi avec les informations utilisateur.
-
-    Ajoute au token :
-    - Le rôle de l'utilisateur
-    - Son nom complet
-    - Son statut admin
-    - Ses groupes
-    """
+    """Sérialiseur de connexion : claims de rôles + profil dans la réponse."""
 
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-
-        # Ajout des claims personnalisés au token
-        token['username'] = user.username
-        token['email'] = user.email
+        roles = get_user_roles(user)
+        token['username'] = user.get_username()
+        token['roles'] = sorted(roles)
+        token['role'] = primary_role(roles)
         token['is_staff'] = user.is_staff
-        token['full_name'] = user.get_full_name() or user.username
-
-        # Rôle : depuis un champ `role` sur le modèle ou depuis les groupes
-        role = getattr(user, 'role', None)
-        if role:
-            token['role'] = role
-        else:
-            groups = list(user.groups.values_list('name', flat=True))
-            token['groups'] = groups
-            if groups:
-                token['role'] = groups[0]
-
         return token
 
     def validate(self, attrs):
         data = super().validate(attrs)
-
-        # Ajouter des informations utilisateur à la réponse JSON
+        roles = get_user_roles(self.user)
         data['user'] = {
-            'id': self.user.id,
-            'username': self.user.username,
+            'id': self.user.pk,
+            'username': self.user.get_username(),
             'email': self.user.email,
-            'full_name': self.user.get_full_name() or self.user.username,
+            'full_name': self.user.get_full_name() or self.user.get_username(),
             'is_staff': self.user.is_staff,
-            'role': getattr(self.user, 'role', None),
-            'groups': list(
-                self.user.groups.values_list('name', flat=True)
-            ),
+            'role': primary_role(roles),
+            'roles': sorted(roles),
+            'groups': list(self.user.groups.values_list('name', flat=True)),
         }
-
         return data
 
 
 class JappoDunduTokenObtainPairView(TokenObtainPairView):
-    """Vue d'obtention de tokens JWT avec claims enrichis."""
+    """POST /api/auth/token/ — obtention d'une paire access/refresh."""
 
     serializer_class = JappoDunduTokenObtainPairSerializer
+    throttle_scope = 'login'
 
-
-class JappoDunduTokenRefreshSerializer(TokenRefreshSerializer):
-    """Sérialiseur de refresh de token avec validation renforcée."""
-
-    pass
+    def get_throttles(self):
+        return [*super().get_throttles(), ScopedRateThrottle()]
 
 
 class JappoDunduTokenRefreshView(TokenRefreshView):
-    """Vue de rafraîchissement de tokens JWT."""
+    """POST /api/auth/token/refresh/ — rotation du refresh token."""
 
-    serializer_class = JappoDunduTokenRefreshSerializer
+
+class JappoDunduTokenVerifyView(TokenVerifyView):
+    """POST /api/auth/token/verify/ — vérifie la validité d'un token."""
+
+
+class LogoutView(TokenBlacklistView):
+    """POST /api/auth/logout/ — révoque le refresh token fourni."""

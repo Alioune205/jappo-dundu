@@ -1,147 +1,106 @@
 """
-Vues de monitoring et de santé du système pour Jappo Dundu.
+Vues de supervision de Jappo Dundu.
 
-Fournit des endpoints publics pour vérifier l'état de l'API,
-de la base de données et des services dépendants.
+- GET /api/health/  : sonde de vivacité publique (voir HealthCheckMiddleware).
+- GET /api/status/  : état détaillé des dépendances, réservé aux admins.
 
 Auteur : El Hadji Massogui Diop
 """
 
+import logging
 import time
 
+from django.conf import settings
 from django.db import connection
+from django.http import JsonResponse
 from rest_framework import status
-from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .middleware import health_payload
+from .permissions import IsAdmin
 
-class HealthCheckView(APIView):
-    """Endpoint de vérification de santé de l'API.
+logger = logging.getLogger('jappo_dundu.security')
 
-    Retourne un statut 200 si l'API est opérationnelle.
-    Utilisé par Docker, les load balancers et le monitoring.
 
-    GET /api/health/
+def health_check(request):
+    """Sonde de vivacité : l'application répond (aucune dépendance testée).
+
+    Normalement servie par HealthCheckMiddleware ; cette vue garantit que la
+    route existe dans l'URLconf (reverse(), APPEND_SLASH).
     """
+    return JsonResponse(health_payload())
 
-    permission_classes = [AllowAny]
-    authentication_classes = []
-    throttle_classes = []
 
-    def get(self, request):
-        return Response(
-            {
-                'status': 'healthy',
-                'service': 'Jappo Dundu API',
-                'version': '1.0.0',
-            },
-            status=status.HTTP_200_OK,
-        )
+def _timed(name, check):
+    """Exécute une vérification et mesure sa latence, sans fuite d'erreur."""
+    start = time.monotonic()
+    try:
+        result = check()
+    except Exception as exc:  # noqa: BLE001 — toute panne = service down
+        logger.exception("Vérification de dépendance échouée : %s", name)
+        return {'status': 'down', 'error': type(exc).__name__}
+    result.setdefault('status', 'up')
+    result['latency_ms'] = round((time.monotonic() - start) * 1000, 2)
+    return result
+
+
+def check_database():
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT 1')
+    return {'engine': connection.vendor}
+
+
+def check_channel_layer():
+    backend = settings.CHANNEL_LAYERS['default']['BACKEND']
+    if backend.endswith('InMemoryChannelLayer'):
+        return {'backend': 'in-memory'}
+
+    import redis
+
+    client = redis.Redis.from_url(settings.REDIS_URL, socket_timeout=2)
+    try:
+        client.ping()
+    finally:
+        client.close()
+    return {'backend': 'redis'}
+
+
+def check_ml_model():
+    from ml.services.registry import active_model_status
+
+    return active_model_status()
 
 
 class SystemStatusView(APIView):
-    """Endpoint de statut détaillé du système.
+    """État détaillé des dépendances (base, Redis, modèle ML).
 
-    Vérifie la connectivité avec la base de données et
-    retourne des informations sur l'état des dépendances.
-
-    GET /api/status/
+    Réservé aux administrateurs : ces informations décrivent
+    l'infrastructure et n'ont pas à être publiques.
+    Retourne 503 si une dépendance critique (base, channel layer) est down.
     """
 
-    permission_classes = [AllowAny]
-    authentication_classes = []
-    throttle_classes = []
+    permission_classes = [IsAdmin]
+    CRITICAL_CHECKS = ('database', 'channel_layer')
 
     def get(self, request):
         checks = {
-            'api': self._check_api(),
-            'database': self._check_database(),
-            'redis': self._check_redis(),
+            'database': _timed('database', check_database),
+            'channel_layer': _timed('channel_layer', check_channel_layer),
+            'ml_model': _timed('ml_model', check_ml_model),
         }
-
-        all_healthy = all(
-            check['status'] == 'up' for check in checks.values()
+        healthy = all(
+            checks[name]['status'] == 'up' for name in self.CRITICAL_CHECKS
         )
-
         return Response(
             {
-                'status': 'healthy' if all_healthy else 'degraded',
+                'status': 'healthy' if healthy else 'degraded',
+                'service': 'Jappo Dundu API',
                 'checks': checks,
             },
             status=(
                 status.HTTP_200_OK
-                if all_healthy
+                if healthy
                 else status.HTTP_503_SERVICE_UNAVAILABLE
             ),
         )
-
-    @staticmethod
-    def _check_api():
-        """Vérifie que l'API est opérationnelle."""
-        return {'status': 'up', 'message': 'API fonctionnelle'}
-
-    @staticmethod
-    def _check_database():
-        """Vérifie la connexion à la base de données PostgreSQL."""
-        try:
-            start = time.monotonic()
-            with connection.cursor() as cursor:
-                cursor.execute('SELECT 1')
-            latency_ms = round((time.monotonic() - start) * 1000, 2)
-            return {
-                'status': 'up',
-                'latency_ms': latency_ms,
-                'message': 'Base de données connectée',
-            }
-        except Exception as exc:
-            return {
-                'status': 'down',
-                'message': f'Erreur de connexion : {exc}',
-            }
-
-    @staticmethod
-    def _check_redis():
-        """Vérifie la connexion à Redis (WebSockets / cache)."""
-        try:
-            from django.conf import settings
-
-            channel_layers = getattr(settings, 'CHANNEL_LAYERS', {})
-            if not channel_layers:
-                return {
-                    'status': 'not_configured',
-                    'message': 'Redis non configuré',
-                }
-
-            import redis
-
-            redis_url = (
-                channel_layers.get('default', {})
-                .get('CONFIG', {})
-                .get('hosts', [('redis', 6379)])[0]
-            )
-
-            if isinstance(redis_url, tuple):
-                host, port = redis_url
-                r = redis.Redis(host=host, port=port, socket_timeout=2)
-            else:
-                r = redis.from_url(str(redis_url), socket_timeout=2)
-
-            start = time.monotonic()
-            r.ping()
-            latency_ms = round((time.monotonic() - start) * 1000, 2)
-            return {
-                'status': 'up',
-                'latency_ms': latency_ms,
-                'message': 'Redis connecté',
-            }
-        except ImportError:
-            return {
-                'status': 'not_available',
-                'message': 'Module redis non installé',
-            }
-        except Exception as exc:
-            return {
-                'status': 'down',
-                'message': f'Erreur de connexion Redis : {exc}',
-            }

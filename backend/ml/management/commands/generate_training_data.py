@@ -1,32 +1,32 @@
 """
-Commande Django : Génération des données d'entraînement.
+Commande Django : génération de l'historique simulé des stocks.
 
 Usage :
     python manage.py generate_training_data
-    python manage.py generate_training_data --days 365
+    python manage.py generate_training_data --days 365 --seed 7
     python manage.py generate_training_data --clear
+
+``--clear`` ne supprime que les données simulées : les données importées
+ou saisies ne sont jamais touchées.
 
 Auteur : El Hadji Massogui Diop
 """
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from ml.models import BloodStockRecord
 from ml.services.data_generator import BloodDataGenerator
 
 
 class Command(BaseCommand):
-    help = (
-        "Génère des données synthétiques réalistes de stock sanguin "
-        "pour l'entraînement du modèle ML."
-    )
+    help = "Génère un historique simulé de stock sanguin (données d'entraînement)."
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--days',
             type=int,
             default=730,
-            help="Nombre de jours de données à générer (défaut : 730 = 2 ans).",
+            help="Profondeur d'historique en jours (défaut : 730 = 2 ans).",
         )
         parser.add_argument(
             '--seed',
@@ -37,50 +37,34 @@ class Command(BaseCommand):
         parser.add_argument(
             '--clear',
             action='store_true',
-            help="Supprimer les données existantes avant la génération.",
+            help="Supprimer d'abord les données simulées existantes.",
         )
 
     def handle(self, *args, **options):
         days = options['days']
-        seed = options['seed']
-        clear = options['clear']
+        if not 60 <= days <= 3650:
+            raise CommandError("--days doit être compris entre 60 et 3650.")
 
-        if clear:
-            count, _ = BloodStockRecord.objects.all().delete()
-            self.stdout.write(
-                self.style.WARNING(
-                    f"  {count} enregistrements existants supprimés."
-                )
-            )
+        if options['clear']:
+            deleted, _ = BloodStockRecord.objects.filter(
+                source=BloodStockRecord.Source.SYNTHETIC
+            ).delete()
+            self.stdout.write(self.style.WARNING(
+                f"  {deleted} enregistrement(s) simulé(s) supprimé(s)."
+            ))
 
-        self.stdout.write(
-            self.style.HTTP_INFO(
-                f"\n{'='*60}\n"
-                f"  Jappo Dundu — Génération de données d'entraînement\n"
-                f"{'='*60}\n"
-                f"  Jours : {days}\n"
-                f"  Seed  : {seed}\n"
-            )
-        )
-
-        # Générer les données
-        generator = BloodDataGenerator(seed=seed)
+        generator = BloodDataGenerator(seed=options['seed'])
         df = generator.generate(days=days)
-
         self.stdout.write(
-            f"  Données générées : {len(df)} enregistrements\n"
-            f"  Centres          : {df['center_name'].nunique()}\n"
-            f"  Régions          : {df['region'].nunique()}\n"
-            f"  Groupes sanguins : {df['blood_group'].nunique()}\n"
+            f"  Simulation : {len(df)} lignes, "
+            f"{df['center_name'].nunique()} centres, "
+            f"{df['region'].nunique()} régions, "
+            f"{df['blood_group'].nunique()} groupes sanguins."
         )
 
-        # Sauvegarder en base
-        self.stdout.write("  Sauvegarde en base de données...")
-        count = generator.save_to_db(df)
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"\n  [SUCCES] {count} enregistrements sauvegardés avec succès !\n"
-                f"{'='*60}\n"
-            )
-        )
+        created = generator.save_to_db(df)
+        skipped = len(df) - created
+        message = f"  {created} enregistrement(s) créé(s)"
+        if skipped:
+            message += f", {skipped} déjà présent(s) ignoré(s)"
+        self.stdout.write(self.style.SUCCESS(message + '.'))

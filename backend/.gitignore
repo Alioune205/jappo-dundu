@@ -24,7 +24,11 @@ Thumbs.db
 # Machine Learning (El Hadji Massogui Diop)
 ml/trained_models/*.pkl
 ml/trained_models/*.joblib
+ml/trained_models/*.tmp
 ml/datasets/
+
+# Django (El Hadji Massogui Diop)
+staticfiles/
 
 # Docker
 postgres_data/
