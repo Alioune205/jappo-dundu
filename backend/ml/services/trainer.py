@@ -8,9 +8,14 @@ Pipeline :
    d'entraînement (aucune cible d'entraînement dans la période de test) ;
 4. trois modèles HistGradientBoosting : prévision centrale et quantiles
    P10/P90 (intervalle de prédiction à 80 %) ;
-5. évaluation sur la période de test, comparée à la baseline naïve
+5. calibration conformelle de l'intervalle sur une période intermédiaire,
+   pour qu'il couvre réellement 80 % des cas ;
+6. évaluation sur la période de test, comparée à la baseline naïve
    « le stock reste identique » (persistance) ;
-6. ré-entraînement sur tout l'historique, puis sauvegarde et activation.
+7. ré-entraînement sur tout l'historique, puis sauvegarde et activation.
+
+Chronologie : [ entraînement | calibration | test ], sans chevauchement
+(aucune cible d'une période ne tombe dans la suivante).
 
 Auteur : El Hadji Massogui Diop
 """
@@ -35,6 +40,7 @@ from .forecasting import (
     RAW_COLUMNS,
     add_origin_features,
     build_panel,
+    conformal_adjustment,
     make_training_rows,
     predict_units,
 )
@@ -44,6 +50,7 @@ logger = logging.getLogger('jappo_dundu.ml')
 QUANTILES = {'lower': 0.1, 'upper': 0.9}
 HORIZON_BUCKETS = {'1-3': (1, 3), '4-7': (4, 7), '8-14': (8, 14), '15-30': (15, 30)}
 MIN_TRAINING_ROWS = 500
+CALIBRATION_FRACTION = 0.1
 
 
 class BloodShortageTrainer:
@@ -67,6 +74,7 @@ class BloodShortageTrainer:
         self.seed = seed
         self.max_horizon = max_horizon
         self.models = None
+        self.interval_adjustment = 0.0
         self.metrics = {}
         self.data_end_date = None
 
@@ -103,30 +111,45 @@ class BloodShortageTrainer:
         start, end = featured['date'].min(), featured['date'].max()
         span_days = (end - start).days + 1
         test_days = max(self.max_horizon, int(round(span_days * self.test_fraction)))
-        if span_days < test_days + MIN_HISTORY_DAYS + self.max_horizon:
+        calibration_days = max(
+            self.max_horizon, int(round(span_days * CALIBRATION_FRACTION))
+        )
+        required_days = test_days + calibration_days + MIN_HISTORY_DAYS + self.max_horizon
+        if span_days < required_days:
             raise ValueError(
                 f"Historique insuffisant ({span_days} jours) : au moins "
-                f"{test_days + MIN_HISTORY_DAYS + self.max_horizon} jours requis."
+                f"{required_days} jours requis."
             )
-        cutoff = end - pd.Timedelta(days=test_days)
-        train_rows = rows[rows['target_date'] <= cutoff]
-        test_rows = rows[rows['date'] > cutoff]
-        if len(train_rows) < MIN_TRAINING_ROWS or test_rows.empty:
+        test_cutoff = end - pd.Timedelta(days=test_days)
+        calibration_cutoff = test_cutoff - pd.Timedelta(days=calibration_days)
+        fit_rows = rows[rows['target_date'] <= calibration_cutoff]
+        calibration_rows = rows[
+            (rows['date'] > calibration_cutoff) & (rows['target_date'] <= test_cutoff)
+        ]
+        test_rows = rows[rows['date'] > test_cutoff]
+        if len(fit_rows) < MIN_TRAINING_ROWS or calibration_rows.empty or test_rows.empty:
             raise ValueError("Pas assez d'exemples pour entraîner et évaluer le modèle.")
 
         logger.info(
-            "Entraînement : %d exemples d'entraînement, %d de test (coupure %s)",
-            len(train_rows), len(test_rows), cutoff.date(),
+            "Entraînement : %d exemples, calibration : %d, test : %d (à partir du %s)",
+            len(fit_rows), len(calibration_rows), len(test_rows),
+            (test_cutoff + pd.Timedelta(days=1)).date(),
         )
-        self.metrics = self._evaluate(self._fit(train_rows), test_rows)
+        evaluation_models = self._fit(fit_rows)
+        self.interval_adjustment = conformal_adjustment(evaluation_models, calibration_rows)
+        self.metrics = self._evaluate(evaluation_models, test_rows, self.interval_adjustment)
 
         # Modèle final : tout l'historique, pour exploiter les données récentes.
+        # La marge conformelle, mesurée avec des modèles entraînés sur moins de
+        # données, est conservée : elle est légèrement prudente.
         self.models = self._fit(rows)
         self.data_end_date = end.date()
         self.metrics.update({
             'training_samples': int(len(rows)),
+            'calibration_samples': int(len(calibration_rows)),
             'test_samples': int(len(test_rows)),
-            'test_period_start': str((cutoff + pd.Timedelta(days=1)).date()),
+            'interval_adjustment': _round(self.interval_adjustment),
+            'test_period_start': str((test_cutoff + pd.Timedelta(days=1)).date()),
             'data_start': str(start.date()),
             'data_end': str(end.date()),
             'series': int(featured[['center_name', 'blood_group']].drop_duplicates().shape[0]),
@@ -166,13 +189,16 @@ class BloodShortageTrainer:
             model.fit(features, target)
         return models
 
-    def _evaluate(self, models, test_rows):
+    def _evaluate(self, models, test_rows, interval_adjustment):
         critical_days, warning_days = risk.thresholds()
         actual = test_rows['target_units'].to_numpy()
         persistence = test_rows['units_available'].to_numpy()
         demand = test_rows['daily_demand'].to_numpy()
         horizon = test_rows['horizon'].to_numpy()
-        point, lower, upper = predict_units(models, test_rows)
+        point, lower, upper = predict_units(
+            models, test_rows, interval_adjustment=interval_adjustment
+        )
+        _, raw_lower, raw_upper = predict_units(models, test_rows)
 
         mae = mean_absolute_error(actual, point)
         baseline_mae = mean_absolute_error(actual, persistence)
@@ -206,6 +232,9 @@ class BloodShortageTrainer:
             'baseline_mae': _round(baseline_mae),
             'skill_vs_baseline': _round(1 - mae / baseline_mae) if baseline_mae else None,
             'interval_coverage': _round(np.mean((actual >= lower) & (actual <= upper))),
+            'interval_coverage_uncalibrated': _round(
+                np.mean((actual >= raw_lower) & (actual <= raw_upper))
+            ),
             'risk_accuracy': _round(np.mean(actual_risk == predicted_risk)),
             'baseline_risk_accuracy': _round(np.mean(actual_risk == baseline_risk)),
             'critical_recall': _share(predicted_risk[actual_critical] != risk.NORMAL),
@@ -244,6 +273,7 @@ class BloodShortageTrainer:
             'feature_columns': FEATURE_COLUMNS,
             'max_horizon': self.max_horizon,
             'quantiles': QUANTILES,
+            'interval_adjustment': self.interval_adjustment,
             'data_end_date': str(self.data_end_date),
             'metrics': self.metrics,
         }

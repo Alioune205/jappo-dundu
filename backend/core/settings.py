@@ -403,11 +403,35 @@ LOGGING = {
 
 
 # =============================================================
-# EMAIL (configuration existante)
+# EMAIL
 # =============================================================
+# Sans EMAIL_HOST : e-mails affichés dans la console (développement).
+# Avec EMAIL_HOST : envoi SMTP (production, voir deploy/.env.example).
 
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
+_EMAIL_HOST = config('EMAIL_HOST', default='')
+
+if _EMAIL_HOST:
+    MAILERS = {
+        'default': {
+            'BACKEND': 'django.core.mail.backends.smtp.EmailBackend',
+            'OPTIONS': {
+                'host': _EMAIL_HOST,
+                'port': config('EMAIL_PORT', default=587, cast=int),
+                'username': config('EMAIL_HOST_USER', default=''),
+                'password': config('EMAIL_HOST_PASSWORD', default=''),
+                'use_tls': config('EMAIL_USE_TLS', default=True, cast=bool),
+                'timeout': 10,
+            },
+        },
+    }
+else:
+    MAILERS = {
+        'default': {
+            'BACKEND': 'django.core.mail.backends.console.EmailBackend',
+        },
+    }
+
+DEFAULT_FROM_EMAIL = config(
+    'DEFAULT_FROM_EMAIL', default='Jappo Dundu <no-reply@localhost>'
+)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL

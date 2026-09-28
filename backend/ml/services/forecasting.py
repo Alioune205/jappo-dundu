@@ -277,25 +277,48 @@ def make_prediction_rows(featured, today, days_ahead, max_horizon=MAX_HORIZON):
     return rows, total_series - kept_series
 
 
-def predict_units(models, rows, feature_columns=FEATURE_COLUMNS):
+INTERVAL_COVERAGE = 0.8
+
+
+def conformal_adjustment(models, rows, coverage=INTERVAL_COVERAGE):
+    """Marge à ajouter aux quantiles pour garantir la couverture visée.
+
+    Régression quantile conformalisée (CQR, Romano et al., 2019) : sur une
+    période de calibration jamais vue à l'entraînement, on mesure de combien
+    les bornes P10/P90 doivent être élargies (ou resserrées si la marge est
+    négative) pour que ``coverage`` des valeurs réelles tombent dedans. La
+    marge est exprimée dans l'espace normalisé de la cible, donc valable
+    pour toutes les séries et tous les horizons.
+    """
+    if rows.empty:
+        raise ValueError("Période de calibration vide.")
+    features = rows[FEATURE_COLUMNS]
+    target = rows['target'].to_numpy(dtype=float)
+    scores = np.maximum(
+        models['lower'].predict(features) - target,
+        target - models['upper'].predict(features),
+    )
+    level = min(1.0, np.ceil((len(scores) + 1) * coverage) / len(scores))
+    return float(np.quantile(scores, level, method='higher'))
+
+
+def predict_units(models, rows, feature_columns=FEATURE_COLUMNS, interval_adjustment=0.0):
     """Prédictions en poches : (point, borne basse P10, borne haute P90).
 
     Les modèles prédisent la variation normalisée du stock (voir
     ``target_scale``) ; elle est reconvertie en stock à partir du stock à
-    la date d'origine. Les bornes
-    sont réordonnées pour garantir basse ≤ point ≤ haute (les modèles
-    quantiles, entraînés séparément, peuvent se croiser).
+    la date d'origine. ``interval_adjustment`` est la marge conformelle
+    (voir ``conformal_adjustment``). Les bornes sont réordonnées pour
+    garantir basse ≤ point ≤ haute (les modèles quantiles, entraînés
+    séparément, peuvent se croiser).
     """
     features = rows[feature_columns]
     scale = target_scale(rows)
     current = rows['units_available'].to_numpy(dtype=float)
 
-    def to_units(model):
-        return current + model.predict(features) * scale
-
-    point = np.clip(to_units(models['point']), 0, None)
-    lower = to_units(models['lower'])
-    upper = to_units(models['upper'])
+    point = np.clip(current + models['point'].predict(features) * scale, 0, None)
+    lower = current + (models['lower'].predict(features) - interval_adjustment) * scale
+    upper = current + (models['upper'].predict(features) + interval_adjustment) * scale
     lower = np.clip(np.minimum(lower, point), 0, None)
     upper = np.maximum(upper, point)
     return point, lower, upper

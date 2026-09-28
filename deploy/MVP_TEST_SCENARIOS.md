@@ -48,7 +48,7 @@ PostGIS, Redis) : **14/14 réussis**.
 cd backend && python manage.py test security realtime ml
 ```
 
-139 tests couvrent :
+143 tests couvrent :
 - les rôles, les permissions, les JWT (rotation, révocation), la limitation de
   débit, le middleware et CORS ;
 - le WebSocket : authentification, autorisation, protocole, diffusion ;

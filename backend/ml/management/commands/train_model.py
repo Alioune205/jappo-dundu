@@ -81,7 +81,8 @@ class Command(BaseCommand):
             f"(baseline persistance : {metrics['baseline_mae']})",
             f"  Gain vs baseline : {pct(metrics['skill_vs_baseline'])}",
             f"  RMSE / R²        : {metrics['rmse']} / {metrics['r2_score']}",
-            f"  Couverture P10-P90 (cible 80 %) : {pct(metrics['interval_coverage'])}",
+            f"  Couverture P10-P90 (cible 80 %) : {pct(metrics['interval_coverage'])} "
+            f"(avant calibration : {pct(metrics['interval_coverage_uncalibrated'])})",
             f"  Exactitude du niveau de risque : {pct(metrics['risk_accuracy'])} "
             f"(baseline : {pct(metrics['baseline_risk_accuracy'])})",
             f"  Pénuries détectées (rappel)    : {pct(metrics['critical_recall'])} "

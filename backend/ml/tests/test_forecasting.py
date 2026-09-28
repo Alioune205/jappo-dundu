@@ -20,6 +20,7 @@ from ml.services.forecasting import (
     add_target_features,
     build_panel,
     calendar_for,
+    conformal_adjustment,
     make_prediction_rows,
     make_training_rows,
     predict_units,
@@ -156,12 +157,42 @@ class EventCalendarTests(SimpleTestCase):
             calendar.window_share('is_ramadan', pd.to_datetime(['2025-01-08']), [5])
 
 
+def constant(value):
+    """Modèle factice renvoyant toujours la même valeur."""
+    return SimpleNamespace(predict=lambda features: np.full(len(features), value))
+
+
+class ConformalAdjustmentTests(SimpleTestCase):
+
+    def rows(self, target):
+        return pd.DataFrame({
+            'target': target,
+            **{c: np.zeros(len(target)) for c in FEATURE_COLUMNS},
+        })
+
+    def test_interval_is_widened_to_reach_target_coverage(self):
+        target = np.random.default_rng(0).uniform(-3, 3, size=4000)
+        models = {'lower': constant(-1.0), 'upper': constant(1.0)}
+        margin = conformal_adjustment(models, self.rows(target))
+        # Couverture visée 80 % sur U(-3, 3) : |y| ≤ 2,4, soit une marge de 1,4
+        self.assertAlmostEqual(margin, 1.4, delta=0.05)
+        coverage = np.mean(np.abs(target) <= 1 + margin)
+        self.assertGreaterEqual(coverage, 0.8)
+        self.assertLess(coverage, 0.82)
+
+    def test_too_wide_interval_is_narrowed(self):
+        target = np.random.default_rng(1).uniform(-1, 1, size=2000)
+        models = {'lower': constant(-5.0), 'upper': constant(5.0)}
+        self.assertLess(conformal_adjustment(models, self.rows(target)), 0)
+
+    def test_empty_calibration_period_is_refused(self):
+        with self.assertRaises(ValueError):
+            conformal_adjustment({}, self.rows(np.array([])))
+
+
 class PredictUnitsTests(SimpleTestCase):
 
     def test_bounds_are_ordered_and_non_negative(self):
-        def constant(value):
-            return SimpleNamespace(predict=lambda features: np.full(len(features), value))
-
         rows = pd.DataFrame({
             'units_available': [10.0, 2.0],
             'scale': [5.0, 5.0],
@@ -174,3 +205,15 @@ class PredictUnitsTests(SimpleTestCase):
         self.assertTrue((lower <= point).all() and (point <= upper).all())
         self.assertTrue((point >= 0).all() and (lower >= 0).all())
         np.testing.assert_allclose(point, [10 - 5 ** 0.5, 0.0])  # 10 - √(5×1) ; max(0, 2 - √(5×4))
+
+    def test_conformal_margin_widens_bounds_in_units(self):
+        rows = pd.DataFrame({
+            'units_available': [20.0],
+            'scale': [4.0],
+            'horizon': [1],
+            **{c: [0.0] for c in FEATURE_COLUMNS if c != 'horizon'},
+        })
+        models = {'point': constant(0.0), 'lower': constant(-1.0), 'upper': constant(1.0)}
+        _, lower, upper = predict_units(models, rows, interval_adjustment=0.5)
+        # √(4×1) = 2 poches par unité normalisée : 20 ± (1 + 0,5) × 2
+        np.testing.assert_allclose([lower[0], upper[0]], [17.0, 23.0])

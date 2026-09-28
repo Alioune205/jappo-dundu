@@ -57,8 +57,8 @@ Le projet est divisé en 3 parties distinctes dans ce dépôt :
 **Ibrahima**, voici les commandes pour démarrer et travailler sur le backend.
 
 ### 1. Prérequis
-- Avoir installé **Python 3.10+**.
-- Avoir installé **PostgreSQL** (et l'extension **PostGIS**).
+- Avoir installé **Python 3.12+** (exigé par Django 6).
+- Avoir installé **PostgreSQL** (et l'extension **PostGIS**), ou lancer la base fournie avec Docker : `cd backend && docker compose up -d db redis`.
 
 ### 2. Installation de l'environnement
 Ouvre un terminal à la racine du projet et tape les commandes suivantes :

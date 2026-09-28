@@ -28,21 +28,26 @@ des 1 à 30 prochains jours. Chaque prévision comprend :
   à O+ à Dakar comme à AB- à Kédougou.
 - **Trois modèles `HistGradientBoostingRegressor`** : la prévision centrale et
   les quantiles 10 % et 90 %.
-- **Évaluation honnête** : la période de test (les 20 % les plus récents) suit
-  strictement la période d'entraînement. Le modèle est comparé à la baseline
-  « le stock ne change pas » (persistance), puis ré-entraîné sur tout l'historique.
+- **Calibration conformelle** de l'intervalle (régression quantile
+  conformalisée, CQR) : sur une période intermédiaire jamais vue à
+  l'entraînement, on mesure la marge qui garantit que 80 % des valeurs réelles
+  tombent dans l'intervalle.
+- **Évaluation honnête**, dans l'ordre chronologique : entraînement, puis
+  calibration (10 %), puis test (les 20 % les plus récents), sans chevauchement.
+  Le modèle est comparé à la baseline « le stock ne change pas » (persistance),
+  puis ré-entraîné sur tout l'historique.
 
 ## Performances (données simulées, 128 séries sur 2 ans, test à partir du 06/05/2026)
 
 | Mesure | Modèle | Baseline persistance |
 |---|---|---|
-| Erreur absolue moyenne (poches) | **2,91** | 3,89 (−25 %) |
-| … à 1–3 jours | **1,26** | 1,29 |
-| … à 15–30 jours | **3,61** | 5,15 |
+| Erreur absolue moyenne (poches) | **2,93** | 3,89 (−25 %) |
+| … à 1–3 jours | **1,27** | 1,29 |
+| … à 15–30 jours | **3,64** | 5,15 |
 | Pénuries réelles signalées (rappel) | **87,9 %** | 85,9 % |
-| Alertes critiques fondées (précision) | 97,5 % | — |
-| Couverture de l'intervalle P10–P90 (cible 80 %) | 76,1 % | — |
-| Niveau de risque exact | 70,6 % | 72,0 % |
+| Alertes critiques fondées (précision) | 97,4 % | — |
+| Couverture de l'intervalle P10–P90 (cible 80 %) | **81,0 %** (76,0 % avant calibration) | — |
+| Niveau de risque exact | 70,5 % | 72,0 % |
 
 Lecture : le modèle prévoit mieux le stock à tous les horizons et détecte
 davantage de pénuries. La persistance reste légèrement meilleure pour deviner

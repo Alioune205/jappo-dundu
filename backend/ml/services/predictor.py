@@ -96,7 +96,10 @@ class BloodShortagePredictor:
 
         critical_days, warning_days = risk.thresholds()
         point, lower, upper = predict_units(
-            bundle['models'], rows, bundle['feature_columns']
+            bundle['models'],
+            rows,
+            bundle['feature_columns'],
+            interval_adjustment=bundle.get('interval_adjustment', 0.0),
         )
         demand = rows['daily_demand'].to_numpy()
         levels = risk.classify(point, demand, critical_days, warning_days)

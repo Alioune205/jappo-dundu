@@ -28,7 +28,9 @@ class TrainingTests(TrainedModelTestCase):
         for key in ('mae', 'rmse', 'r2_score', 'baseline_mae', 'skill_vs_baseline',
                     'interval_coverage', 'risk_accuracy', 'baseline_risk_accuracy',
                     'critical_recall', 'baseline_critical_recall', 'critical_precision',
-                    'by_horizon', 'training_samples', 'test_samples'):
+                    'by_horizon', 'training_samples', 'test_samples',
+                    'calibration_samples', 'interval_adjustment',
+                    'interval_coverage_uncalibrated'):
             self.assertIn(key, self.metrics)
         self.assertGreater(self.metrics['baseline_mae'], 0)
         self.assertTrue(0 <= self.metrics['interval_coverage'] <= 1)
@@ -50,6 +52,9 @@ class TrainingTests(TrainedModelTestCase):
         self.assertEqual(bundle['format_version'], registry.MODEL_FORMAT_VERSION)
         self.assertEqual(set(bundle['models']), {'point', 'lower', 'upper'})
         self.assertEqual(bundle['version'], 'test-1')
+        self.assertEqual(
+            round(bundle['interval_adjustment'], 4), self.metrics['interval_adjustment']
+        )
 
     def test_version_rules(self):
         trainer = BloodShortageTrainer()

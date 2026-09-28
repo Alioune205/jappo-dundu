@@ -100,12 +100,12 @@ client et utilisable pour retrouver une erreur dans les journaux.
 
 - `DEBUG=False` est imposé ; l'application refuse de démarrer sans `SECRET_KEY`.
 - HTTPS est obligatoire : redirection, cookies `Secure` et HSTS d'un an.
-- `python manage.py check --deploy` ne signale plus que deux points :
-  - `security.W021` (préchargement HSTS) : laissé désactivé volontairement, car
-    l'inscription d'un domaine sur la liste des navigateurs est quasi irréversible ;
-  - `mail.E001` : la configuration e-mail (`MAILERS`) utilise encore le backend
-    console de développement. Aucune fonctionnalité n'envoie d'e-mail à ce jour,
-    mais il faudra configurer un serveur SMTP avant d'en ajouter une.
+- `python manage.py check --deploy` ne signale plus que `security.W021`
+  (préchargement HSTS). Il est laissé désactivé volontairement, car
+  l'inscription d'un domaine sur la liste des navigateurs est quasi irréversible.
+  Si `EMAIL_HOST` est vide, il signale aussi `mail.E001` : les e-mails sont alors
+  seulement écrits dans les journaux. Il faut renseigner les variables `EMAIL_*`
+  avant d'activer une fonctionnalité qui envoie des e-mails.
 - Le throttling s'appuie sur l'adresse transmise par Caddy (`NUM_PROXIES=1`) :
   un en-tête `X-Forwarded-For` forgé ne permet plus de le contourner.
 
