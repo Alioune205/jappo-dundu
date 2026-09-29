@@ -29,10 +29,13 @@ Le projet est divisé en 3 parties distinctes dans ce dépôt :
 
 ### ⚙️ & 🗄️ Ibrahima Khalilou Diallo — Core Backend & BDD
 *Le moteur de l'application et la structuration des données.*
-- [ ] Créer et configurer la base de données PostgreSQL/PostGIS locale.
-- [ ] Développer la logique métier de l'API (dossier `/backend`) pour les modules `sang`, `lits`, `ambulances`, `users`.
-- [ ] Implémenter l'algorithme complexe de recherche géographique (PostGIS) pour trouver les donneurs les plus proches.
-- [ ] Structurer la sérialisation des données pour le web et le mobile.
+- [x] Créer et configurer la base de données PostgreSQL/PostGIS locale.
+- [x] Développer la logique métier de l'API (dossier `/backend`) pour les modules `sang`, `lits`, `ambulances`, `users`.
+- [x] Implémenter l'algorithme complexe de recherche géographique (PostGIS) pour trouver les donneurs les plus proches.
+- [x] Structurer la sérialisation des données pour le web et le mobile.
+
+Guides d'intégration de l'API : `backend/users/README.md`, `backend/sang/README.md`,
+`backend/lits/README.md`, `backend/ambulances/README.md`, `backend/geo/README.md`.
 
 ### 💻 Serigne Mbacké Faye — Frontend Web
 *L'interface institutionnelle pour les hôpitaux.*
@@ -88,6 +91,7 @@ Toujours dans le dossier `backend` avec l'environnement virtuel activé :
 
 ```bash
 # Appliquer les migrations de la base de données
+# (active aussi l'extension PostGIS et crée les index géographiques)
 python manage.py migrate
 
 # Lancer le serveur de développement
