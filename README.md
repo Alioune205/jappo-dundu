@@ -10,12 +10,9 @@ Ce projet de fin d'études vise à interconnecter les établissements de santé,
 État du dépôt :
 1. **`/backend`** : API **Django REST Framework**, **PostgreSQL/PostGIS**, temps réel **Django Channels** (Redis) et modèle de prévision des pénuries de sang.
 2. **`/frontend`** : interface web **React** des hôpitaux, du CNTS et de la régulation SAMU.
-3. **`/deploy`** : déploiement de production (Docker Compose, reverse proxy Caddy, tests de fumée).
-
-**Prévu, pas encore dans ce dépôt :** l'application mobile citoyenne des donneurs
-(**React Native / Expo**, futur dossier `/mobile`). L'API est déjà prête pour elle
-(authentification par en-tête `Authorization`, flux temps réel, recherche de
-donneurs à proximité) ; en attendant, les équipages SAMU utilisent l'interface web.
+3. **`/mobile`** : application **Expo / React Native** des citoyens donneurs (alertes
+   des hôpitaux proches, réponse, historique, notifications push) — voir `mobile/README.md`.
+4. **`/deploy`** : déploiement de production (Docker Compose, reverse proxy Caddy, tests de fumée).
 
 ---
 
@@ -27,10 +24,10 @@ donneurs à proximité) ; en attendant, les équipages SAMU utilisent l'interfac
 ### 👑 & 📱 Pape Alioune Sene — Chef d'équipe & Mobile
 *Initialisation de l'architecture et développement de l'interface citoyenne.*
 - [x] Initialiser le dépôt GitHub, la structure des dossiers et poser les bases du Backend (Django).
-- [ ] Configurer le projet React Native (dans `/mobile`) avec Expo.
-- [ ] Développer les 4 écrans (Auth, Profil, Alertes, Historique).
-- [ ] Gérer la géolocalisation native et les notifications push (FCM).
-- [ ] Mettre en place le stockage local (AsyncStorage) et consommer l'API du backend.
+- [x] Configurer le projet React Native (dans `/mobile`) avec Expo.
+- [x] Développer les 4 écrans (Auth, Profil, Alertes, Historique).
+- [x] Gérer la géolocalisation native et les notifications push (FCM).
+- [x] Mettre en place le stockage local (AsyncStorage) et consommer l'API du backend.
 
 ### ⚙️ & 🗄️ Ibrahima Khalilou Diallo — Core Backend & BDD
 *Le moteur de l'application et la structuration des données.*

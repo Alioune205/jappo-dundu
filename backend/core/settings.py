@@ -15,7 +15,6 @@ from pathlib import Path
 
 from decouple import Csv, config
 from django.core.exceptions import ImproperlyConfigured
-from django.utils.csp import CSP
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -73,6 +72,10 @@ INSTALLED_APPS = [
     'ml',
     'security',
     'realtime',
+
+    # App mobile (Pape Alioune Sene)
+    'push',
+    'identity',
 ]
 
 MIDDLEWARE = [
@@ -91,7 +94,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.middleware.csp.ContentSecurityPolicyMiddleware',
 ]
 
 ROOT_URLCONF = 'core.urls'
@@ -224,15 +226,15 @@ SESSION_COOKIE_HTTPONLY = True
 # Aucun script inline ni tiers : une injection HTML ne peut ni exécuter de
 # code, ni exfiltrer de données vers un domaine extérieur.
 SECURE_CSP = {
-    'default-src': [CSP.SELF],
-    'script-src': [CSP.SELF],
+    'default-src': ["'self'"],
+    'script-src': ["'self'"],
     # Attributs style= de l'administration Django.
-    'style-src': [CSP.SELF, CSP.UNSAFE_INLINE],
-    'img-src': [CSP.SELF, 'data:'],
-    'object-src': [CSP.NONE],
-    'base-uri': [CSP.SELF],
-    'form-action': [CSP.SELF],
-    'frame-ancestors': [CSP.NONE],
+    'style-src': ["'self'", "'unsafe-inline'"],
+    'img-src': ["'self'", 'data:'],
+    'object-src': ["'none'"],
+    'base-uri': ["'self'"],
+    'form-action': ["'self'"],
+    'frame-ancestors': ["'none'"],
 }
 
 
@@ -266,6 +268,9 @@ REST_FRAMEWORK = {
         'user_sustained': config('THROTTLE_USER_SUSTAINED_RATE', default='10000/hour'),
         'login': config('THROTTLE_LOGIN_RATE', default='10/minute'),
         'ml_predict': config('THROTTLE_ML_PREDICT_RATE', default='30/hour'),
+        # Récupération de compte : demandes de code et essais, par adresse IP.
+        'password_reset': config('THROTTLE_PASSWORD_RESET_RATE', default='5/hour'),
+        'password_reset_confirm': config('THROTTLE_PASSWORD_RESET_CONFIRM_RATE', default='20/hour'),
     },
     # Nombre de reverse proxies de confiance devant l'application : sans
     # cette valeur, un X-Forwarded-For forgé contourne le throttling.
@@ -330,7 +335,11 @@ if REDIS_URL:
     CHANNEL_LAYERS = {
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
-            'CONFIG': {'hosts': [REDIS_URL]},
+            # redis-py 8 fixe un délai de lecture de 5 s par défaut, égal à
+            # l'attente bloquante de channels_redis (BZPOPMIN, 5 s) : chaque
+            # consumer WebSocket expirait toutes les 5 s. Délai porté à 15 s,
+            # qui détecte toujours une connexion morte.
+            'CONFIG': {'hosts': [{'address': REDIS_URL, 'socket_timeout': 15}]},
         },
     }
 else:
@@ -376,6 +385,20 @@ ML_PREDICT_ASYNC = config('ML_PREDICT_ASYNC', default=True, cast=bool)
 
 # Durée de vie d'un ticket de connexion WebSocket (realtime/tickets.py).
 REALTIME_TICKET_TTL = config('REALTIME_TICKET_TTL', default=30, cast=int)
+
+
+# =============================================================
+# NOTIFICATIONS PUSH (application mobile — Pape Alioune Sene)
+# =============================================================
+# Service push d'Expo (relaie vers FCM et APNs) : voir push/services.py.
+PUSH_ENABLED = config('PUSH_ENABLED', default=True, cast=bool)
+# False : envoi dans la requête (tests) ; True : thread dédié.
+PUSH_ASYNC = config('PUSH_ASYNC', default=True, cast=bool)
+PUSH_EXPO_URL = config('PUSH_EXPO_URL', default='https://exp.host/--/api/v2/push/send')
+# Jeton d'accès Expo, requis si « enhanced push security » est activé sur le projet.
+PUSH_EXPO_ACCESS_TOKEN = config('PUSH_EXPO_ACCESS_TOKEN', default='')
+# Nombre maximal de donneurs sollicités par demande (les plus proches).
+PUSH_MAX_DONORS = config('PUSH_MAX_DONORS', default=50, cast=int)
 
 
 # =============================================================
@@ -465,3 +488,21 @@ DEFAULT_FROM_EMAIL = config(
     'DEFAULT_FROM_EMAIL', default='Jappo Dundu <no-reply@localhost>'
 )
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+
+# =============================================================
+# IDENTITÉ : SMS et connexion sociale (Pape Alioune Sene)
+# =============================================================
+# Codes de réinitialisation : « console » (DEBUG uniquement, code dans le
+# journal du serveur) ou « orange » (API SMS d'Orange Sénégal).
+SMS_BACKEND = config('SMS_BACKEND', default='console')
+SMS_ORANGE_CLIENT_ID = config('SMS_ORANGE_CLIENT_ID', default='')
+SMS_ORANGE_CLIENT_SECRET = config('SMS_ORANGE_CLIENT_SECRET', default='')
+SMS_ORANGE_SENDER = config('SMS_ORANGE_SENDER', default='')
+
+# Identifiants OAuth acceptés (audiences des jetons) ; vide = fournisseur désactivé.
+GOOGLE_CLIENT_IDS = config('GOOGLE_CLIENT_IDS', default='', cast=Csv())
+# Identifiant d'application iOS (« host.exp.Exponent » en plus pour tester dans Expo Go).
+APPLE_AUDIENCES = config('APPLE_AUDIENCES', default='sn.jappodundu.donneurs', cast=Csv())
+FACEBOOK_APP_ID = config('FACEBOOK_APP_ID', default='')
+FACEBOOK_APP_SECRET = config('FACEBOOK_APP_SECRET', default='')

@@ -6,7 +6,7 @@ Responsable : El Hadji Massogui Diop
 
 | Route | Corps | Réponse |
 |---|---|---|
-| `POST /api/auth/token/` | `{"username", "password"}` | `access`, `refresh`, `user` (id, username, email, full_name, role, roles, groups) |
+| `POST /api/auth/token/` | `{"username", "password"}` — `username` accepte aussi le numéro de téléphone (« 77 123 45 67 », « +221771234567 ») | `access`, `refresh`, `user` (id, username, email, full_name, role, roles, groups) |
 | `POST /api/auth/token/refresh/` | `{"refresh"}` | nouveaux `access` **et** `refresh` (l'ancien refresh est révoqué) |
 | `POST /api/auth/token/verify/` | `{"token"}` | 200 si valide, 401 sinon |
 | `POST /api/auth/logout/` | `{"refresh"}` | 200 ; le refresh est révoqué |

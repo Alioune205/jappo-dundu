@@ -118,6 +118,15 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
 
     def process_response(self, request, response):
         response.setdefault('Permissions-Policy', self.PERMISSIONS_POLICY)
+        
+        # CSP
+        from django.conf import settings
+        if hasattr(settings, 'SECURE_CSP'):
+            csp_parts = []
+            for directive, sources in settings.SECURE_CSP.items():
+                csp_parts.append(f"{directive} {' '.join(sources)}")
+            response.setdefault('Content-Security-Policy', '; '.join(csp_parts))
+
         # Les réponses de l'API (tokens, données médicales) ne doivent
         # jamais être stockées par un cache navigateur ou intermédiaire.
         if request.path.startswith('/api/') and not response.has_header(

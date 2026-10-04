@@ -196,6 +196,19 @@ class JWTAuthenticationTests(RoleFixturesMixin, TestCase):
         response = self.login(password='wrong-password')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
+    def test_login_with_phone_number(self):
+        from users.models import UserProfile
+
+        UserProfile.objects.update_or_create(user=self.donor, defaults={'phone_number': '+221771234567'})
+        for typed in ('77 123 45 67', '+221 77 123 45 67', '771234567'):
+            response = self.login(username=typed)
+            self.assertEqual(response.status_code, status.HTTP_200_OK, typed)
+            self.assertEqual(response.data['user']['username'], self.donor.username)
+
+    def test_unknown_phone_number_fails_like_bad_username(self):
+        response = self.login(username='78 000 00 00')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
     def test_inactive_user_cannot_login(self):
         self.donor.is_active = False
         self.donor.save()

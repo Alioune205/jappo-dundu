@@ -15,6 +15,7 @@ Auteur : Ibrahima Khalilou Diallo
 from django.db import transaction
 from django.db.models import Count, Q
 
+from push.services import notify_blood_request as notify_push
 from realtime.broadcast import broadcast_alert, broadcast_dashboard
 
 from .models import DonorResponse
@@ -56,6 +57,10 @@ def notify_request(blood_request, event):
     def send():
         broadcast_alert('blood', payload, region=region, hospital_id=hospital_id)
         broadcast_dashboard('dashboard', payload, hospital_id=hospital_id)
+        if event == REQUEST_CREATED:
+            # Notification push aux donneurs compatibles à portée (application
+            # mobile) : ils sont prévenus même application fermée.
+            notify_push(blood_request)
 
     transaction.on_commit(send)
 

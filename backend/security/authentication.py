@@ -6,10 +6,15 @@ Authentification JWT de Jappo Dundu (SimpleJWT).
 - Rotation des refresh tokens avec liste noire : un refresh token déjà
   utilisé ou révoqué (logout) est refusé.
 - Limitation de débit dédiée sur la connexion (anti force brute).
+- Connexion par identifiant ou par numéro de téléphone (application mobile :
+  un donneur retient son numéro plus sûrement qu'un identifiant).
 
 Auteur : El Hadji Massogui Diop
 """
 
+import re
+
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import (
@@ -19,7 +24,36 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
+from users.models import UserProfile
+from users.validators import normalize_phone_number
+
 from .roles import get_user_roles, primary_role
+
+# Saisie qui ressemble à un numéro : chiffres, +, espaces et séparateurs usuels.
+_PHONE_LIKE = re.compile(r'^\+?[\d\s.\-()/]{9,20}$')
+
+
+def resolve_login(identifier):
+    """Identifiant de connexion → nom d'utilisateur.
+
+    Un numéro de téléphone (« 77 123 45 67 », « +221771234567 »…) est
+    remplacé par l'identifiant du compte qui le porte. Sinon, la saisie est
+    rendue telle quelle : un numéro inconnu échoue comme un mauvais
+    identifiant, sans révéler qu'il n'existe pas.
+    """
+    value = (identifier or '').strip()
+    if not _PHONE_LIKE.match(value):
+        return value
+    try:
+        phone = normalize_phone_number(value)
+    except DjangoValidationError:
+        return value
+    username = (
+        UserProfile.objects.filter(phone_number=phone)
+        .values_list('user__username', flat=True)
+        .first()
+    )
+    return username or value
 
 
 class JappoDunduTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -36,6 +70,7 @@ class JappoDunduTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
+        attrs[self.username_field] = resolve_login(attrs.get(self.username_field))
         data = super().validate(attrs)
         roles = get_user_roles(self.user)
         data['user'] = {

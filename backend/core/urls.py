@@ -18,6 +18,8 @@ urlpatterns = [
 
     # === Authentification JWT (El Hadji Massogui Diop) ===
     path('api/auth/', include(auth_urlpatterns)),
+    # === Récupération de compte et connexion sociale (Pape Alioune Sene) ===
+    path('api/auth/', include('identity.urls')),
 
     # === Supervision (El Hadji Massogui Diop) ===
     path('api/', include('security.urls')),
@@ -26,6 +28,8 @@ urlpatterns = [
     path('api/ml/', include('ml.urls')),
     # === Temps réel : tickets de connexion WebSocket (El Hadji Massogui Diop) ===
     path('api/realtime/', include('realtime.urls')),
+    # === Notifications push de l'application mobile (Pape Alioune Sene) ===
+    path('api/push/', include('push.urls')),
 
     # === Cœur métier (Ibrahima Khalilou Diallo) ===
     path('api/users/', include('users.urls')),
