@@ -1,9 +1,9 @@
 @import 'tailwindcss';
 
 /*
- * Système de Design Clinique Jappo Dundu (Inspiré des consoles de régulation médicale réelles & Shadcn/UI)
- * - Mode Clinique Lumineux (par défaut) : haute visibilité, fond #F8FAFC, surfaces blanches #FFFFFF, bordures #E2E8F0.
- * - Mode Salle de Crise Sombre (.dark) : immersion 24/7, fond #090D16, surfaces #0F172A, bordures #1E293B.
+ * Système de Design Clinique Jappo Dundu (Standard Senior Product Design / Linear / Medical Ops)
+ * - Mode Clinique Lumineux : fond #F8FAFC, surfaces blanches #FFFFFF, bordures hairline #E2E8F0.
+ * - Mode Salle de Crise Sombre (.dark) : immersion 24/7, fond #070B12, surfaces #0F172A, bordures #1E293B.
  */
 
 @layer base {
@@ -21,9 +21,9 @@
   }
 
   .dark {
-    --bg-canvas: #090d16;
-    --bg-surface: #0f172a;
-    --bg-subtle: #1e293b;
+    --bg-canvas: #070b12;
+    --bg-surface: #0e1526;
+    --bg-subtle: #172033;
     --border-main: #1e293b;
     --border-subtle: #162032;
     --text-main: #f8fafc;
@@ -42,23 +42,28 @@
     background-color: var(--bg-canvas);
     color: var(--text-main);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    transition: background-color 0.2s ease, color 0.2s ease;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    transition: background-color 0.15s ease, color 0.15s ease;
     min-height: 100vh;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 
 @layer components {
-  /* Surface unifiée style carte Shadcn */
+  /* Surface unifiée haute précision (bords fins, pas d'effets bulleux) */
   .clinical-card {
     background-color: var(--bg-surface);
     border: 1px solid var(--border-main);
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.03);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
   .clinical-card:hover {
     border-color: #cbd5e1;
@@ -71,26 +76,31 @@
   .clinical-input,
   .field-input {
     width: 100%;
-    border-radius: 0.5rem;
+    border-radius: 0.375rem;
     border: 1px solid var(--border-main);
     background-color: var(--bg-surface);
     color: var(--text-main);
     padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
     outline: none;
   }
   .clinical-input:focus,
   .field-input:focus {
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+    border-color: #0f172a;
+    box-shadow: 0 0 0 1px #0f172a;
+  }
+  .dark .clinical-input:focus,
+  .dark .field-input:focus {
+    border-color: #f8fafc;
+    box-shadow: 0 0 0 1px #f8fafc;
   }
   .clinical-input::placeholder,
   .field-input::placeholder {
     color: var(--text-subtle);
   }
 
-  /* Table clinique épurée */
+  /* Table clinique épurée haute densité */
   .clinical-table {
     width: 100%;
     text-align: left;
@@ -101,22 +111,23 @@
     background-color: var(--bg-subtle);
     color: var(--text-muted);
     font-size: 0.6875rem;
-    font-weight: 700;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 0.625rem 1rem;
+    letter-spacing: 0.06em;
+    padding: 0.625rem 0.875rem;
     border-bottom: 1px solid var(--border-main);
   }
   .clinical-table td {
-    padding: 0.75rem 1rem;
+    padding: 0.625rem 0.875rem;
     border-bottom: 1px solid var(--border-subtle);
     font-size: 0.8125rem;
     color: var(--text-main);
+    vertical-align: middle;
   }
   .clinical-table tr:last-child td {
     border-bottom: none;
   }
-  .clinical-table tr:hover td {
+  .clinical-table tbody tr:hover td {
     background-color: var(--bg-subtle);
   }
 }
@@ -130,7 +141,7 @@
   background-color: var(--bg-surface);
   color: var(--text-main);
   border: 1px solid var(--border-main);
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
   box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.15);
 }
 .leaflet-popup-tip {

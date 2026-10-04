@@ -1,10 +1,6 @@
 import React, { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  BedDouble,
-  Droplets,
-  Ambulance as AmbulanceIcon,
-  BrainCircuit,
   ArrowRight,
 } from 'lucide-react'
 import { Link } from 'react-router'
@@ -13,6 +9,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useRealtime } from '@/context/RealtimeContext'
 import { useTheme } from '@/context/ThemeContext'
 import { Badge } from '@/components/ui/Badge'
+import { StatCard } from '@/components/ui/StatCard'
 import { MapView } from '@/components/map/MapView'
 import { formatNumber, formatPercent } from '@/lib/format'
 import type {
@@ -155,124 +152,68 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. 4 Indicateurs essentiels (clairs, nets, sans surcharge) */}
+      {/* 2. 4 Indicateurs essentiels — Architecture métrique Linear/Stripe */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Lits */}
-        <Link
-          to="/beds"
-          className="clinical-card p-5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors block"
-        >
-          <div className="flex items-center justify-between text-[var(--text-muted)] mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider">Lits Disponibles</span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <BedDouble className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold font-mono text-[var(--text-main)]">
-              {formatNumber(totalAvailableBeds)}
-            </span>
-            <span className="text-xs text-[var(--text-muted)]">
-              / {formatNumber(totalBeds)} installés
-            </span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs pt-2 border-t border-[var(--border-subtle)]">
-            <span className="text-[var(--text-muted)]">Taux d'occupation</span>
-            <span
-              className={`font-semibold font-mono ${
-                globalOccupancy > 0.85
-                  ? 'text-red-600 dark:text-red-400'
-                  : globalOccupancy > 0.7
-                  ? 'text-amber-600 dark:text-amber-400'
-                  : 'text-emerald-600 dark:text-emerald-400'
-              }`}
-            >
-              {formatPercent(globalOccupancy)}
-            </span>
-          </div>
+        <Link to="/beds" className="block focus:outline-none">
+          <StatCard
+            title="Lits Disponibles"
+            value={formatNumber(totalAvailableBeds)}
+            unit={`/ ${formatNumber(totalBeds)} installés`}
+            trend={`${formatPercent(globalOccupancy)} d'occupation`}
+            trendTone={globalOccupancy > 0.85 ? 'danger' : globalOccupancy > 0.7 ? 'warning' : 'success'}
+            progress={{
+              value: totalBeds > 0 ? totalBeds - totalAvailableBeds : 0,
+              max: totalBeds || 1,
+              tone: globalOccupancy > 0.85 ? 'danger' : globalOccupancy > 0.7 ? 'warning' : 'success',
+            }}
+            description="Réseau hospitalier national"
+          />
         </Link>
 
         {/* Sang */}
-        <Link
-          to="/blood"
-          className="clinical-card p-5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors block"
-        >
-          <div className="flex items-center justify-between text-[var(--text-muted)] mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider">Demandes de Sang</span>
-            <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center">
-              <Droplets className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold font-mono text-[var(--text-main)]">
-              {bloodRequests.length}
-            </span>
-            <span className="text-xs text-[var(--text-muted)]">en cours</span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs pt-2 border-t border-[var(--border-subtle)]">
-            <span className="text-[var(--text-muted)]">Urgences vitales</span>
-            <span
-              className={`font-semibold font-mono ${
-                criticalBloodCount > 0
-                  ? 'text-red-600 dark:text-red-400'
-                  : 'text-emerald-600 dark:text-emerald-400'
-              }`}
-            >
-              {criticalBloodCount > 0 ? `${criticalBloodCount} critique(s)` : 'Aucune'}
-            </span>
-          </div>
+        <Link to="/blood" className="block focus:outline-none">
+          <StatCard
+            title="Demandes de Sang"
+            value={bloodRequests.length}
+            unit="en cours"
+            badge={criticalBloodCount > 0 ? `${criticalBloodCount} urgence(s) vitale(s)` : undefined}
+            badgeTone={criticalBloodCount > 0 ? 'danger' : 'neutral'}
+            trend={criticalBloodCount > 0 ? `${criticalBloodCount} urgences vitales` : 'Stocks sous surveillance'}
+            trendTone={criticalBloodCount > 0 ? 'danger' : 'neutral'}
+            description="Banque CNTS & Régions"
+          />
         </Link>
 
         {/* Ambulances */}
-        <Link
-          to="/ambulances"
-          className="clinical-card p-5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors block"
-        >
-          <div className="flex items-center justify-between text-[var(--text-muted)] mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider">Ambulances SMUR</span>
-            <div className="w-8 h-8 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-              <AmbulanceIcon className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold font-mono text-[var(--text-main)]">
-              {availableAmbulances}
-            </span>
-            <span className="text-xs text-[var(--text-muted)]">
-              / {ambulances.length} prêtes
-            </span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs pt-2 border-t border-[var(--border-subtle)]">
-            <span className="text-[var(--text-muted)]">Interventions</span>
-            <span className="font-semibold font-mono text-[var(--text-main)]">
-              {activeMissions.length} active(s)
-            </span>
-          </div>
+        <Link to="/ambulances" className="block focus:outline-none">
+          <StatCard
+            title="Ambulances SMUR"
+            value={availableAmbulances}
+            unit={`/ ${ambulances.length} prêtes`}
+            trend={`${activeMissions.length} intervention(s) en cours`}
+            trendTone={availableAmbulances <= 2 ? 'warning' : 'success'}
+            progress={{
+              value: ambulances.length - availableAmbulances,
+              max: ambulances.length || 1,
+              tone: availableAmbulances <= 2 ? 'warning' : 'neutral',
+            }}
+            description="Déploiement SAMU 15"
+          />
         </Link>
 
-        {/* IA Vigilance */}
-        <Link
-          to="/ml"
-          className="clinical-card p-5 hover:border-slate-300 dark:hover:border-slate-700 transition-colors block"
-        >
-          <div className="flex items-center justify-between text-[var(--text-muted)] mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wider">Vigilance Pénuries (IA)</span>
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-              <BrainCircuit className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold font-mono text-[var(--text-main)]">
-              {criticalPredictions}
-            </span>
-            <span className="text-xs text-[var(--text-muted)]">risques à 7 jours</span>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs pt-2 border-t border-[var(--border-subtle)]">
-            <span className="text-[var(--text-muted)]">Modèle CQR</span>
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-              Calibré (81%)
-            </span>
-          </div>
+        {/* Risques ML */}
+        <Link to="/ml" className="block focus:outline-none">
+          <StatCard
+            title="Vigilance Pénuries (IA)"
+            value={criticalPredictions}
+            unit="risques à 7 jours"
+            badge="CQR HGBoost"
+            badgeTone={criticalPredictions > 0 ? 'danger' : 'neutral'}
+            trend={criticalPredictions > 0 ? 'Tension critique J+3' : 'Couverture calibrée (81%)'}
+            trendTone={criticalPredictions > 0 ? 'danger' : 'success'}
+            description="Modèle quantile Massogui Diop"
+          />
         </Link>
       </div>
 

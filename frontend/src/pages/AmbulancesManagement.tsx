@@ -3,8 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Ambulance as AmbulanceIcon,
   Siren,
-  Clock,
-  Navigation,
   MapPin,
   Building2,
   User,
@@ -16,6 +14,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
+import { StatCard } from '@/components/ui/StatCard'
 import { MapView } from '@/components/map/MapView'
 import { REGIONS, URGENCIES } from '@/lib/constants'
 import { formatDateTime, formatMinutes } from '@/lib/format'
@@ -132,24 +131,26 @@ export const AmbulancesManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-900">
-              <Siren className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               SAMU 15 & Régulation SMUR
             </span>
-            <span className="text-xs text-[var(--text-muted)]">• Déploiement Mobile</span>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+              Déploiement Mobile Actif
+            </span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
             Flotte SMUR & Missions SAMU 15
           </h1>
-          <p className="text-xs text-[var(--text-muted)] mt-1">
-            Déploiement d'urgence, affectation géodésique PostGIS par proximité et télémétrie GPS de la flotte
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+            Déploiement d'urgence, affectation géodésique PostGIS par proximité et télémétrie GPS de la flotte.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <Button
             variant="outline"
             size="sm"
@@ -170,60 +171,48 @@ export const AmbulancesManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Cartes métriques */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="clinical-card p-4">
-          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Flotte Disponible</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <AmbulanceIcon className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-            {availableCount}{' '}
-            <span className="text-xs font-normal text-[var(--text-muted)]">/ {ambulances.length}</span>
-          </div>
-          <p className="text-[11px] text-[var(--text-muted)] mt-1">Ambulances prêtes au départ</p>
-        </div>
+      {/* Cartes métriques (Standard Linear/Stripe) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Flotte Disponible"
+          value={availableCount}
+          unit={`/ ${ambulances.length} prêtes`}
+          trend={availableCount <= 2 ? 'Disponibilité critique' : 'Prêtes au départ'}
+          trendTone={availableCount <= 2 ? 'warning' : 'success'}
+          progress={{
+            value: ambulances.length - availableCount,
+            max: ambulances.length || 1,
+            tone: availableCount <= 2 ? 'warning' : 'neutral',
+          }}
+          description="Véhicules médicalisés en base"
+        />
 
-        <div className="clinical-card p-4">
-          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">En Intervention</span>
-            <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <Siren className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 font-mono">
-            {onMissionCount}
-          </div>
-          <p className="text-[11px] text-[var(--text-muted)] mt-1">Véhicules sur le terrain</p>
-        </div>
+        <StatCard
+          title="En Intervention Terrain"
+          value={onMissionCount}
+          unit="véhicules engagés"
+          trend="En route ou sur site"
+          trendTone="neutral"
+          description="Équipes SMUR mobilisées"
+        />
 
-        <div className="clinical-card p-4">
-          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Missions Actives</span>
-            <div className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center">
-              <Navigation className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-red-600 dark:text-red-400 font-mono">
-            {activeMissionsCount}
-          </div>
-          <p className="text-[11px] text-[var(--text-muted)] mt-1">Interventions en cours</p>
-        </div>
+        <StatCard
+          title="Missions Actives"
+          value={activeMissionsCount}
+          unit="urgences en cours"
+          trend={activeMissionsCount > 0 ? 'Suivi télémétrique direct' : 'Aucune mission en cours'}
+          trendTone={activeMissionsCount > 0 ? 'warning' : 'neutral'}
+          description="Régulation SAMU 15 active"
+        />
 
-        <div className="clinical-card p-4">
-          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Délai Moyen</span>
-            <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-              <Clock className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-[var(--text-main)] font-mono">
-            {formatMinutes(stats?.response_time_minutes?.average) || '14 min'}
-          </div>
-          <p className="text-[11px] text-[var(--text-muted)] mt-1">Temps moyen sur site</p>
-        </div>
+        <StatCard
+          title="Délai Moyen d'Arrivée"
+          value={formatMinutes(stats?.response_time_minutes?.average) || '14 min'}
+          unit="sur site"
+          trend="Objectif < 20 min respecté"
+          trendTone="success"
+          description="Temps moyen d'intervention"
+        />
       </div>
 
       {/* Carte des opérations */}

@@ -1,9 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Bed,
-  Activity,
-  AlertTriangle,
   Compass,
   Edit2,
   Phone,
@@ -11,6 +8,10 @@ import {
   Building2,
   MapPin,
   RefreshCw,
+  LayoutGrid,
+  List,
+  Plus,
+  Minus,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
@@ -18,6 +19,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
+import { StatCard } from '@/components/ui/StatCard'
 import { BED_CATEGORIES, REGIONS } from '@/lib/constants'
 import { formatPercent, formatDateTime, formatDistance } from '@/lib/format'
 import type { BedCapacity, BedCategory, NearbyBedFacility } from '@/types/api'
@@ -25,6 +27,9 @@ import type { BedCapacity, BedCategory, NearbyBedFacility } from '@/types/api'
 export const BedsManagement: React.FC = () => {
   const { user } = useAuth()
   const queryClient = useQueryClient()
+
+  // Mode d'affichage : Tableau haute densité (standard médical) vs Grille de cartes
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
 
   // Filtres
   const [selectedCategory, setSelectedCategory] = useState<string>('')
@@ -150,25 +155,27 @@ export const BedsManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* En-tête institutionnel & Régulation */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
+      {/* En-tête institutionnel d'autorité médicale */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-900">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
-              SAMU 15 & Régulation Hospitalière
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Régulation Médicale & Orientation Hospitalière
             </span>
-            <span className="text-xs text-[var(--text-muted)]">• Disponibilité Nationale</span>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+              Veille Opérationnelle Active
+            </span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
-            Gestion & Orientation des Lits
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+            Supervision & Orientation des Lits
           </h1>
-          <p className="text-xs text-[var(--text-muted)] mt-1">
-            Supervision temps réel des capacités d'accueil hospitalières, admissions d'urgence et transferts inter-établissements
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+            Gestion temps réel des capacités d'accueil, admission directe d'urgence et routage géodésique PostGIS inter-hospitalier.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <Button
             variant="outline"
             size="sm"
@@ -181,152 +188,314 @@ export const BedsManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Cartes KPI de régulation des lits */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="clinical-card p-4">
-          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Réanimation Libres</span>
-            <div className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center">
-              <Activity className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-red-600 dark:text-red-400 font-mono">
-            {stats.reaBeds}
-          </div>
-          <p className="text-[11px] text-[var(--text-muted)] mt-1">Soins intensifs & réa vitaux</p>
-        </div>
+      {/* 4 Indicateurs de régulation clinique (Standard Linear/Apple Health) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Réanimation Vitale"
+          value={stats.reaBeds}
+          unit="lits libres"
+          trend={stats.reaBeds <= 2 ? 'Tension extrême en réa' : 'Capacité disponible'}
+          trendTone={stats.reaBeds <= 2 ? 'danger' : 'success'}
+          description="Soins intensifs & déchocage"
+          badge={stats.reaBeds === 0 ? 'Alerte 0 Lit' : undefined}
+          badgeTone="danger"
+        />
 
-        <div className="clinical-card p-4">
-          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Urgences Libres</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <Bed className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-            {stats.urgBeds}
-          </div>
-          <p className="text-[11px] text-[var(--text-muted)] mt-1">Accueil immédiat disponible</p>
-        </div>
+        <StatCard
+          title="Accueil Urgences"
+          value={stats.urgBeds}
+          unit="lits disponibles"
+          trend={`${stats.availableBeds} lits libres tous services`}
+          trendTone="neutral"
+          description="SAU & hospitalisation courte durée"
+        />
 
-        <div className="clinical-card p-4">
-          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Taux d'Occupation</span>
-            <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-              <Activity className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-[var(--text-main)] font-mono">
-            {stats.globalRate.toFixed(1)}%
-          </div>
-          <p className="text-[11px] text-[var(--text-muted)] mt-1">
-            {stats.occupiedBeds} occupés / {stats.totalBeds} installés
-          </p>
-        </div>
+        <StatCard
+          title="Taux d'Occupation Réseau"
+          value={`${stats.globalRate.toFixed(1)}%`}
+          unit={`${stats.occupiedBeds} / ${stats.totalBeds}`}
+          trend={`${stats.totalBeds - stats.occupiedBeds} places disponibles`}
+          trendTone={stats.globalRate > 85 ? 'danger' : stats.globalRate > 75 ? 'warning' : 'success'}
+          progress={{
+            value: stats.occupiedBeds,
+            max: stats.totalBeds || 1,
+            tone: stats.globalRate > 85 ? 'danger' : stats.globalRate > 75 ? 'warning' : 'success',
+          }}
+          description="Capacité totale installée"
+        />
 
-        <div className="clinical-card p-4">
-          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Services Saturés</span>
-            <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 font-mono">
-            {stats.saturatedCount}
-          </div>
-          <p className="text-[11px] text-[var(--text-muted)] mt-1">Services à 100% de saturation</p>
-        </div>
+        <StatCard
+          title="Services Saturés"
+          value={stats.saturatedCount}
+          unit={`/ ${capacities.length} services`}
+          badge={stats.saturatedCount > 0 ? `${stats.saturatedCount} à 100%` : 'Aucun'}
+          badgeTone={stats.saturatedCount > 0 ? 'warning' : 'success'}
+          trend={stats.saturatedCount > 0 ? 'Délestage requis' : 'Aucun service bloqué'}
+          trendTone={stats.saturatedCount > 0 ? 'warning' : 'success'}
+          description="Services à disponibilité nulle"
+        />
       </div>
 
-      {/* Barre de recherche et filtres rapides */}
+      {/* Barre de commande : Recherche rapide, filtres et sélecteur de vue */}
       <div className="clinical-card p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="relative">
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5">
-              Recherche rapide
-            </label>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
             <div className="relative">
               <input
                 type="text"
-                placeholder="Ex. Hôpital Principal, CHU Fann..."
+                placeholder="Filtrer hôpital, ville, service..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="clinical-input pl-8"
               />
-              <Search className="w-4 h-4 text-[var(--text-muted)] absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             </div>
+
+            <Select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+            >
+              <option value="">Tous les services médicaux</option>
+              {BED_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label} {c.vital ? '(Vital)' : ''}
+                </option>
+              ))}
+            </Select>
+
+            <Select
+              value={selectedRegion}
+              onChange={(e) => setSelectedRegion(e.target.value)}
+            >
+              <option value="">Toutes les régions sanitaires</option>
+              {REGIONS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </Select>
           </div>
 
-          <Select
-            label="Service / Spécialité"
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-          >
-            <option value="">Tous les services</option>
-            {BED_CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label} {c.vital ? '(Vital)' : ''}
-              </option>
-            ))}
-          </Select>
-
-          <Select
-            label="Région sanitaire"
-            value={selectedRegion}
-            onChange={(e) => setSelectedRegion(e.target.value)}
-          >
-            <option value="">Toutes les régions</option>
-            {REGIONS.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </Select>
+          {/* Basculeur de mode de vue (Tableau haute densité vs Grille) */}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-md self-start lg:self-auto shrink-0 border border-[var(--border-subtle)]">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-all ${
+                viewMode === 'table'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+              title="Tableau de régulation haute densité"
+            >
+              <List className="w-3.5 h-3.5" />
+              Tableau
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-all ${
+                viewMode === 'grid'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-50 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+              title="Vue cartes de services"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              Cartes
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Disposition principale : Grille des capacités + Panneau PostGIS d'orientation */}
+      {/* Disposition principale : Liste/Table des lits (2 cols) + Panneau d'orientation PostGIS (1 col) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Liste des capacités des services (2 colonnes) */}
+        {/* Colonne gauche (2 cols) : Tableau ou Grille */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-muted)]">
-              Services Hospitaliers ({filteredCapacities.length})
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Services Hospitaliers Déclarés ({filteredCapacities.length})
             </h2>
+            <span className="text-xs text-slate-400">
+              {filteredCapacities.filter((c) => c.available_beds > 0).length} avec lits immédiatement vacants
+            </span>
           </div>
 
           {isLoading ? (
-            <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)]">
+            <div className="clinical-card p-12 text-center text-xs text-slate-500">
               Chargement des capacités hospitalières en temps réel...
             </div>
           ) : filteredCapacities.length === 0 ? (
-            <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)]">
+            <div className="clinical-card p-12 text-center text-xs text-slate-500">
               Aucun service ne correspond aux critères sélectionnés.
             </div>
+          ) : viewMode === 'table' ? (
+            /* Mode Tableau Haute Densité (Standard Régulation Médicale) */
+            <div className="clinical-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="clinical-table">
+                  <thead>
+                    <tr>
+                      <th>Service & Établissement</th>
+                      <th>Région</th>
+                      <th>Occupation</th>
+                      <th className="text-right">Disponibles</th>
+                      <th className="text-right">Occupés / Total</th>
+                      <th className="text-center">Actions Immédiates</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCapacities.map((cap) => {
+                      const isSaturated = cap.available_beds === 0
+                      const isHigh = cap.occupancy_rate > 0.85
+                      const pct = Math.round(cap.occupancy_rate * 100)
+
+                      return (
+                        <tr
+                          key={cap.id}
+                          className={
+                            isSaturated
+                              ? 'bg-red-50/30 dark:bg-red-950/20'
+                              : undefined
+                          }
+                        >
+                          {/* Service & Hôpital */}
+                          <td>
+                            <div className="font-semibold text-slate-900 dark:text-slate-100">
+                              {cap.category_display}
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                              <Building2 className="w-3 h-3 text-slate-400" />
+                              <span>{cap.facility?.name}</span>
+                            </div>
+                          </td>
+
+                          {/* Région */}
+                          <td className="text-slate-600 dark:text-slate-400">
+                            {cap.facility?.city}
+                          </td>
+
+                          {/* Occupation & Jauge fine */}
+                          <td className="w-36">
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <span
+                                className={`font-semibold tabular-nums ${
+                                  isSaturated
+                                    ? 'text-red-600 dark:text-red-400'
+                                    : isHigh
+                                    ? 'text-amber-600 dark:text-amber-400'
+                                    : 'text-slate-700 dark:text-slate-300'
+                                }`}
+                              >
+                                {pct}%
+                              </span>
+                              {isSaturated && (
+                                <span className="text-[10px] uppercase font-bold text-red-600 dark:text-red-400">
+                                  Saturé
+                                </span>
+                              )}
+                            </div>
+                            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full transition-all duration-300 ${
+                                  isSaturated
+                                    ? 'bg-red-600'
+                                    : isHigh
+                                    ? 'bg-amber-500'
+                                    : 'bg-emerald-500'
+                                }`}
+                                style={{ width: `${Math.min(100, pct)}%` }}
+                              />
+                            </div>
+                          </td>
+
+                          {/* Lits Disponibles */}
+                          <td className="text-right">
+                            <span
+                              className={`text-base font-bold tabular-nums ${
+                                cap.available_beds > 0
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : 'text-red-600 dark:text-red-400'
+                              }`}
+                            >
+                              {cap.available_beds}
+                            </span>
+                          </td>
+
+                          {/* Occupés / Total */}
+                          <td className="text-right text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                            <span className="font-semibold text-slate-900 dark:text-slate-100">
+                              {cap.occupied_beds}
+                            </span>
+                            <span> / {cap.total_beds}</span>
+                          </td>
+
+                          {/* Boutons d'action rapides */}
+                          <td>
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                disabled={cap.available_beds === 0 || admitMutation.isPending}
+                                onClick={() => admitMutation.mutate(cap.id)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
+                                title="Enregistrer une admission directe (+1 lit)"
+                              >
+                                <Plus className="w-3 h-3" />
+                                Entrée
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={cap.occupied_beds === 0 || dischargeMutation.isPending}
+                                onClick={() => dischargeMutation.mutate(cap.id)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Enregistrer une décharge (-1 lit)"
+                              >
+                                <Minus className="w-3 h-3" />
+                                Sortie
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCapacity(cap)
+                                  setTotalBedsInput(cap.total_beds)
+                                  setOccupiedBedsInput(cap.occupied_beds)
+                                }}
+                                className="p-1.5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                title="Ajuster la capacité globale"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ) : (
+            /* Mode Grille de Cartes (Design Épuré sans bordures de couleur grossières) */
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredCapacities.map((cap) => {
                 const isSaturated = cap.available_beds === 0
                 const isHighOccupancy = cap.occupancy_rate > 0.85
+                const pct = Math.round(cap.occupancy_rate * 100)
 
                 return (
                   <div
                     key={cap.id}
-                    className={`clinical-card p-5 relative overflow-hidden transition-all duration-200 ${
-                      isSaturated
-                        ? 'border-l-4 border-l-red-500'
-                        : isHighOccupancy
-                        ? 'border-l-4 border-l-amber-500'
-                        : 'border-l-4 border-l-emerald-500'
-                    }`}
+                    className="clinical-card p-5 relative overflow-hidden transition-all duration-150"
                   >
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div>
-                        <div className="font-bold text-sm text-[var(--text-main)] flex items-center gap-1.5">
+                        <div className="font-semibold text-sm text-slate-900 dark:text-slate-100">
                           {cap.category_display}
                         </div>
-                        <div className="text-xs text-[var(--text-muted)] flex items-center gap-1 mt-0.5">
-                          <Building2 className="w-3.5 h-3.5 shrink-0" />
+                        <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                          <Building2 className="w-3 h-3 shrink-0 text-slate-400" />
                           <span className="truncate">{cap.facility?.name}</span>
                           <span>•</span>
                           <span>{cap.facility?.city}</span>
@@ -341,28 +510,28 @@ export const BedsManagement: React.FC = () => {
                       </Badge>
                     </div>
 
-                    {/* Jauge visuelle de taux d'occupation */}
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden mb-3">
+                    {/* Jauge fine */}
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mb-3.5">
                       <div
                         className={`h-full transition-all duration-300 ${
                           isSaturated
-                            ? 'bg-red-500'
+                            ? 'bg-red-600'
                             : isHighOccupancy
                             ? 'bg-amber-500'
                             : 'bg-emerald-500'
                         }`}
-                        style={{ width: `${Math.min(100, Math.round(cap.occupancy_rate * 100))}%` }}
+                        style={{ width: `${Math.min(100, pct)}%` }}
                       />
                     </div>
 
                     {/* Chiffres clés */}
-                    <div className="flex items-center justify-between text-xs py-2 border-t border-b border-[var(--border-main)] mb-3 bg-[var(--bg-subtle)] px-3 rounded-lg">
+                    <div className="flex items-center justify-between text-xs py-2.5 border-t border-b border-[var(--border-subtle)] mb-3.5 px-2 bg-slate-50/50 dark:bg-slate-800/30 rounded">
                       <div>
-                        <span className="text-[10px] text-[var(--text-muted)] block uppercase font-semibold">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-medium">
                           Lits Disponibles
                         </span>
                         <span
-                          className={`text-lg font-bold font-mono ${
+                          className={`text-lg font-bold tabular-nums ${
                             cap.available_beds > 0
                               ? 'text-emerald-600 dark:text-emerald-400'
                               : 'text-red-600 dark:text-red-400'
@@ -372,11 +541,14 @@ export const BedsManagement: React.FC = () => {
                         </span>
                       </div>
                       <div className="text-right">
-                        <span className="text-[10px] text-[var(--text-muted)] block uppercase font-semibold">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-medium">
                           Occupés / Total
                         </span>
-                        <span className="text-lg font-bold text-[var(--text-main)] font-mono">
-                          {cap.occupied_beds} <span className="text-xs font-normal text-[var(--text-muted)]">/ {cap.total_beds}</span>
+                        <span className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+                          {cap.occupied_beds}{' '}
+                          <span className="text-xs font-normal text-slate-500">
+                            / {cap.total_beds}
+                          </span>
                         </span>
                       </div>
                     </div>
@@ -384,7 +556,7 @@ export const BedsManagement: React.FC = () => {
                     {/* Actions d'admission et de décharge directes */}
                     <div className="flex items-center gap-2">
                       <Button
-                        variant="secondary"
+                        variant="primary"
                         size="sm"
                         className="flex-1 text-xs"
                         disabled={cap.available_beds === 0}
@@ -395,7 +567,7 @@ export const BedsManagement: React.FC = () => {
                       </Button>
 
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         className="flex-1 text-xs"
                         disabled={cap.occupied_beds === 0}
@@ -406,9 +578,9 @@ export const BedsManagement: React.FC = () => {
                       </Button>
 
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        className="px-2.5"
+                        className="px-2"
                         title="Ajuster la capacité manuellement"
                         onClick={() => {
                           setEditingCapacity(cap)
@@ -416,12 +588,12 @@ export const BedsManagement: React.FC = () => {
                           setOccupiedBedsInput(cap.occupied_beds)
                         }}
                       >
-                        <Edit2 className="w-3.5 h-3.5" />
+                        <Edit2 className="w-3.5 h-3.5 text-slate-500" />
                       </Button>
                     </div>
 
-                    <div className="text-[10px] text-[var(--text-muted)] mt-2 text-right">
-                      Dernière MàJ : {formatDateTime(cap.updated_at)}
+                    <div className="text-[10px] text-slate-400 mt-2.5 text-right tabular-nums">
+                      MàJ : {formatDateTime(cap.updated_at)}
                     </div>
                   </div>
                 )
@@ -435,13 +607,13 @@ export const BedsManagement: React.FC = () => {
           <div className="clinical-card p-5 space-y-4">
             <div className="border-b border-[var(--border-main)] pb-3">
               <div className="flex items-center gap-2 mb-1">
-                <Compass className="w-4 h-4 text-red-600 dark:text-red-400" />
-                <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--text-main)]">
+                <Compass className="w-4 h-4 text-slate-900 dark:text-slate-100" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100">
                   Orientation PostGIS d'Urgence
                 </h3>
               </div>
-              <p className="text-xs text-[var(--text-muted)]">
-                Localisez immédiatement les hôpitaux les plus proches disposant de lits libres (calcul géodésique précis)
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Calcul géodésique précis des hôpitaux les plus proches disposant de lits immédiatement disponibles.
               </p>
             </div>
 
@@ -493,16 +665,16 @@ export const BedsManagement: React.FC = () => {
             {searchResult !== null && (
               <div className="space-y-2 pt-3 border-t border-[var(--border-main)]">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                     Hôpitaux compatibles ({searchResult.length})
                   </h4>
-                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
                     Calculé en temps réel
                   </span>
                 </div>
 
                 {searchResult.length === 0 ? (
-                  <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl text-center text-xs text-amber-800 dark:text-amber-200">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-md text-center text-xs text-slate-600 dark:text-slate-400">
                     Aucun lit disponible répertorié dans ce rayon géographique. Élargissez le rayon de recherche.
                   </div>
                 ) : (
@@ -510,26 +682,26 @@ export const BedsManagement: React.FC = () => {
                     {searchResult.map((facility) => (
                       <div
                         key={facility.id}
-                        className="p-3 bg-[var(--bg-subtle)] border border-[var(--border-main)] rounded-xl text-xs flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                        className="p-3 bg-white dark:bg-slate-900 border border-[var(--border-main)] rounded-md text-xs flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                       >
                         <div className="min-w-0 pr-2">
-                          <div className="font-bold text-[var(--text-main)] truncate">
+                          <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">
                             {facility.name}
                           </div>
-                          <div className="text-[11px] text-[var(--text-muted)] flex items-center gap-1 mt-0.5">
-                            <MapPin className="w-3 h-3 shrink-0" />
+                          <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                            <MapPin className="w-3 h-3 shrink-0 text-slate-400" />
                             <span>{facility.city}</span>
                             <span>•</span>
-                            <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            <span className="font-medium text-slate-700 dark:text-slate-300">
                               {formatDistance(facility.distance_km)}
                             </span>
                           </div>
                           {facility.phone_number && (
                             <a
                               href={`tel:${facility.phone_number}`}
-                              className="text-[11px] text-red-600 dark:text-red-400 font-semibold flex items-center gap-1 mt-1 hover:underline"
+                              className="text-[11px] text-slate-900 dark:text-slate-200 font-medium flex items-center gap-1 mt-1 hover:underline"
                             >
-                              <Phone className="w-3 h-3" />
+                              <Phone className="w-3 h-3 text-slate-400" />
                               {facility.phone_number}
                             </a>
                           )}
@@ -537,7 +709,7 @@ export const BedsManagement: React.FC = () => {
 
                         <div className="text-right shrink-0">
                           <Badge tone="success" size="sm">
-                            {facility.available_beds} lits libres
+                            {facility.available_beds} libres
                           </Badge>
                         </div>
                       </div>
@@ -600,9 +772,9 @@ export const BedsManagement: React.FC = () => {
             onChange={(e) => setOccupiedBedsInput(parseInt(e.target.value, 10) || 0)}
           />
 
-          <div className="p-3 bg-[var(--bg-subtle)] rounded-lg text-xs text-[var(--text-muted)]">
+          <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded text-xs text-slate-600 dark:text-slate-400">
             Lits disponibles calculés :{' '}
-            <strong className="text-[var(--text-main)] font-mono">
+            <strong className="text-slate-900 dark:text-slate-100 font-semibold tabular-nums">
               {Math.max(0, totalBedsInput - occupiedBedsInput)}
             </strong>
           </div>

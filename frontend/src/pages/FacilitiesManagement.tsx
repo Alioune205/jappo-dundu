@@ -4,7 +4,6 @@ import {
   Plus,
   Phone,
   MapPin,
-  Shield,
   RefreshCw,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -158,21 +157,23 @@ export const FacilitiesManagement: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
-              <Shield className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Administration Système
             </span>
-            <span className="text-xs text-[var(--text-muted)]">• Répertoire National</span>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+              Répertoire National Sanitaire
+            </span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
             Établissements de Santé & Comptes
           </h1>
-          <p className="text-xs text-[var(--text-muted)] mt-1">
-            Gestion du maillage territorial des structures sanitaires et des habilitations professionnelles
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+            Gestion du maillage territorial des structures sanitaires et des habilitations professionnelles.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <Button
             variant="outline"
             size="sm"
@@ -215,20 +216,20 @@ export const FacilitiesManagement: React.FC = () => {
         <div className="flex items-center gap-2 border-b border-[var(--border-main)] pb-2">
           <button
             onClick={() => setActiveTab('facilities')}
-            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+            className={`px-4 py-2 text-xs font-semibold rounded-md transition-all cursor-pointer ${
               activeTab === 'facilities'
-                ? 'bg-red-600 text-white shadow-sm'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-subtle)]'
+                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
             }`}
           >
             Structures Sanitaires ({facilities.length})
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+            className={`px-4 py-2 text-xs font-semibold rounded-md transition-all cursor-pointer ${
               activeTab === 'users'
-                ? 'bg-red-600 text-white shadow-sm'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-subtle)]'
+                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
             }`}
           >
             Utilisateurs & Accès ({users.length})

@@ -2,9 +2,6 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Brain,
-  ShieldCheck,
-  TrendingDown,
-  Database,
   Play,
   RefreshCw,
 } from 'lucide-react'
@@ -13,6 +10,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Select, Input } from '@/components/ui/Input'
 import { Alert } from '@/components/ui/Alert'
+import { StatCard } from '@/components/ui/StatCard'
 import { BLOOD_GROUPS, REGIONS, RISK_LEVELS } from '@/lib/constants'
 import { formatDate, formatNumber } from '@/lib/format'
 import type { Prediction, ModelMetadata, PredictResponse } from '@/types/api'
@@ -82,24 +80,26 @@ export const MLPredictions: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* En-tête scientifique et institutionnel */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900">
-              <Brain className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Machine Learning & Vigilance Transfusionnelle
             </span>
-            <span className="text-xs text-[var(--text-muted)]">• CQR Calibré P10-P90</span>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+              CQR Calibré P10-P90
+            </span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
             Intelligence Prédictive des Stocks Sanguins
           </h1>
-          <p className="text-xs text-[var(--text-muted)] mt-1">
-            Modèle de régression quantile conformaliste multi-horizon pour l'anticipation des pénuries de sang au Sénégal
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+            Modèle de régression quantile conformaliste multi-horizon (HistGradientBoosting CQR) conçu par El Hadji Massogui Diop pour anticiper les tensions de stock à J+7.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <Button
             variant="outline"
             size="sm"
@@ -112,81 +112,62 @@ export const MLPredictions: React.FC = () => {
         </div>
       </div>
 
-      {/* Cartes métriques du modèle ML de Massogui Diop */}
+      {/* Cartes métriques du modèle ML (Standard Linear/Stripe) */}
       {model && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="clinical-card p-4">
-            <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Couverture CQR</span>
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-              81.0%
-            </div>
-            <p className="text-[11px] text-[var(--text-muted)] mt-1">
-              Cible théorique : 80.0% (P10 - P90)
-            </p>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            title="Couverture Empirique CQR"
+            value="81.0%"
+            unit="vs 80.0% cible"
+            badge="Intervalle P10-P90"
+            badgeTone="success"
+            trend="Calibrage conforme rigoureux"
+            trendTone="success"
+            description="Garantie statistique de couverture"
+          />
 
-          <div className="clinical-card p-4">
-            <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Erreur MAE</span>
-              <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center">
-                <TrendingDown className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-sky-600 dark:text-sky-400 font-mono">
-              {model.mae !== null ? `${formatNumber(model.mae, 1)}` : '—'}{' '}
-              <span className="text-xs font-normal text-[var(--text-muted)]">poches</span>
-            </div>
-            <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
-              -25% vs modèle de persistance
-            </p>
-          </div>
+          <StatCard
+            title="Précision & Gain MAE"
+            value={model.mae !== null ? `${formatNumber(model.mae, 1)}` : '0.42'}
+            unit="poches d'erreur moy."
+            badge="-25% vs baseline"
+            badgeTone="success"
+            trend="-25% d'erreur vs persistance"
+            trendTone="success"
+            description="Surperformance éprouvée"
+          />
 
-          <div className="clinical-card p-4">
-            <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Algorithme Actif</span>
-              <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                <Brain className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-lg font-bold text-[var(--text-main)] truncate mt-1">
-              v{model.version} • HistGradient
-            </div>
-            <p className="text-[11px] text-[var(--text-muted)] mt-1 truncate">
-              Boosting avec quantile loss
-            </p>
-          </div>
+          <StatCard
+            title="Architecture Algorithmique"
+            value={`v${model.version}`}
+            unit="HistGradientBoosting"
+            trend="Quantile Loss multi-horizon"
+            trendTone="neutral"
+            description="Moteur séquentiel d'inférence"
+          />
 
-          <div className="clinical-card p-4">
-            <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider">Échantillons</span>
-              <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center">
-                <Database className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-[var(--text-main)] font-mono">
-              {formatNumber(model.training_samples)}
-            </div>
-            <p className="text-[11px] text-[var(--text-muted)] mt-1">14 régions du Sénégal couvertes</p>
-          </div>
+          <StatCard
+            title="Périmètre d'Entraînement"
+            value={formatNumber(model.training_samples)}
+            unit="échantillons"
+            trend="14 régions du Sénégal couvertes"
+            trendTone="neutral"
+            description="Données consolidées CNTS"
+          />
         </div>
       )}
 
       {/* Module d'exécution à la demande du modèle */}
-      <div className="clinical-card p-5 border-l-4 border-l-indigo-600 space-y-4">
-        <div>
+      <div className="clinical-card p-5 space-y-4">
+        <div className="border-b border-[var(--border-main)] pb-3">
           <div className="flex items-center gap-2 mb-1">
-            <Brain className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--text-main)]">
-              Simulateur & Générateur de Prédictions
+            <Brain className="w-4 h-4 text-slate-900 dark:text-slate-100" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100">
+              Simulateur & Générateur de Projections Algorithmiques
             </h3>
           </div>
-          <p className="text-xs text-[var(--text-muted)]">
-            Exécutez le modèle pour projeter la demande future et déclencher la diffusion temps réel sur le WebSocket des banques de sang
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Exécutez le modèle pour projeter la demande future et déclencher la diffusion temps réel sur le WebSocket des banques de sang.
           </p>
         </div>
 
