@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { Bell, LogOut, Clock } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useRealtime } from '@/context/RealtimeContext'
 import { Badge } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
 import { formatTime } from '@/lib/format'
 
 interface HeaderProps {
@@ -14,75 +14,90 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const { logout } = useAuth()
   const { isConnected, alerts, unreadCount, markAllAsRead, clearAlerts } = useRealtime()
   const [showAlertsMenu, setShowAlertsMenu] = useState(false)
+  const [currentTime, setCurrentTime] = useState('')
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date()
+      setCurrentTime(
+        new Intl.DateTimeFormat('fr-SN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          timeZone: 'Africa/Dakar',
+        }).format(now) + ' (Dakar)',
+      )
+    }
+    updateTime()
+    const timer = setInterval(updateTime, 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   return (
-    <header className="h-16 border-b border-white/[0.08] bg-ink-950/40 backdrop-blur-xl px-8 flex items-center justify-between sticky top-0 z-30">
+    <header className="h-16 border-b border-slate-800/80 bg-[#090d16]/95 backdrop-blur px-8 flex items-center justify-between sticky top-0 z-30">
       <div>
-        {title && <h1 className="text-base font-bold text-ink-100 tracking-tight">{title}</h1>}
-        {subtitle && <p className="text-xs text-ink-400 -mt-0.5">{subtitle}</p>}
+        {title && <h1 className="text-base font-bold text-slate-100 tracking-tight">{title}</h1>}
+        {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Horloge officielle Dakar */}
+        <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+          <Clock className="w-3.5 h-3.5 text-slate-400" />
+          <span>{currentTime}</span>
+        </div>
+
+        <div className="h-4 w-px bg-slate-800 hidden sm:block" />
+
         {/* Statut WebSocket */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-ink-900 border border-white/10 text-xs">
+        <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 text-xs">
           <span
             className={`w-2 h-2 rounded-full ${
-              isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'
+              isConnected ? 'bg-emerald-400' : 'bg-rose-400'
             }`}
           />
-          <span className="text-ink-400 text-[11px] font-medium">
-            {isConnected ? 'Direct (WebSocket)' : 'Hors-ligne'}
+          <span className="text-slate-400 text-[11px] font-medium">
+            {isConnected ? 'Flux temps réel actif' : 'Reconnexion...'}
           </span>
         </div>
 
         {/* Centre de Notifications / Alertes */}
         <div className="relative">
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
             onClick={() => setShowAlertsMenu(!showAlertsMenu)}
-            className="relative p-2 h-auto text-ink-300 hover:text-white rounded-xl"
+            className="relative p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800/80 transition-colors cursor-pointer"
             aria-label="Alertes"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="1.75"
-                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-              />
-            </svg>
+            <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-brand-500 text-white font-bold text-[9px] flex items-center justify-center animate-bounce">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />
             )}
-          </Button>
+          </button>
 
           {/* Menu déroulant des alertes */}
           {showAlertsMenu && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 surface border border-white/15 bg-ink-900/95 shadow-2xl rounded-2xl overflow-hidden z-50 animate-slide-up">
-              <div className="p-3.5 border-b border-white/[0.08] flex items-center justify-between bg-ink-950/40">
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border border-slate-800 bg-[#0f172a] shadow-2xl overflow-hidden z-50 animate-slide-up">
+              <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/80">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-ink-100 uppercase tracking-wider">
-                    Alertes en direct
+                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                    Alertes Réseau
                   </span>
                   <Badge tone={unreadCount > 0 ? 'danger' : 'neutral'} size="sm">
                     {alerts.length}
                   </Badge>
                 </div>
                 {alerts.length > 0 && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 text-xs">
                     <button
                       onClick={markAllAsRead}
-                      className="text-[11px] text-ink-400 hover:text-white underline cursor-pointer"
+                      className="text-slate-400 hover:text-white cursor-pointer"
                     >
-                      Tout lire
+                      Tout marquer comme lu
                     </button>
-                    <span className="text-ink-600">•</span>
+                    <span className="text-slate-600">•</span>
                     <button
                       onClick={clearAlerts}
-                      className="text-[11px] text-rose-400 hover:text-rose-300 underline cursor-pointer"
+                      className="text-rose-400 hover:text-rose-300 cursor-pointer"
                     >
                       Effacer
                     </button>
@@ -90,26 +105,26 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
                 )}
               </div>
 
-              <div className="max-h-80 overflow-y-auto divide-y divide-white/[0.04]">
+              <div className="max-h-80 overflow-y-auto divide-y divide-slate-800/50">
                 {alerts.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-ink-500">
-                    Aucune alerte récente reçue.
+                  <div className="p-6 text-center text-xs text-slate-400">
+                    Aucune alerte opérationnelle en cours.
                   </div>
                 ) : (
                   alerts.map((alert) => (
                     <div
                       key={alert.id}
-                      className={`p-3.5 hover:bg-white/[0.03] transition-colors text-xs space-y-1 ${
-                        !alert.isRead ? 'bg-brand-500/[0.04]' : ''
+                      className={`p-3 hover:bg-slate-800/40 transition-colors text-xs space-y-1 ${
+                        !alert.isRead ? 'bg-rose-500/[0.04]' : ''
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-ink-200">{alert.title}</span>
-                        <span className="text-[10px] text-ink-500">
+                        <span className="font-semibold text-slate-200">{alert.title}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">
                           {formatTime(alert.timestamp)}
                         </span>
                       </div>
-                      <p className="text-ink-400 text-[11px] leading-relaxed">{alert.message}</p>
+                      <p className="text-slate-400 text-[11px] leading-relaxed">{alert.message}</p>
                     </div>
                   ))
                 )}
@@ -118,15 +133,15 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
           )}
         </div>
 
-        {/* Déconnexion rapide */}
-        <Button
-          variant="outline"
-          size="sm"
+        {/* Déconnexion */}
+        <button
           onClick={logout}
-          className="text-xs text-ink-300 hover:text-rose-300 hover:border-rose-500/40"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-800 hover:border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-xs font-medium text-slate-300 hover:text-white transition-colors cursor-pointer"
+          title="Se déconnecter"
         >
-          Déconnexion
-        </Button>
+          <LogOut className="w-3.5 h-3.5 text-slate-400" />
+          <span className="hidden sm:inline">Quitter</span>
+        </button>
       </div>
     </header>
   )

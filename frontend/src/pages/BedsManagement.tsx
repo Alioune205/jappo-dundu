@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Edit2, Compass } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
@@ -252,7 +253,7 @@ export const BedsManagement: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="px-2"
+                        className="px-2 text-slate-400 hover:text-white"
                         title="Modifier la capacité"
                         onClick={() => {
                           setEditingCapacity(cap)
@@ -260,7 +261,7 @@ export const BedsManagement: React.FC = () => {
                           setOccupiedBedsInput(cap.occupied_beds)
                         }}
                       >
-                        ✏️
+                        <Edit2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
 
@@ -324,7 +325,7 @@ export const BedsManagement: React.FC = () => {
                 size="md"
                 className="w-full mt-2"
                 isLoading={isSearching}
-                icon={<span>🧭</span>}
+                icon={<Compass className="w-4 h-4" />}
               >
                 Trouver un Établissement
               </Button>

@@ -73,11 +73,8 @@
   }
 
   body {
-    @apply min-h-screen bg-ink-950 font-sans text-ink-100;
-    background-image:
-      radial-gradient(1200px 600px at 85% -10%, rgb(225 29 72 / 0.10), transparent 60%),
-      radial-gradient(900px 500px at -10% 20%, rgb(56 189 248 / 0.06), transparent 60%),
-      radial-gradient(800px 600px at 50% 120%, rgb(139 92 246 / 0.06), transparent 60%);
+    @apply min-h-screen bg-[#080c14] font-sans text-slate-100;
+    background-image: radial-gradient(1000px 500px at 50% -100px, rgba(30, 41, 59, 0.4), transparent 80%);
     background-attachment: fixed;
   }
 

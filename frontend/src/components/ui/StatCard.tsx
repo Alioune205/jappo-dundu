@@ -1,36 +1,17 @@
 import React from 'react'
-import type { Tone } from '@/lib/constants'
 
-interface StatCardProps {
+export interface StatCardProps {
   title: string
   value: string | number
   unit?: string
   trend?: string
   trendTone?: 'success' | 'danger' | 'warning' | 'neutral'
   icon?: React.ReactNode
-  tone?: Tone
   description?: string
+  badge?: string
+  badgeTone?: 'success' | 'danger' | 'warning' | 'neutral'
   onClick?: () => void
-}
-
-const TONE_BORDER_CLASSES: Record<Tone, string> = {
-  neutral: 'border-white/10 hover:border-white/20',
-  brand: 'border-brand-500/30 hover:border-brand-500/50 bg-brand-500/[0.03]',
-  danger: 'border-rose-500/30 hover:border-rose-500/50 bg-rose-500/[0.03]',
-  warning: 'border-amber-500/30 hover:border-amber-500/50 bg-amber-500/[0.03]',
-  success: 'border-emerald-500/30 hover:border-emerald-500/50 bg-emerald-500/[0.03]',
-  info: 'border-sky-500/30 hover:border-sky-500/50 bg-sky-500/[0.03]',
-  violet: 'border-violet-500/30 hover:border-violet-500/50 bg-violet-500/[0.03]',
-}
-
-const TONE_ICON_CLASSES: Record<Tone, string> = {
-  neutral: 'bg-ink-800 text-ink-300',
-  brand: 'bg-brand-500/20 text-brand-300',
-  danger: 'bg-rose-500/20 text-rose-300',
-  warning: 'bg-amber-500/20 text-amber-300',
-  success: 'bg-emerald-500/20 text-emerald-300',
-  info: 'bg-sky-500/20 text-sky-300',
-  violet: 'bg-violet-500/20 text-violet-300',
+  className?: string
 }
 
 export const StatCard: React.FC<StatCardProps> = ({
@@ -40,46 +21,74 @@ export const StatCard: React.FC<StatCardProps> = ({
   trend,
   trendTone = 'neutral',
   icon,
-  tone = 'neutral',
   description,
+  badge,
+  badgeTone = 'neutral',
   onClick,
+  className = '',
 }) => {
   const trendColor = {
     success: 'text-emerald-400',
     danger: 'text-rose-400',
     warning: 'text-amber-400',
-    neutral: 'text-ink-400',
+    neutral: 'text-slate-400',
   }[trendTone]
+
+  const badgeStyles = {
+    success: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    danger: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+    warning: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    neutral: 'bg-slate-800 text-slate-300 border-slate-700',
+  }[badgeTone]
 
   return (
     <div
       onClick={onClick}
-      className={`surface p-5 border transition-all duration-200 ${
-        onClick ? 'cursor-pointer hover:-translate-y-1' : ''
-      } ${TONE_BORDER_CLASSES[tone]}`}
+      className={`rounded-xl border border-slate-800/90 bg-slate-900/80 p-5 shadow-sm transition-all duration-200 hover:border-slate-700 hover:bg-slate-900 ${
+        onClick ? 'cursor-pointer hover:-translate-y-0.5' : ''
+      } ${className}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <span className="text-xs font-medium text-ink-400 tracking-wide uppercase">
+      {/* En-tête : Titre & Icône */}
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
           {title}
         </span>
         {icon && (
-          <div className={`p-2.5 rounded-xl shrink-0 ${TONE_ICON_CLASSES[tone]}`}>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-800 bg-slate-800/70 text-slate-300 shadow-inner">
             {icon}
           </div>
         )}
       </div>
 
-      <div className="mt-2.5 flex items-baseline gap-2">
-        <span className="text-2xl font-bold font-display text-ink-100 tracking-tight">
+      {/* Valeur & Unité */}
+      <div className="mt-3 flex items-baseline gap-2">
+        <span className="text-3xl font-bold tracking-tight text-white font-mono">
           {value}
         </span>
-        {unit && <span className="text-xs font-medium text-ink-400">{unit}</span>}
+        {unit && <span className="text-xs font-medium text-slate-400">{unit}</span>}
       </div>
 
-      {(trend || description) && (
-        <div className="mt-3 flex items-center justify-between text-xs border-t border-white/[0.04] pt-2.5">
-          {description && <span className="text-ink-400 truncate">{description}</span>}
-          {trend && <span className={`font-semibold shrink-0 ml-auto ${trendColor}`}>{trend}</span>}
+      {/* Détails & Statut sans troncature */}
+      {(description || trend || badge) && (
+        <div className="mt-4 flex flex-col gap-1.5 border-t border-slate-800/80 pt-3">
+          <div className="flex items-center justify-between gap-2">
+            {description && (
+              <span className="text-xs text-slate-400 leading-tight">
+                {description}
+              </span>
+            )}
+            {badge && (
+              <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium border ${badgeStyles}`}>
+                {badge}
+              </span>
+            )}
+          </div>
+          {trend && (
+            <div className={`text-xs font-semibold flex items-center gap-1.5 ${trendColor}`}>
+              <span className="h-1.5 w-1.5 rounded-full bg-current" />
+              {trend}
+            </div>
+          )}
         </div>
       )}
     </div>

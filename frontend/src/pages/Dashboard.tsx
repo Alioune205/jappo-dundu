@@ -1,16 +1,26 @@
 import React, { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  BedDouble,
+  Droplets,
+  Ambulance as AmbulanceIcon,
+  BrainCircuit,
+  ArrowRight,
+} from 'lucide-react'
+import { Link } from 'react-router'
 import { api } from '@/lib/api'
 import { useRealtime } from '@/context/RealtimeContext'
-import { useAuth } from '@/context/AuthContext'
 import { StatCard } from '@/components/ui/StatCard'
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
-import { Badge } from '@/components/ui/Badge'
 import { MapView } from '@/components/map/MapView'
+import { TacticalCommandBar } from '@/components/dashboard/TacticalCommandBar'
+import { LiveDispatchQueue } from '@/components/dashboard/LiveDispatchQueue'
+import { HospitalCapacityWidget } from '@/components/dashboard/HospitalCapacityWidget'
+import { BloodMatrixWidget } from '@/components/dashboard/BloodMatrixWidget'
 import { formatNumber, formatPercent } from '@/lib/format'
 import type {
   BloodRequest,
   BedSummaryRow,
+  BedCapacity,
   Ambulance,
   Mission,
   PredictionSummaryRow,
@@ -28,7 +38,6 @@ import {
 } from 'recharts'
 
 export const Dashboard: React.FC = () => {
-  const { user } = useAuth()
   const { subscribe } = useRealtime()
   const queryClient = useQueryClient()
 
@@ -47,6 +56,15 @@ export const Dashboard: React.FC = () => {
   const { data: bedSummary = [] } = useQuery<BedSummaryRow[]>({
     queryKey: ['beds-summary'],
     queryFn: () => api.get<BedSummaryRow[]>('/api/lits/capacities/summary/'),
+  })
+
+  // 2b. Détail des capacités pour les jauges
+  const { data: bedCapacities = [] } = useQuery<BedCapacity[]>({
+    queryKey: ['bed-capacities-detail'],
+    queryFn: async () => {
+      const res = await api.get<{ results: BedCapacity[] }>('/api/lits/capacities/')
+      return res.results || []
+    },
   })
 
   // 3. Ambulances
@@ -84,11 +102,12 @@ export const Dashboard: React.FC = () => {
     },
   })
 
-  // Abonnements temps réel pour rafraîchir automatiquement les données
+  // Invalidation temps réel
   useEffect(() => {
     const unsub = subscribe('*', () => {
       queryClient.invalidateQueries({ queryKey: ['blood-requests'] })
       queryClient.invalidateQueries({ queryKey: ['beds-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['bed-capacities-detail'] })
       queryClient.invalidateQueries({ queryKey: ['ambulances-list'] })
       queryClient.invalidateQueries({ queryKey: ['missions-active'] })
       queryClient.invalidateQueries({ queryKey: ['predictions-summary'] })
@@ -96,15 +115,16 @@ export const Dashboard: React.FC = () => {
     return unsub
   }, [subscribe, queryClient])
 
-  // Calculs statistiques
+  // Statistiques calculées
   const totalAvailableBeds = bedSummary.reduce((acc, row) => acc + row.available_beds, 0)
   const totalBeds = bedSummary.reduce((acc, row) => acc + row.total_beds, 0)
   const globalOccupancy = totalBeds > 0 ? (totalBeds - totalAvailableBeds) / totalBeds : 0
 
   const availableAmbulances = ambulances.filter((a) => a.status === 'available').length
   const criticalPredictions = predictionSummary.reduce((acc, p) => acc + p.critical_count, 0)
+  const criticalBloodCount = bloodRequests.filter((r) => r.urgency === 'critical').length
 
-  // Données de graphique d'occupation des lits par catégorie
+  // Graphique d'occupation des lits
   const bedsChartData = bedSummary
     .reduce((acc, row) => {
       const existing = acc.find((item) => item.category === row.category_display)
@@ -124,200 +144,188 @@ export const Dashboard: React.FC = () => {
     .sort((a, b) => b.rate - a.rate)
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Salutation et contexte */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold font-display text-white tracking-tight">
-            Centre de Décision & Supervision
-          </h1>
-          <p className="text-xs text-ink-400 mt-1">
-            Indicateurs en temps réel pour le réseau hospitalier du Sénégal
-            {user?.facility && ` • ${user.facility.name}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge tone="brand" size="md">
-            Réseau National Connecté
-          </Badge>
-        </div>
-      </div>
+    <div className="space-y-6">
+      {/* 1. Bandeau tactique supérieur (statut de crise, horloge Dakar, actions d'urgence) */}
+      <TacticalCommandBar
+        criticalBloodCount={criticalBloodCount}
+        availableBedsCount={totalAvailableBeds}
+        availableAmbulancesCount={availableAmbulances}
+        totalMissionsCount={activeMissions.length}
+      />
 
-      {/* Cartes KPI clés */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {/* 2. Indicateurs clés de commandement */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Lits Disponibles"
           value={formatNumber(totalAvailableBeds)}
-          unit={`/ ${formatNumber(totalBeds)} lits`}
-          trend={formatPercent(globalOccupancy) + ' occupé'}
+          unit={`/ ${formatNumber(totalBeds)} installés`}
+          description="Urgences, réanimation et médecine"
+          trend={`Occupation réseau : ${formatPercent(globalOccupancy)}`}
           trendTone={globalOccupancy > 0.85 ? 'danger' : globalOccupancy > 0.7 ? 'warning' : 'success'}
-          tone={globalOccupancy > 0.85 ? 'danger' : 'success'}
-          description="Services d'urgences et réanimation"
-          icon={<span className="text-xl">🛏️</span>}
+          badge={globalOccupancy > 0.85 ? 'Tension forte' : 'Normal'}
+          badgeTone={globalOccupancy > 0.85 ? 'danger' : 'success'}
+          icon={<BedDouble className="w-5 h-5 text-slate-300" />}
         />
 
         <StatCard
-          title="Demandes de Sang Ouvertes"
+          title="Demandes de Sang"
           value={bloodRequests.length}
-          unit="en cours"
-          trend={`${bloodRequests.filter((r) => r.urgency === 'critical').length} critiques`}
-          trendTone="danger"
-          tone="danger"
-          description="Besoins de transfusion immédiats"
-          icon={<span className="text-xl">🩸</span>}
+          unit="demandes en cours"
+          description="Besoins de transfusion déclarés"
+          trend={
+            criticalBloodCount > 0
+              ? `${criticalBloodCount} besoin(s) vital critique`
+              : 'Aucun besoin critique'
+          }
+          trendTone={criticalBloodCount > 0 ? 'danger' : 'neutral'}
+          badge={criticalBloodCount > 0 ? 'Urgence Vitale' : 'Géré'}
+          badgeTone={criticalBloodCount > 0 ? 'danger' : 'neutral'}
+          icon={<Droplets className="w-5 h-5 text-rose-400" />}
         />
 
         <StatCard
-          title="Ambulances Disponibles"
+          title="Flotte SMUR Disponible"
           value={availableAmbulances}
           unit={`/ ${ambulances.length} véhicules`}
-          trend={`${activeMissions.length} missions en cours`}
+          description="Prêtes pour départ immédiat"
+          trend={
+            activeMissions.length > 0
+              ? `${activeMissions.length} intervention(s) sur le terrain`
+              : 'Aucune intervention en cours'
+          }
           trendTone={activeMissions.length > 0 ? 'warning' : 'neutral'}
-          tone="warning"
-          description="Prêtes pour intervention rapide"
-          icon={<span className="text-xl">🚑</span>}
+          badge={availableAmbulances > 0 ? 'Opérationnel' : 'Saturé'}
+          badgeTone={availableAmbulances > 0 ? 'success' : 'danger'}
+          icon={<AmbulanceIcon className="w-5 h-5 text-amber-400" />}
         />
 
         <StatCard
-          title="Risques Pénurie IA (ML)"
+          title="Vigilance Pénurie (IA)"
           value={criticalPredictions}
           unit="centres menacés"
-          trend="Horizon 7 jours"
+          description="Modèle HistGradientBoosting"
+          trend="Horizon 7 jours (CQR 80 %)"
           trendTone={criticalPredictions > 0 ? 'danger' : 'success'}
-          tone="violet"
-          description="Prévision calibrée à 80 % de confiance"
-          icon={<span className="text-xl">🧠</span>}
+          badge={criticalPredictions > 0 ? 'Risque Détecté' : 'Stable'}
+          badgeTone={criticalPredictions > 0 ? 'danger' : 'success'}
+          icon={<BrainCircuit className="w-5 h-5 text-indigo-400" />}
         />
       </div>
 
-      {/* Carte géographique nationale des urgences */}
-      <Card>
-        <CardHeader>
-          <div>
-            <CardTitle>Carte Nationale Interactive des Opérations</CardTitle>
-            <CardDescription>
-              Localisation des établissements de santé, ambulances en mouvement et missions
-              d'urgence actives
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-3 text-xs">
-            <span className="flex items-center gap-1.5 text-ink-300">
-              <span className="w-2.5 h-2.5 rounded-full bg-sky-400" /> Hôpitaux
-            </span>
-            <span className="flex items-center gap-1.5 text-ink-300">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" /> Ambulances libres
-            </span>
-            <span className="flex items-center gap-1.5 text-ink-300">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> En intervention
-            </span>
-          </div>
-        </CardHeader>
-
-        <MapView
-          facilities={facilities}
-          ambulances={ambulances}
-          missions={activeMissions}
-          height="450px"
-        />
-      </Card>
-
-      {/* Graphiques & Tableaux opérationnels */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Taux d'occupation des lits par catégorie */}
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Occupation des Lits par Spécialité</CardTitle>
-              <CardDescription>
-                Taux de remplissage des services critiques et de réanimation
-              </CardDescription>
-            </div>
-          </CardHeader>
-
-          <div className="h-64 w-full pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={bedsChartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e2a45" />
-                <XAxis
-                  dataKey="category"
-                  stroke="#7d8bab"
-                  fontSize={11}
-                  interval={0}
-                  angle={-20}
-                  textAnchor="end"
-                />
-                <YAxis stroke="#7d8bab" fontSize={11} domain={[0, 100]} unit="%" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#0b1220',
-                    borderColor: 'rgba(255,255,255,0.1)',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                  }}
-                  formatter={(val) => [`${val ?? 0} %`, 'Taux d’occupation']}
-                />
-                <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
-                  {bedsChartData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.rate > 85 ? '#f43f5e' : entry.rate > 70 ? '#fbbf24' : '#10b981'}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        {/* Demandes urgentes de sang nécessitant une action */}
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Demandes de Sang en Cours</CardTitle>
-              <CardDescription>Besoins de transfusion publiés par les hôpitaux</CardDescription>
-            </div>
-          </CardHeader>
-
-          <div className="divide-y divide-white/[0.06] overflow-y-auto max-h-64">
-            {bloodRequests.length === 0 ? (
-              <div className="p-8 text-center text-xs text-ink-500">
-                Aucune demande de sang en attente actuellement.
+      {/* 3. Grille tactique principale (Cartographie + File d'attente à gauche, Widgets d'urgence à droite) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Colonne gauche (7/12) : Carte opérationnelle + File de dispatch */}
+        <div className="lg:col-span-7 space-y-6">
+          {/* Carte tactique Esri Dark */}
+          <div className="rounded-xl border border-slate-800 bg-[#0c121e] overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3.5 border-b border-slate-800 bg-slate-900/60">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                  Cartographie Opérationnelle en Temps Réel
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Positions des hôpitaux, véhicules SMUR géolocalisés et points d'urgence
+                </p>
               </div>
-            ) : (
-              bloodRequests.slice(0, 6).map((req) => (
-                <div key={req.id} className="py-3 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-9 h-9 rounded-xl bg-brand-500/15 border border-brand-500/30 text-brand-300 font-bold flex items-center justify-center shrink-0">
-                      {req.blood_group}
-                    </span>
-                    <div className="truncate">
-                      <div className="font-semibold text-ink-200 truncate">
-                        {req.facility?.name || 'Hôpital'}
-                      </div>
-                      <div className="text-[11px] text-ink-400">
-                        Besoin de <strong className="text-white">{req.units_remaining} poches</strong>{' '}
-                        • {req.facility?.city}
-                      </div>
-                    </div>
-                  </div>
 
-                  <Badge
-                    tone={
-                      req.urgency === 'critical'
-                        ? 'danger'
-                        : req.urgency === 'urgent'
-                        ? 'warning'
-                        : 'info'
-                    }
-                    size="sm"
-                  >
-                    {req.urgency_display}
-                  </Badge>
-                </div>
-              ))
-            )}
+              {/* Légende tactique épurée */}
+              <div className="flex items-center gap-3 text-[11px] font-medium text-slate-400">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-sky-400" /> Hôpitaux
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-rose-500" /> CNTS
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" /> SMUR Libre
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-400" /> Mission
+                </span>
+              </div>
+            </div>
+
+            <MapView
+              facilities={facilities}
+              ambulances={ambulances}
+              missions={activeMissions}
+              height="440px"
+              className="border-0 rounded-none shadow-none"
+            />
           </div>
-        </Card>
+
+          {/* File de dispatch des interventions actives */}
+          <LiveDispatchQueue missions={activeMissions} />
+        </div>
+
+        {/* Colonne droite (5/12) : Modules de décision clinique */}
+        <div className="lg:col-span-5 space-y-6">
+          {/* Matrice des réserves sanguines */}
+          <BloodMatrixWidget bloodRequests={bloodRequests} />
+
+          {/* Tension des services hospitaliers d'urgence */}
+          <HospitalCapacityWidget capacities={bedCapacities} />
+
+          {/* Taux d'occupation global par spécialité */}
+          <div className="rounded-xl border border-slate-800 bg-[#0c121e] overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-900/60">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                  Capacités par Spécialité Médicale
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Répartition des lits occupés vs installés
+                </p>
+              </div>
+              <Link
+                to="/beds"
+                className="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+              >
+                Détail <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            <div className="p-4 h-60 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={bedsChartData}
+                  margin={{ top: 10, right: 10, left: -20, bottom: 20 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                  <XAxis
+                    dataKey="category"
+                    stroke="#64748b"
+                    fontSize={10}
+                    interval={0}
+                    angle={-18}
+                    textAnchor="end"
+                  />
+                  <YAxis stroke="#64748b" fontSize={10} domain={[0, 100]} unit="%" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#0f172a',
+                      borderColor: '#334155',
+                      borderRadius: '8px',
+                      fontSize: '11px',
+                      color: '#f8fafc',
+                    }}
+                    formatter={(val) => [`${val ?? 0} %`, 'Taux d’occupation']}
+                  />
+                  <Bar dataKey="rate" radius={[3, 3, 0, 0]}>
+                    {bedsChartData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={
+                          entry.rate > 85 ? '#ef4444' : entry.rate > 70 ? '#f59e0b' : '#10b981'
+                        }
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

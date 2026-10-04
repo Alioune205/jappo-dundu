@@ -41,12 +41,10 @@ const RequireAuth: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-ink-950 flex flex-col items-center justify-center gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-brand-500/20 border border-brand-500/40 flex items-center justify-center animate-spin">
-          <span className="text-brand-400 font-bold text-sm">🩸</span>
-        </div>
-        <span className="text-xs text-ink-400 font-medium tracking-wide">
-          Initialisation sécurisée...
+      <div className="min-h-screen bg-[#080c14] flex flex-col items-center justify-center gap-3">
+        <div className="w-8 h-8 rounded-full border-2 border-rose-500/20 border-t-rose-500 animate-spin" />
+        <span className="text-xs text-slate-400 font-medium tracking-wide">
+          Initialisation de la session sécurisée...
         </span>
       </div>
     )

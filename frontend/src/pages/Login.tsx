@@ -37,22 +37,29 @@ export const Login: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-ink-950 relative overflow-hidden">
-      {/* Halos lumineux en arrière-plan */}
-      <div className="absolute top-1/4 -left-20 w-96 h-96 bg-brand-600/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-sky-600/10 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="w-full max-w-md surface border border-white/10 bg-ink-900/80 shadow-2xl rounded-3xl p-8 backdrop-blur-2xl relative z-10 animate-slide-up">
-        {/* En-tête */}
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[#080c14] relative">
+      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-[#0f172a] shadow-xl p-8 relative z-10">
+        {/* En-tête officiel */}
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center mx-auto mb-4 shadow-brand">
-            <span className="text-2xl">🩸</span>
+          <div className="w-12 h-12 rounded-xl bg-rose-600 flex items-center justify-center mx-auto mb-4 text-white shadow-sm">
+            <svg
+              className="w-6 h-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
           </div>
-          <h1 className="text-2xl font-bold font-display text-white tracking-tight">
+          <h1 className="text-xl font-bold text-white tracking-tight">
             Jappo Dundu
           </h1>
-          <p className="text-xs text-ink-400 mt-1">
-            Portail Web Hôpitaux, Régulation & SAMU Sénégal
+          <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-medium">
+            Plateforme Nationale des Urgences Médicales
           </p>
         </div>
 
@@ -64,7 +71,7 @@ export const Login: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            label="Nom d'utilisateur ou e-mail"
+            label="Identifiant ou e-mail institutionnel"
             id="username"
             name="username"
             type="text"
@@ -72,7 +79,7 @@ export const Login: React.FC = () => {
             autoComplete="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="ex. awa.ndiaye ou dr.diallo"
+            placeholder="ex. admin ou dr.diop"
           />
 
           <Input
@@ -92,16 +99,15 @@ export const Login: React.FC = () => {
             variant="primary"
             size="lg"
             isLoading={isSubmitting}
-            className="w-full mt-2"
+            className="w-full mt-3 bg-rose-600 hover:bg-rose-500 text-white font-medium"
           >
             Se connecter au portail
           </Button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-white/[0.06] text-center">
-          <p className="text-[11px] text-ink-500 leading-relaxed">
-            Accès sécurisé réservé au personnel hospitalier, administrateurs et régulateurs de santé.
-            En cas de perte d'accès, contactez votre administrateur d'établissement.
+        <div className="mt-8 pt-6 border-t border-slate-800 text-center">
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Accès sécurisé réservé aux centres de transfusion, hôpitaux et services de régulation SAMU du Sénégal.
           </p>
         </div>
       </div>
