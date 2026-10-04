@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Shield, Hospital, Droplet, Ambulance } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Alert } from '@/components/ui/Alert'
+import { DEMO_ACCOUNTS } from '@/lib/demoAccounts'
 
 export const Login: React.FC = () => {
   const [username, setUsername] = useState('')
@@ -37,6 +37,9 @@ export const Login: React.FC = () => {
     }
   }
 
+  // Copie locale : TypeScript ne restreint pas un import dans les callbacks.
+  const demo = DEMO_ACCOUNTS
+
   const fillCredentials = (u: string, p: string) => {
     setUsername(u)
     setPassword(p)
@@ -44,141 +47,88 @@ export const Login: React.FC = () => {
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4 relative"
-      style={{ backgroundColor: 'var(--bg-canvas)' }}
-    >
-      <div className="w-full max-w-md clinical-card p-8 relative z-10 shadow-xl">
-        {/* En-tête institutionnel */}
-        <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-red-600 flex items-center justify-center mx-auto mb-3 text-white shadow-sm">
-            <svg
-              className="w-6 h-6"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 5v14" />
-              <path d="M5 12h14" />
+    <div className="flex min-h-full items-center justify-center bg-canvas p-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 flex items-center gap-2.5">
+          <span
+            aria-hidden="true"
+            className="flex h-7 w-7 items-center justify-center rounded-sm bg-critical text-white"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
             </svg>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
-            Jappo Dundu
-          </h1>
-          <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold mt-0.5">
-            Plateforme Nationale des Urgences Médicales du Sénégal
-          </p>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 mt-2 rounded-full text-[11px] font-medium bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-900">
-            Portail Professionnel & SAMU 15
+          </span>
+          <div>
+            <h1 className="text-base font-semibold leading-tight tracking-tight text-fg">Jappo Dundu</h1>
+            <p className="text-xs text-muted">Régulation des urgences médicales — Sénégal</p>
           </div>
         </div>
 
-        {errorMsg && (
-          <Alert tone="danger" className="mb-5" onClose={() => setErrorMsg(null)}>
-            {errorMsg}
-          </Alert>
+        <div className="rounded-md border border-line bg-surface p-5">
+          <h2 className="mb-4 text-sm font-medium text-fg">Connexion au poste</h2>
+
+          {errorMsg && (
+            <Alert tone="danger" className="mb-4" onClose={() => setErrorMsg(null)}>
+              {errorMsg}
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-3" noValidate>
+            <Input
+              label="Identifiant"
+              id="username"
+              name="username"
+              type="text"
+              required
+              autoComplete="username"
+              autoFocus
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+
+            <Input
+              label="Mot de passe"
+              id="password"
+              name="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+
+            <Button type="submit" variant="primary" size="lg" isLoading={isSubmitting} className="mt-1 w-full">
+              Se connecter
+            </Button>
+          </form>
+        </div>
+
+        {/* Comptes de démonstration : absents des builds de production (lib/demoAccounts). */}
+        {demo && (
+          <div className="mt-4 rounded-md border border-dashed border-line p-3">
+            <div className="eyebrow mb-2 flex items-center justify-between">
+              <span>Comptes de démonstration</span>
+              <span className="num normal-case tracking-normal text-subtle">{demo.password}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {demo.accounts.map((account) => (
+                <button
+                  key={account.username}
+                  type="button"
+                  onClick={() => fillCredentials(account.username, demo.password)}
+                  className="cursor-pointer rounded border border-line px-2 py-1.5 text-left transition-colors hover:border-line-strong hover:bg-raised"
+                >
+                  <span className="block text-xs text-fg">{account.label}</span>
+                  <span className="num block text-2xs text-muted">{account.username}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Identifiant institutionnel"
-            id="username"
-            name="username"
-            type="text"
-            required
-            autoComplete="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="ex. admin ou dr.diop"
-          />
-
-          <Input
-            label="Mot de passe"
-            id="password"
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••••••"
-          />
-
-          <Button
-            type="submit"
-            variant="primary"
-            size="lg"
-            isLoading={isSubmitting}
-            className="w-full mt-2"
-          >
-            Se Connecter
-          </Button>
-        </form>
-
-        {/* Comptes de démonstration pré-configurés */}
-        <div className="mt-6 pt-5 border-t border-[var(--border-main)] space-y-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block text-center">
-            Accès Rapide Démonstration
-          </span>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => fillCredentials('admin', 'Password123!')}
-              className="p-2 rounded-lg bg-[var(--bg-subtle)] hover:border-slate-400 dark:hover:border-slate-600 border border-[var(--border-main)] text-left transition-colors cursor-pointer"
-            >
-              <div className="font-semibold text-[var(--text-main)] flex items-center gap-1">
-                <Shield className="w-3 h-3 text-red-600 dark:text-red-400" />
-                Admin
-              </div>
-              <div className="text-[10px] text-[var(--text-muted)]">admin / Password123!</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fillCredentials('dr.diop', 'Password123!')}
-              className="p-2 rounded-lg bg-[var(--bg-subtle)] hover:border-slate-400 dark:hover:border-slate-600 border border-[var(--border-main)] text-left transition-colors cursor-pointer"
-            >
-              <div className="font-semibold text-[var(--text-main)] flex items-center gap-1">
-                <Hospital className="w-3 h-3 text-sky-600 dark:text-sky-400" />
-                Hôpital (Lits)
-              </div>
-              <div className="text-[10px] text-[var(--text-muted)]">dr.diop / Password123!</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fillCredentials('cnts.dakar', 'Password123!')}
-              className="p-2 rounded-lg bg-[var(--bg-subtle)] hover:border-slate-400 dark:hover:border-slate-600 border border-[var(--border-main)] text-left transition-colors cursor-pointer"
-            >
-              <div className="font-semibold text-[var(--text-main)] flex items-center gap-1">
-                <Droplet className="w-3 h-3 text-red-600 dark:text-red-400" />
-                CNTS (Sang)
-              </div>
-              <div className="text-[10px] text-[var(--text-muted)]">cnts.dakar / Password123!</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => fillCredentials('samu.driver', 'Password123!')}
-              className="p-2 rounded-lg bg-[var(--bg-subtle)] hover:border-slate-400 dark:hover:border-slate-600 border border-[var(--border-main)] text-left transition-colors cursor-pointer"
-            >
-              <div className="font-semibold text-[var(--text-main)] flex items-center gap-1">
-                <Ambulance className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                SAMU (SMUR)
-              </div>
-              <div className="text-[10px] text-[var(--text-muted)]">samu.driver / Password123!</div>
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-5 text-center">
-          <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
-            Système protégé et audité sous contrôle du Ministère de la Santé et du SAMU National.
-          </p>
-        </div>
+        <p className="mt-4 text-2xs leading-relaxed text-subtle">
+          Accès réservé au personnel habilité. Les connexions sont journalisées.
+        </p>
       </div>
     </div>
   )

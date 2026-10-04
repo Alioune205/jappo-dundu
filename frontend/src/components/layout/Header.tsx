@@ -1,169 +1,193 @@
-import React, { useState, useEffect } from 'react'
-import { Bell, LogOut, Clock, Sun, Moon } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Bell, LogOut, Sun, Moon } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useRealtime } from '@/context/RealtimeContext'
 import { useTheme } from '@/context/ThemeContext'
-import { Badge } from '@/components/ui/Badge'
 import { formatTime } from '@/lib/format'
+import { useOnlineStatus } from '@/lib/useOnlineStatus'
+import { FALLBACK_POLL_MS } from '@/lib/useFallbackPolling'
+import type { RealtimeStatus } from '@/context/RealtimeContext'
 
 interface HeaderProps {
   title?: string
   subtitle?: string
 }
 
+const dakarClock = new Intl.DateTimeFormat('fr-SN', {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  timeZone: 'Africa/Dakar',
+})
+
+const iconButton =
+  'relative inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded text-muted transition-colors hover:bg-raised hover:text-fg'
+
 export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const { logout } = useAuth()
-  const { isConnected, alerts, unreadCount, markAllAsRead, clearAlerts } = useRealtime()
+  const { status, interruptedSince, alerts, unreadCount, markAllAsRead, clearAlerts } = useRealtime()
+  const online = useOnlineStatus()
   const { theme, toggleTheme } = useTheme()
   const [showAlertsMenu, setShowAlertsMenu] = useState(false)
-  const [currentTime, setCurrentTime] = useState('')
+  const [currentTime, setCurrentTime] = useState(() => dakarClock.format(new Date()))
+  const alertsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const updateTime = () => {
-      const now = new Date()
-      setCurrentTime(
-        new Intl.DateTimeFormat('fr-SN', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          timeZone: 'Africa/Dakar',
-        }).format(now) + ' (Dakar)',
-      )
-    }
-    updateTime()
-    const timer = setInterval(updateTime, 1000)
+    const timer = setInterval(() => setCurrentTime(dakarClock.format(new Date())), 1000)
     return () => clearInterval(timer)
   }, [])
 
+  // Fermeture du menu des alertes au clic extérieur ou sur Échap.
+  useEffect(() => {
+    if (!showAlertsMenu) return
+    const onPointer = (e: PointerEvent) => {
+      if (!alertsRef.current?.contains(e.target as Node)) setShowAlertsMenu(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowAlertsMenu(false)
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [showAlertsMenu])
+
   return (
-    <header className="h-16 border-b border-[var(--border-main)] bg-[var(--bg-surface)] px-6 flex items-center justify-between sticky top-0 z-30 transition-colors duration-200">
-      <div>
-        {title && <h1 className="text-base font-bold text-[var(--text-main)] tracking-tight">{title}</h1>}
-        {subtitle && <p className="text-xs text-[var(--text-muted)] mt-0.5">{subtitle}</p>}
+    <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4 lg:px-6">
+      <div className="min-w-0">
+        {title && <h1 className="truncate text-sm font-semibold text-fg">{title}</h1>}
+        {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}
       </div>
 
-      <div className="flex items-center gap-3 sm:gap-4">
-        {/* Horloge officielle Dakar */}
-        <div className="hidden sm:flex items-center gap-1.5 text-xs text-[var(--text-muted)] font-mono">
-          <Clock className="w-3.5 h-3.5 text-slate-400" />
-          <span>{currentTime}</span>
+      <div className="flex items-center gap-1">
+        {/* État de la liaison : dit clairement quand les données ne sont plus en direct. */}
+        <ConnectionStatus online={online} status={status} interruptedSince={interruptedSince} />
+
+        <div className="mr-3 hidden items-baseline gap-1.5 border-l border-line pl-3 sm:flex">
+          <time className="num text-sm text-fg">{currentTime}</time>
+          <span className="text-2xs text-subtle">Dakar</span>
         </div>
 
-        <div className="h-4 w-px bg-[var(--border-main)] hidden sm:block" />
-
-        {/* Statut Opérationnel */}
-        <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-main)] text-xs">
-          <span
-            className={`w-2 h-2 rounded-full ${
-              isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500/70'
-            }`}
-          />
-          <span className="text-[var(--text-muted)] text-[11px] font-medium">
-            {isConnected ? 'Flux temps réel' : 'Veille opérationnelle'}
-          </span>
-        </div>
-
-        {/* Bouton bascule de thème : Mode Clinique / Salle de Crise */}
         <button
+          type="button"
           onClick={toggleTheme}
-          className="flex items-center gap-1.5 p-2 rounded-lg border border-[var(--border-main)] bg-[var(--bg-subtle)] hover:bg-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-main)] text-xs transition-colors cursor-pointer"
-          title={theme === 'light' ? 'Activer le Mode Salle de Crise (Sombre)' : 'Activer le Mode Clinique (Clair)'}
+          className={iconButton}
+          aria-label={theme === 'dark' ? 'Passer en thème clair' : 'Passer en thème sombre'}
+          title={theme === 'dark' ? 'Thème clair' : 'Thème sombre'}
         >
-          {theme === 'light' ? (
-            <>
-              <Moon className="w-3.5 h-3.5 text-indigo-600" />
-              <span className="hidden md:inline font-medium text-[11px]">Salle de Crise</span>
-            </>
-          ) : (
-            <>
-              <Sun className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden md:inline font-medium text-[11px]">Mode Clinique</span>
-            </>
-          )}
+          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
 
-        {/* Centre de Notifications / Alertes */}
-        <div className="relative">
+        <div className="relative" ref={alertsRef}>
           <button
-            onClick={() => setShowAlertsMenu(!showAlertsMenu)}
-            className="relative p-2 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg hover:bg-[var(--bg-subtle)] transition-colors cursor-pointer border border-[var(--border-main)] bg-[var(--bg-surface)]"
-            aria-label="Alertes"
+            type="button"
+            onClick={() => setShowAlertsMenu((open) => !open)}
+            className={iconButton}
+            aria-label={unreadCount > 0 ? `Alertes (${unreadCount} non lues)` : 'Alertes'}
+            aria-expanded={showAlertsMenu}
+            aria-haspopup="true"
           >
-            <Bell className="w-4 h-4" />
+            <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500" />
+              <span className="num absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-critical px-1 text-[10px] leading-none text-white">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
             )}
           </button>
 
-          {/* Menu déroulant des alertes */}
           {showAlertsMenu && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border border-[var(--border-main)] bg-[var(--bg-surface)] shadow-xl overflow-hidden z-50 animate-slide-up">
-              <div className="p-3 border-b border-[var(--border-main)] flex items-center justify-between bg-[var(--bg-subtle)]">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-[var(--text-main)] uppercase tracking-wider">
-                    Alertes Réseau
-                  </span>
-                  <Badge tone={unreadCount > 0 ? 'danger' : 'neutral'} size="sm">
-                    {alerts.length}
-                  </Badge>
-                </div>
+            <div className="absolute right-0 z-50 mt-1 w-80 overflow-hidden rounded-md border border-line-strong bg-surface sm:w-96">
+              <div className="flex items-center justify-between border-b border-line px-3 py-2">
+                <span className="eyebrow">
+                  Alertes réseau <span className="num ml-1 text-fg">{alerts.length}</span>
+                </span>
                 {alerts.length > 0 && (
-                  <div className="flex items-center gap-2 text-xs">
-                    <button
-                      onClick={markAllAsRead}
-                      className="text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"
-                    >
-                      Tout marquer comme lu
+                  <div className="flex items-center gap-3 text-xs">
+                    <button type="button" onClick={markAllAsRead} className="cursor-pointer text-muted hover:text-fg">
+                      Tout marquer lu
                     </button>
-                    <span className="text-slate-300 dark:text-slate-600">•</span>
-                    <button
-                      onClick={clearAlerts}
-                      className="text-rose-600 hover:text-rose-500 cursor-pointer"
-                    >
+                    <button type="button" onClick={clearAlerts} className="cursor-pointer text-muted hover:text-critical">
                       Effacer
                     </button>
                   </div>
                 )}
               </div>
 
-              <div className="max-h-80 overflow-y-auto divide-y divide-[var(--border-subtle)]">
+              <ul className="max-h-80 divide-y divide-line overflow-y-auto">
                 {alerts.length === 0 ? (
-                  <div className="p-6 text-center text-xs text-[var(--text-muted)]">
-                    Aucune alerte opérationnelle en cours.
-                  </div>
+                  <li className="px-3 py-6 text-center text-xs text-muted">Aucune alerte en cours.</li>
                 ) : (
                   alerts.map((alert) => (
-                    <div
-                      key={alert.id}
-                      className={`p-3 hover:bg-[var(--bg-subtle)] transition-colors text-xs space-y-1 ${
-                        !alert.isRead ? 'bg-rose-500/5' : ''
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-[var(--text-main)]">{alert.title}</span>
-                        <span className="text-[10px] text-[var(--text-muted)] font-mono">
-                          {formatTime(alert.timestamp)}
+                    <li key={alert.id} className="relative space-y-0.5 px-3 py-2.5 text-xs">
+                      {!alert.isRead && (
+                        <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-critical" />
+                      )}
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className={`font-medium ${alert.isRead ? 'text-muted' : 'text-fg'}`}>
+                          {alert.title}
+                          {!alert.isRead && <span className="sr-only"> (non lue)</span>}
                         </span>
+                        <span className="num shrink-0 text-2xs text-subtle">{formatTime(alert.timestamp)}</span>
                       </div>
-                      <p className="text-[var(--text-muted)] text-[11px] leading-relaxed">{alert.message}</p>
-                    </div>
+                      <p className="leading-relaxed text-muted">{alert.message}</p>
+                    </li>
                   ))
                 )}
-              </div>
+              </ul>
             </div>
           )}
         </div>
 
-        {/* Déconnexion */}
         <button
+          type="button"
           onClick={logout}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[var(--border-main)] hover:border-rose-300 dark:hover:border-rose-900 bg-[var(--bg-surface)] hover:bg-rose-50 dark:hover:bg-rose-950/20 text-xs font-medium text-[var(--text-muted)] hover:text-rose-600 transition-colors cursor-pointer"
+          className={`${iconButton} hover:text-critical`}
+          aria-label="Se déconnecter"
           title="Se déconnecter"
         >
-          <LogOut className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Quitter</span>
+          <LogOut className="h-4 w-4" />
         </button>
       </div>
     </header>
+  )
+}
+
+interface ConnectionStatusProps {
+  online: boolean
+  status: RealtimeStatus
+  interruptedSince: number | null
+}
+
+/** Pastille d'état : réseau perdu, flux interrompu (mode dégradé), connexion, ou temps réel. */
+const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ online, status, interruptedSince }) => {
+  const pollSeconds = Math.round(FALLBACK_POLL_MS / 1000)
+  const state = !online
+    ? {
+        dot: 'bg-critical',
+        text: 'text-critical',
+        label: 'Hors ligne',
+        title: 'Le poste n’a plus de connexion réseau : les données affichées ne sont plus mises à jour.',
+      }
+    : status === 'open'
+      ? { dot: 'live-pulse bg-ok', text: 'text-muted', label: 'Temps réel', title: 'Données mises à jour en direct.' }
+      : status === 'interrupted'
+        ? {
+            dot: 'bg-warning',
+            text: 'text-warning',
+            label: `Flux interrompu${interruptedSince ? ` depuis ${formatTime(new Date(interruptedSince))}` : ''}`,
+            title: `Reconnexion en cours. En attendant, les données sont relues toutes les ${pollSeconds} s.`,
+          }
+        : { dot: 'bg-subtle', text: 'text-muted', label: 'Connexion…', title: 'Ouverture du flux temps réel.' }
+
+  return (
+    <div className="mr-2 flex items-center gap-1.5 text-xs" role="status" title={state.title}>
+      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${state.dot}`} />
+      <span className={state.text}>{state.label}</span>
+      {online && status === 'interrupted' && (
+        <span className="hidden text-2xs text-subtle lg:inline">· relevé toutes les {pollSeconds} s</span>
+      )}
+    </div>
   )
 }

@@ -1,22 +1,31 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  Brain,
-  Play,
-  RefreshCw,
-} from 'lucide-react'
+import { Brain, Play, RefreshCw } from 'lucide-react'
 import { api } from '@/lib/api'
+import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
+import { RealtimeEvent } from '@/lib/realtimeEvents'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Select, Input } from '@/components/ui/Input'
 import { Alert } from '@/components/ui/Alert'
 import { StatCard } from '@/components/ui/StatCard'
-import { BLOOD_GROUPS, REGIONS, RISK_LEVELS } from '@/lib/constants'
-import { formatDate, formatNumber } from '@/lib/format'
-import type { Prediction, ModelMetadata, PredictResponse } from '@/types/api'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { Skeleton, EmptyState } from '@/components/ui/Skeleton'
+import { BLOOD_GROUPS, REGIONS, RISK_LEVELS, toneOf } from '@/lib/constants'
+import { formatDate, formatNumber, formatPercent } from '@/lib/format'
+import type { Prediction, ModelMetadata, PredictionJob } from '@/types/api'
+import { QK } from '@/lib/queryKeys'
+
+/** Intervalle de suivi d'un calcul de prévision en arrière-plan (ms). */
+const JOB_POLL_MS = 1500
 
 export const MLPredictions: React.FC = () => {
   const queryClient = useQueryClient()
+
+  // Mises à jour poussées par le serveur (regroupées, voir useRealtimeRefresh).
+  useRealtimeRefresh([
+    { events: [RealtimeEvent.predictionUpdate], queryKeys: [QK.mlPredictionsList, QK.predictionsSummary] },
+  ])
 
   // Filtres de consultation
   const [filterRegion, setFilterRegion] = useState('')
@@ -27,14 +36,14 @@ export const MLPredictions: React.FC = () => {
   const [runRegion, setRunRegion] = useState('')
   const [runBloodGroup, setRunBloodGroup] = useState('')
   const [runDaysAhead, setRunDaysAhead] = useState(7)
-  const [runSuccessMsg, setRunSuccessMsg] = useState<string | null>(null)
+  const [runMsg, setRunMsg] = useState<{ type: 'success' | 'danger'; text: string } | null>(null)
 
   // 1. Métadonnées du modèle actif (El Hadji Massogui Diop)
   const { data: modelInfoData } = useQuery<{
     status: string
     model: ModelMetadata
   }>({
-    queryKey: ['ml-model-info'],
+    queryKey: QK.mlModelInfo,
     queryFn: () => api.get<{ status: string; model: ModelMetadata }>('/api/ml/model-info/'),
   })
   const model = modelInfoData?.model
@@ -46,7 +55,7 @@ export const MLPredictions: React.FC = () => {
     isRefetching,
     refetch,
   } = useQuery<Prediction[]>({
-    queryKey: ['ml-predictions-list', filterRegion, filterBloodGroup, filterRiskLevel],
+    queryKey: [...QK.mlPredictionsList, filterRegion, filterBloodGroup, filterRiskLevel],
     queryFn: async () => {
       const res = await api.get<{ results: Prediction[] }>('/api/ml/predictions/', {
         region: filterRegion || undefined,
@@ -57,221 +66,209 @@ export const MLPredictions: React.FC = () => {
     },
   })
 
-  // Mutation : Exécuter le modèle prédictif
+  // Prédiction à la demande : le serveur répond tout de suite (202) et
+  // calcule en arrière-plan ; on suit la tâche jusqu'à son terme.
+  const [jobId, setJobId] = useState<string | null>(null)
+
   const predictMutation = useMutation({
     mutationFn: () =>
-      api.post<PredictResponse>('/api/ml/predict/', {
+      api.post<PredictionJob>('/api/ml/predict/', {
         region: runRegion || undefined,
         blood_group: runBloodGroup || undefined,
         days_ahead: runDaysAhead,
       }),
-    onSuccess: (data) => {
-      setRunSuccessMsg(
-        `${data.predictions_count} prédictions générées avec succès (Modèle v${data.model_version}) et diffusées en temps réel sur le WebSocket national.`
-      )
-      queryClient.invalidateQueries({ queryKey: ['ml-predictions-list'] })
-      queryClient.invalidateQueries({ queryKey: ['predictions-summary'] })
-    },
+    onSuccess: (job) => setJobId(job.job_id),
     onError: (err: unknown) => {
-      alert(err instanceof Error ? err.message : 'Erreur lors de l’exécution du modèle ML.')
+      setRunMsg({
+        type: 'danger',
+        text: err instanceof Error ? err.message : 'Erreur lors de l’exécution du modèle.',
+      })
     },
   })
 
-  return (
-    <div className="space-y-6">
-      {/* En-tête scientifique et institutionnel */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Machine Learning & Vigilance Transfusionnelle
-            </span>
-            <span className="text-slate-300 dark:text-slate-700">•</span>
-            <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-              CQR Calibré P10-P90
-            </span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-            Intelligence Prédictive des Stocks Sanguins
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
-            Modèle de régression quantile conformaliste multi-horizon (HistGradientBoosting CQR) conçu par El Hadji Massogui Diop pour anticiper les tensions de stock à J+7.
-          </p>
-        </div>
+  const { data: job } = useQuery<PredictionJob>({
+    queryKey: [...QK.mlPredictJob, jobId],
+    queryFn: async () => {
+      const current = await api.get<PredictionJob>(`/api/ml/predict/${jobId}/`)
+      // Fin de tâche : message, rafraîchissement des listes, arrêt du suivi.
+      if (current.status === 'succeeded') {
+        setRunMsg({
+          type: 'success',
+          text: `${current.predictions_count ?? 0} prévisions générées (modèle v${current.model_version ?? '?'}).`,
+        })
+        queryClient.invalidateQueries({ queryKey: QK.mlPredictionsList })
+        queryClient.invalidateQueries({ queryKey: QK.predictionsSummary })
+        setJobId(null)
+      } else if (current.status === 'failed') {
+        setRunMsg({ type: 'danger', text: current.message || 'Le calcul a échoué.' })
+        setJobId(null)
+      }
+      return current
+    },
+    enabled: jobId !== null,
+    refetchInterval: JOB_POLL_MS,
+  })
 
-        <div className="flex items-center gap-2.5">
+  const isComputing = predictMutation.isPending || jobId !== null
+
+  // Métriques d'évaluation réelles du modèle actif (période de test, voir ml/services/trainer.py).
+  const metrics = (model?.metrics ?? {}) as Record<string, unknown>
+  const metric = (key: string) => (typeof metrics[key] === 'number' ? (metrics[key] as number) : null)
+  const coverage = metric('interval_coverage')
+  const skill = metric('skill_vs_baseline')
+  const baselineMae = metric('baseline_mae')
+  const criticalRecall = metric('critical_recall')
+  const series = metric('series')
+
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        title="Prévisions de pénurie"
+        description="Projection des stocks de sang par banque et par groupe, avec intervalle P10–P90 et jours de réserve."
+        actions={
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
             onClick={() => refetch()}
             isLoading={isRefetching}
-            icon={<RefreshCw className="w-3.5 h-3.5" />}
+            icon={<RefreshCw className="h-3.5 w-3.5" />}
           >
             Actualiser
           </Button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* Cartes métriques du modèle ML (Standard Linear/Stripe) */}
       {model && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            title="Couverture Empirique CQR"
-            value="81.0%"
-            unit="vs 80.0% cible"
-            badge="Intervalle P10-P90"
-            badgeTone="success"
-            trend="Calibrage conforme rigoureux"
-            trendTone="success"
-            description="Garantie statistique de couverture"
-          />
-
-          <StatCard
-            title="Précision & Gain MAE"
-            value={model.mae !== null ? `${formatNumber(model.mae, 1)}` : '0.42'}
-            unit="poches d'erreur moy."
-            badge="-25% vs baseline"
-            badgeTone="success"
-            trend="-25% d'erreur vs persistance"
-            trendTone="success"
-            description="Surperformance éprouvée"
-          />
-
-          <StatCard
-            title="Architecture Algorithmique"
-            value={`v${model.version}`}
-            unit="HistGradientBoosting"
-            trend="Quantile Loss multi-horizon"
-            trendTone="neutral"
-            description="Moteur séquentiel d'inférence"
-          />
-
-          <StatCard
-            title="Périmètre d'Entraînement"
-            value={formatNumber(model.training_samples)}
-            unit="échantillons"
-            trend="14 régions du Sénégal couvertes"
-            trendTone="neutral"
-            description="Données consolidées CNTS"
-          />
-        </div>
+        <section aria-label="Modèle actif">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard
+              title="Couverture P10–P90"
+              value={formatPercent(coverage, 1)}
+              unit="cible 80 %"
+              trend={coverage == null ? undefined : coverage >= 0.78 ? 'Calibré' : 'Sous la cible'}
+              trendTone={coverage != null && coverage < 0.78 ? 'warning' : 'success'}
+              description="Sur la période de test"
+            />
+            <StatCard
+              title="Erreur moyenne (MAE)"
+              value={formatNumber(model.mae, 2)}
+              unit="poches"
+              trend={skill == null ? undefined : `${skill >= 0 ? '−' : '+'}${formatPercent(Math.abs(skill))} vs persistance`}
+              trendTone={skill != null && skill < 0 ? 'warning' : 'success'}
+              description={baselineMae == null ? 'Référence indisponible' : `Persistance : ${formatNumber(baselineMae, 2)}`}
+            />
+            <StatCard
+              title="Pénuries détectées"
+              value={formatPercent(criticalRecall)}
+              unit="rappel"
+              description="Pénuries réelles signalées à l'avance"
+            />
+            <StatCard
+              title="Modèle actif"
+              value={`v${model.version}`}
+              unit={model.algorithm}
+              description={`${formatNumber(model.training_samples)} échantillons${series != null ? ` · ${series} séries` : ''}`}
+            />
+          </div>
+          <p className="mt-2 text-2xs text-subtle">
+            Entraîné le <span className="num">{formatDate(model.trained_at)}</span> · régression quantile conformelle
+            (CQR) · conception El Hadji Massogui Diop
+          </p>
+        </section>
       )}
 
-      {/* Module d'exécution à la demande du modèle */}
-      <div className="clinical-card p-5 space-y-4">
-        <div className="border-b border-[var(--border-main)] pb-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Brain className="w-4 h-4 text-slate-900 dark:text-slate-100" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100">
-              Simulateur & Générateur de Projections Algorithmiques
-            </h3>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Exécutez le modèle pour projeter la demande future et déclencher la diffusion temps réel sur le WebSocket des banques de sang.
+      <section className="rounded-md border border-line bg-surface">
+        <div className="border-b border-line px-4 py-3">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
+            <Brain className="h-4 w-4 text-muted" aria-hidden="true" />
+            Lancer une prévision
+          </h3>
+          <p className="mt-0.5 text-xs text-muted">
+            Les nouvelles prévisions sont diffusées en temps réel aux banques de sang.
           </p>
         </div>
 
-        {runSuccessMsg && (
-          <Alert tone="success" onClose={() => setRunSuccessMsg(null)}>
-            {runSuccessMsg}
-          </Alert>
-        )}
+        <div className="space-y-3 px-4 py-3">
+          {isComputing && (
+            <Alert tone="info">
+              Calcul en cours sur le serveur ({job?.status === 'running' ? 'exécution' : 'en file d’attente'}).
+              Vous pouvez continuer à travailler : les résultats s’afficheront ici.
+            </Alert>
+          )}
+          {runMsg && !isComputing && (
+            <Alert tone={runMsg.type} onClose={() => setRunMsg(null)}>
+              {runMsg.text}
+            </Alert>
+          )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-          <Select
-            label="Région cible"
-            value={runRegion}
-            onChange={(e) => setRunRegion(e.target.value)}
-          >
-            <option value="">Toutes les 14 régions</option>
-            {REGIONS.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </Select>
-
-          <Select
-            label="Groupe Sanguin"
-            value={runBloodGroup}
-            onChange={(e) => setRunBloodGroup(e.target.value)}
-          >
-            <option value="">Tous les 8 groupes (ABO/Rh)</option>
-            {BLOOD_GROUPS.map((g) => (
-              <option key={g} value={g}>
-                Groupe {g}
-              </option>
-            ))}
-          </Select>
-
-          <Input
-            label="Horizon temporel (jours)"
-            type="number"
-            min={1}
-            max={30}
-            value={runDaysAhead}
-            onChange={(e) => setRunDaysAhead(parseInt(e.target.value, 10) || 7)}
-          />
-
-          <Button
-            variant="primary"
-            size="md"
-            className="w-full bg-indigo-600 hover:bg-indigo-700 border-indigo-500/30"
-            isLoading={predictMutation.isPending}
-            onClick={() => predictMutation.mutate()}
-            icon={<Play className="w-4 h-4 fill-current" />}
-          >
-            Lancer le Calcul
-          </Button>
-        </div>
-      </div>
-
-      {/* Tableau des prévisions et risques de pénurie */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-muted)]">
-              Projections de Stocks & Alertes ({predictions.length})
-            </h2>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">
-              Estimation par intervalle de confiance P10 - P90 avec calcul des jours de réserve
-            </p>
-          </div>
-
-          {/* Filtres de la table */}
-          <div className="flex items-center gap-2">
-            <Select
-              className="text-xs py-1.5"
-              value={filterRiskLevel}
-              onChange={(e) => setFilterRiskLevel(e.target.value)}
-            >
-              <option value="">Tous les risques</option>
-              {RISK_LEVELS.map((rl) => (
-                <option key={rl.value} value={rl.value}>
-                  {rl.label}
-                </option>
-              ))}
-            </Select>
-
-            <Select
-              className="text-xs py-1.5"
-              value={filterRegion}
-              onChange={(e) => setFilterRegion(e.target.value)}
-            >
-              <option value="">Toutes les régions</option>
+          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-4">
+            <Select label="Région" value={runRegion} onChange={(e) => setRunRegion(e.target.value)}>
+              <option value="">Toutes</option>
               {REGIONS.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
                 </option>
               ))}
             </Select>
-
-            <Select
-              className="text-xs py-1.5"
-              value={filterBloodGroup}
-              onChange={(e) => setFilterBloodGroup(e.target.value)}
+            <Select label="Groupe sanguin" value={runBloodGroup} onChange={(e) => setRunBloodGroup(e.target.value)}>
+              <option value="">Tous</option>
+              {BLOOD_GROUPS.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </Select>
+            <Input
+              label="Horizon (jours)"
+              type="number"
+              min={1}
+              max={30}
+              value={runDaysAhead}
+              onChange={(e) => setRunDaysAhead(parseInt(e.target.value, 10) || 7)}
+            />
+            <Button
+              variant="primary"
+              className="w-full"
+              isLoading={isComputing}
+              onClick={() => {
+                setRunMsg(null)
+                predictMutation.mutate()
+              }}
+              icon={<Play className="h-3.5 w-3.5" />}
             >
-              <option value="">Tous les groupes</option>
+              Calculer
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-fg">
+              Prévisions <span className="num ml-1 font-normal text-muted">{predictions.length}</span>
+            </h2>
+            <p className="mt-0.5 text-xs text-muted">Stock estimé, intervalle P10–P90 et jours de réserve.</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 lg:w-[28rem]">
+            <Select label="Risque" value={filterRiskLevel} onChange={(e) => setFilterRiskLevel(e.target.value)}>
+              <option value="">Tous</option>
+              {RISK_LEVELS.map((rl) => (
+                <option key={rl.value} value={rl.value}>
+                  {rl.label}
+                </option>
+              ))}
+            </Select>
+            <Select label="Région" value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)}>
+              <option value="">Toutes</option>
+              {REGIONS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </Select>
+            <Select label="Groupe" value={filterBloodGroup} onChange={(e) => setFilterBloodGroup(e.target.value)}>
+              <option value="">Tous</option>
               {BLOOD_GROUPS.map((g) => (
                 <option key={g} value={g}>
                   {g}
@@ -282,96 +279,61 @@ export const MLPredictions: React.FC = () => {
         </div>
 
         {isLoading ? (
-          <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)]">
-            Chargement des prévisions algorithmiques...
+          <div className="space-y-2 rounded-md border border-line bg-surface p-4">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-8 w-full" />
+            ))}
           </div>
         ) : predictions.length === 0 ? (
-          <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)]">
-            Aucune prédiction pour ces critères. Utilisez le simulateur ci-dessus pour lancer un calcul.
-          </div>
+          <EmptyState
+            title="Aucune prévision"
+            description="Aucune prévision pour ces critères. Lancez un calcul ci-dessus."
+          />
         ) : (
-          <div className="clinical-card overflow-hidden">
+          <div className="overflow-hidden rounded-md border border-line bg-surface">
             <div className="overflow-x-auto">
-              <table className="clinical-table">
+              <table className="ops-table">
                 <thead>
                   <tr>
-                    <th>Banque / Région</th>
-                    <th>Groupe</th>
-                    <th>Date Prévue</th>
-                    <th>Stock Estimé</th>
-                    <th>Intervalle P10-P90 (CQR)</th>
-                    <th>Jours de Réserve</th>
-                    <th className="text-right">Niveau de Risque</th>
+                    <th scope="col">Banque</th>
+                    <th scope="col">Groupe</th>
+                    <th scope="col">Date</th>
+                    <th scope="col" className="text-right">Stock estimé</th>
+                    <th scope="col">Intervalle P10–P90</th>
+                    <th scope="col" className="text-right">Réserve</th>
+                    <th scope="col">Risque</th>
                   </tr>
                 </thead>
                 <tbody>
                   {predictions.map((p) => {
-                    const isCritical = p.risk_level === 'CRITICAL'
-                    const isWarning = p.risk_level === 'WARNING'
-
+                    const level = p.risk_level
                     return (
                       <tr
                         key={p.id}
-                        className={
-                          isCritical
-                            ? 'bg-red-500/[0.04]'
-                            : isWarning
-                            ? 'bg-amber-500/[0.03]'
-                            : ''
-                        }
+                        data-severity={level === 'CRITICAL' ? 'critical' : level === 'WARNING' ? 'warning' : undefined}
                       >
-                        <td className="font-semibold text-[var(--text-main)]">
-                          <div>{p.center_name || 'CNTS Dakar'}</div>
-                          <div className="text-[11px] text-[var(--text-muted)] font-normal">
-                            {p.region_display}
-                          </div>
+                        <td className="w-full max-w-0">
+                          <div className="truncate font-medium text-fg">{p.center_name || '—'}</div>
+                          <div className="truncate text-2xs text-muted">{p.region_display}</div>
+                        </td>
+                        <td className="num font-medium text-fg">{p.blood_group}</td>
+                        <td className="num whitespace-nowrap text-muted">{formatDate(p.prediction_date)}</td>
+                        <td className="num whitespace-nowrap text-right text-fg">
+                          {formatNumber(p.predicted_units)}
+                          <span className="ml-1 text-2xs text-muted">poches</span>
+                        </td>
+                        <td className="whitespace-nowrap">
+                          <IntervalBar lower={p.lower_bound} upper={p.upper_bound} point={p.predicted_units} />
+                        </td>
+                        <td
+                          className={`num whitespace-nowrap text-right ${
+                            level === 'CRITICAL' ? 'text-critical' : level === 'WARNING' ? 'text-warning' : 'text-fg'
+                          }`}
+                        >
+                          {p.days_of_supply !== null ? `${formatNumber(p.days_of_supply, 1)} j` : '—'}
                         </td>
                         <td>
-                          <span className="font-bold text-red-600 dark:text-red-400 font-mono text-sm px-2 py-0.5 rounded bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900">
-                            {p.blood_group}
-                          </span>
-                        </td>
-                        <td className="text-[var(--text-muted)]">
-                          {formatDate(p.prediction_date)}
-                        </td>
-                        <td className="font-bold text-[var(--text-main)] font-mono text-sm">
-                          {p.predicted_units} <span className="text-xs font-normal text-[var(--text-muted)]">poches</span>
-                        </td>
-                        <td>
-                          <div className="font-mono text-xs text-[var(--text-muted)]">
-                            [{p.lower_bound ?? '—'} ; {p.upper_bound ?? '—'}]
-                          </div>
-                          {p.lower_bound !== null && p.upper_bound !== null && (
-                            <div className="w-24 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
-                              <div
-                                className="h-full bg-indigo-500 rounded-full"
-                                style={{
-                                  width: `${Math.min(100, Math.max(10, ((p.predicted_units - p.lower_bound) / (p.upper_bound - p.lower_bound || 1)) * 100))}%`,
-                                }}
-                              />
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <span
-                            className={`font-semibold font-mono ${
-                              isCritical
-                                ? 'text-red-600 dark:text-red-400 font-bold'
-                                : isWarning
-                                ? 'text-amber-600 dark:text-amber-400'
-                                : 'text-emerald-600 dark:text-emerald-400'
-                            }`}
-                          >
-                            {p.days_of_supply !== null
-                              ? `${formatNumber(p.days_of_supply, 1)} jours`
-                              : '—'}
-                          </span>
-                        </td>
-                        <td className="text-right">
-                          <Badge
-                            tone={isCritical ? 'danger' : isWarning ? 'warning' : 'success'}
-                            size="sm"
-                          >
+                          <Badge tone={toneOf(RISK_LEVELS, level)} size="sm">
                             {p.risk_level_display}
                           </Badge>
                         </td>
@@ -383,7 +345,30 @@ export const MLPredictions: React.FC = () => {
             </div>
           </div>
         )}
+      </section>
+    </div>
+  )
+}
+
+/** Intervalle P10–P90 : bornes chiffrées et position de l'estimation centrale. */
+const IntervalBar: React.FC<{ lower: number | null; upper: number | null; point: number }> = ({
+  lower,
+  upper,
+  point,
+}) => {
+  if (lower === null || upper === null) return <span className="text-subtle">—</span>
+  const span = upper - lower || 1
+  const position = Math.min(100, Math.max(0, ((point - lower) / span) * 100))
+  return (
+    <div className="flex items-center gap-2">
+      <span className="num w-8 text-right text-xs text-muted">{formatNumber(lower)}</span>
+      <div className="relative h-1 w-20 rounded-full bg-raised" aria-hidden="true">
+        <span
+          className="absolute top-1/2 h-2.5 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-fg"
+          style={{ left: `${position}%` }}
+        />
       </div>
+      <span className="num w-8 text-xs text-muted">{formatNumber(upper)}</span>
     </div>
   )
 }

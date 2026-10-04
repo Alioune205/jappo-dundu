@@ -33,16 +33,6 @@ export const Modal: React.FC<ModalProps> = ({
     }
   }, [isOpen])
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
-
   if (!isOpen) return null
 
   const widthClasses = {
@@ -56,25 +46,26 @@ export const Modal: React.FC<ModalProps> = ({
   return (
     <dialog
       ref={dialogRef}
+      // Échap déclenche « close » nativement : pas d'écouteur clavier en plus.
       onClose={onClose}
-      className={`fixed inset-0 m-auto w-full ${widthClasses[maxWidth]} bg-transparent p-4 z-50 focus:outline-none`}
+      className={`fixed inset-0 z-50 m-auto w-full ${widthClasses[maxWidth]} bg-transparent p-4 text-fg focus:outline-none`}
     >
-      <div className="clinical-card bg-[var(--bg-surface)] border border-[var(--border-main)] shadow-2xl rounded-2xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh]">
+      <div className="flex max-h-[90vh] flex-col overflow-hidden rounded-md border border-line-strong bg-surface">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-main)] bg-[var(--bg-surface)]">
+        <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
           <div>
-            <h2 className="text-base font-semibold text-[var(--text-main)]">{title}</h2>
-            {description && <p className="text-xs text-[var(--text-muted)] mt-0.5">{description}</p>}
+            <h2 className="text-sm font-semibold text-fg">{title}</h2>
+            {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
           </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="p-1.5 h-auto rounded-lg"
+            className="w-7 px-0"
             aria-label="Fermer"
           >
             <svg
-              className="w-5 h-5"
+              className="h-4 w-4"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -86,13 +77,13 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 overflow-y-auto space-y-4 text-sm text-[var(--text-main)]">
+        <div className="space-y-4 overflow-y-auto px-4 py-4 text-sm">
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-end gap-3 px-6 py-4 bg-[var(--bg-subtle)] border-t border-[var(--border-main)]">
+          <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
             {footer}
           </div>
         )}

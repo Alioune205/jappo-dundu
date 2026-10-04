@@ -1,19 +1,26 @@
 import React from 'react'
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { useFallbackPolling } from '@/lib/useFallbackPolling'
 
 export const AppLayout: React.FC = () => {
+  const { pathname } = useLocation()
+  // Flux temps réel coupé : relevé périodique des données affichées.
+  useFallbackPolling()
+
   return (
-    <div className="flex min-h-screen bg-[var(--bg-canvas)] text-[var(--text-main)] transition-colors duration-200">
-      {/* Sidebar Navigation fixe */}
+    <div className="flex h-full bg-canvas text-fg">
       <Sidebar />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Header />
-        <main className="flex-1 p-8 overflow-y-auto">
-          <Outlet />
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6">
+          {/* Une panne de module laisse la navigation et l'en-tête utilisables. */}
+          <ErrorBoundary resetKey={pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

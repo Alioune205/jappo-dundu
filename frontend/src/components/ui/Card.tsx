@@ -7,8 +7,8 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 export const Card: React.FC<CardProps> = ({ hover = false, className = '', children, ...props }) => {
   return (
     <div
-      className={`clinical-card p-5 ${
-        hover ? 'hover:-translate-y-0.5 hover:shadow-md cursor-pointer' : ''
+      className={`rounded-md border border-line bg-surface p-4 ${
+        hover ? 'cursor-pointer transition-colors hover:border-line-strong' : ''
       } ${className}`}
       {...props}
     >
@@ -22,7 +22,7 @@ export const CardHeader: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
   children,
   ...props
 }) => (
-  <div className={`flex items-center justify-between gap-4 mb-4 ${className}`} {...props}>
+  <div className={`mb-3 flex items-center justify-between gap-4 ${className}`} {...props}>
     {children}
   </div>
 )
@@ -32,7 +32,7 @@ export const CardTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({
   children,
   ...props
 }) => (
-  <h3 className={`text-sm font-bold text-[var(--text-main)] uppercase tracking-wider ${className}`} {...props}>
+  <h3 className={`text-sm font-semibold text-fg ${className}`} {...props}>
     {children}
   </h3>
 )
@@ -42,7 +42,7 @@ export const CardDescription: React.FC<React.HTMLAttributes<HTMLParagraphElement
   children,
   ...props
 }) => (
-  <p className={`text-xs text-[var(--text-muted)] mt-0.5 ${className}`} {...props}>
+  <p className={`mt-0.5 text-xs text-muted ${className}`} {...props}>
     {children}
   </p>
 )

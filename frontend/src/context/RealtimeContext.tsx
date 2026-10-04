@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
-import { session } from '@/lib/session'
+import { api } from '@/lib/api'
+import { openRealtimeSocket, type RealtimeMessage } from '@/lib/realtimeSocket'
 import { useAuth } from './AuthContext'
 
 export interface RealtimeAlert {
@@ -12,191 +13,208 @@ export interface RealtimeAlert {
   isRead?: boolean
 }
 
-type RealtimeListener = (event: string, data: unknown) => void
+type RealtimeListener = (event: string, data: Record<string, unknown>) => void
+
+/** connecting : première connexion en cours ; interrupted : flux perdu après coup. */
+export type RealtimeStatus = 'connecting' | 'open' | 'interrupted'
 
 interface RealtimeContextType {
   isConnected: boolean
+  status: RealtimeStatus
+  /** Instant (ms) de la coupure en cours, ou null. */
+  interruptedSince: number | null
   alerts: RealtimeAlert[]
   unreadCount: number
   markAsRead: (id: string) => void
   markAllAsRead: () => void
   clearAlerts: () => void
+  /**
+   * Écoute un événement métier (`data.event`, ou le type du message à défaut :
+   * `mission_created`, `bed_capacity_updated`, `prediction_update`…).
+   * Le joker `*` reçoit tout : à réserver au débogage.
+   */
   subscribe: (event: string, callback: RealtimeListener) => () => void
+}
+
+/** Messages de contrôle du protocole, sans intérêt pour les écrans. */
+const CONTROL_TYPES = new Set(['connection_established', 'pong', 'subscribed', 'unsubscribed', 'error'])
+
+const MAX_ALERTS = 50
+
+/**
+ * Ticket WebSocket à usage unique. Passe par le client API : un JWT expiré
+ * est rafraîchi avant la demande, comme pour toute requête REST.
+ */
+async function fetchTicket(): Promise<string | null> {
+  try {
+    const { ticket } = await api.post<{ ticket: string }>('/api/realtime/ticket/')
+    return ticket || null
+  } catch {
+    return null
+  }
 }
 
 const RealtimeContext = createContext<RealtimeContextType | undefined>(undefined)
 
+/** Nom de l'événement métier porté par un message. */
+function eventName(message: RealtimeMessage): string {
+  const event = message.data?.event
+  return typeof event === 'string' && event ? event : message.type
+}
+
+/** Traduit un message du flux d'alertes en notification affichable, ou null. */
+function toAlert(message: RealtimeMessage): Omit<RealtimeAlert, 'id' | 'timestamp' | 'isRead'> | null {
+  const data = (message.data ?? {}) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+  switch (message.type) {
+    case 'blood_alert':
+      if (data.source === 'ml_prediction') {
+        return {
+          type: 'prediction',
+          title: 'Risque de pénurie',
+          message: data.message || `Pénurie prévue — ${data.region_display || data.region || 'région inconnue'}.`,
+          data,
+        }
+      }
+      return {
+        type: 'blood',
+        title: 'Demande de sang',
+        message: `${data.blood_group || ''} — ${data.units_remaining ?? data.units_needed ?? 0} poche(s) à ${data.facility?.name || 'un établissement'}.`,
+        data,
+      }
+    case 'bed_alert':
+      return {
+        type: 'bed',
+        title: data.event === 'bed_capacity_saturated' ? 'Service saturé' : 'Lits de nouveau disponibles',
+        message: `${data.facility?.name || 'Établissement'} : ${data.available_beds ?? 0} lit(s) disponible(s).`,
+        data,
+      }
+    case 'ambulance_alert':
+      return {
+        type: 'ambulance',
+        title: 'Mission ambulance',
+        message: `Priorité ${data.priority || '—'} : ${data.pickup?.address || 'lieu non précisé'}.`,
+        data,
+      }
+    case 'alert_message':
+      return { type: 'general', title: 'Message', message: data.message || '', data }
+    default:
+      return null
+  }
+}
+
 export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, user } = useAuth()
-  const [isConnected, setIsConnected] = useState<boolean>(false)
+  const [alertsOpen, setAlertsOpen] = useState(false)
+  const [interruptedSince, setInterruptedSince] = useState<number | null>(null)
   const [alerts, setAlerts] = useState<RealtimeAlert[]>([])
   const listenersRef = useRef<Map<string, Set<RealtimeListener>>>(new Map())
-  const dashboardWsRef = useRef<WebSocket | null>(null)
-  const alertsWsRef = useRef<WebSocket | null>(null)
-  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const emitEvent = useCallback((event: string, data: unknown) => {
-    const callbacks = listenersRef.current.get(event)
-    if (callbacks) {
-      callbacks.forEach((cb) => {
+  const emit = useCallback((event: string, data: Record<string, unknown>) => {
+    for (const key of [event, '*']) {
+      listenersRef.current.get(key)?.forEach((listener) => {
         try {
-          cb(event, data)
-        } catch (e) {
-          console.error(`Erreur listener realtime [${event}]:`, e)
-        }
-      })
-    }
-    const wildcardCallbacks = listenersRef.current.get('*')
-    if (wildcardCallbacks) {
-      wildcardCallbacks.forEach((cb) => {
-        try {
-          cb(event, data)
-        } catch (e) {
-          console.error(`Erreur listener wildcard:`, e)
-        }
-      })
-    }
-  }, [])
-
-  const addAlert = useCallback((alert: Omit<RealtimeAlert, 'id' | 'timestamp' | 'isRead'>) => {
-    const newAlert: RealtimeAlert = {
-      ...alert,
-      id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      timestamp: new Date().toISOString(),
-      isRead: false,
-    }
-    setAlerts((prev) => [newAlert, ...prev.slice(0, 49)]) // Limite à 50 alertes
-  }, [])
-
-  const connectWebSockets = useCallback(() => {
-    const token = session.getAccess()
-    if (!token || !isAuthenticated) return
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.host
-
-    // WebSocket 1: Alertes globales / régionales
-    const alertsUrl = `${protocol}//${host}/ws/alerts/?token=${token}`
-    const alertsWs = new WebSocket(alertsUrl)
-    alertsWsRef.current = alertsWs
-
-    alertsWs.onopen = () => {
-      setIsConnected(true)
-    }
-
-    alertsWs.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data)
-        const type = message.type
-        const data = message.data || {}
-        const evt = data.event || type
-
-        emitEvent(evt, data)
-
-        if (type === 'blood_alert') {
-          addAlert({
-            type: 'blood',
-            title: 'Urgence Don de Sang',
-            message: `Demande de sang ${data.blood_group || ''} (${data.units_remaining || data.units_needed || 0} poches requises) à ${data.facility?.name || 'un établissement'}.`,
-            data,
-          })
-        } else if (type === 'bed_alert') {
-          addAlert({
-            type: 'bed',
-            title: evt === 'bed_capacity_saturated' ? 'Saturation de Service' : 'Disponibilité Lit',
-            message: `Service ${data.category || ''} à ${data.facility?.name || 'Établissement'}: ${data.available_beds} lits disponibles.`,
-            data,
-          })
-        } else if (type === 'ambulance_alert') {
-          addAlert({
-            type: 'ambulance',
-            title: 'Intervention Ambulance',
-            message: `Mission ${data.priority || 'urgente'} : ${data.pickup?.address || 'Lieu d’intervention'}.`,
-            data,
-          })
-        }
-      } catch (err) {
-        console.error('Erreur décodage WebSocket alerts:', err)
-      }
-    }
-
-    alertsWs.onclose = (e) => {
-      setIsConnected(false)
-      // Reconnexion automatique si non fermé volontairement
-      if (e.code !== 1000 && isAuthenticated) {
-        reconnectTimeoutRef.current = setTimeout(connectWebSockets, 5000)
-      }
-    }
-
-    // WebSocket 2: Dashboard national / hôpital (pour hospital_staff ou admin)
-    if (user && (user.role === 'admin' || user.role === 'hospital_staff' || user.roles?.includes('admin') || user.roles?.includes('hospital_staff'))) {
-      const hospitalParam = user.facility?.id ? `&hospital_id=${user.facility.id}` : ''
-      const dashboardUrl = `${protocol}//${host}/ws/dashboard/?token=${token}${hospitalParam}`
-      const dashWs = new WebSocket(dashboardUrl)
-      dashboardWsRef.current = dashWs
-
-      dashWs.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data)
-          const evt = message.data?.event || message.type
-          emitEvent(evt, message.data || {})
+          listener(event, data)
         } catch (err) {
-          console.error('Erreur décodage WebSocket dashboard:', err)
+          console.error(`Erreur d'un écouteur temps réel [${event}] :`, err)
         }
-      }
-
-      dashWs.onclose = () => {
-        // Géré conjointement
-      }
+      })
     }
-  }, [isAuthenticated, user, emitEvent, addAlert])
+  }, [])
+
+  const handleMessage = useCallback(
+    (message: RealtimeMessage, withAlert: boolean) => {
+      if (CONTROL_TYPES.has(message.type)) return
+      emit(eventName(message), message.data ?? {})
+      if (!withAlert) return
+      const alert = toAlert(message)
+      if (!alert) return
+      setAlerts((prev) =>
+        [
+          {
+            ...alert,
+            id: message.id || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            timestamp: message.sent_at || new Date().toISOString(),
+            isRead: false,
+          },
+          ...prev,
+        ].slice(0, MAX_ALERTS)
+      )
+    },
+    [emit]
+  )
+
+  // Seules des valeurs primitives en dépendances : un rafraîchissement du
+  // profil (nouvel objet `user`) ne doit pas couper les connexions.
+  const userId = user?.id
+  const facilityId = user?.facility?.id
+  // Le flux tableau de bord est réservé aux administrateurs et au personnel hospitalier.
+  const userRoles: string[] = user ? [user.role ?? '', ...(user.roles ?? [])] : []
+  const canFollowDashboard = userRoles.includes('admin') || userRoles.includes('hospital_staff')
 
   useEffect(() => {
-    if (isAuthenticated) {
-      connectWebSockets()
-    } else {
-      if (alertsWsRef.current) alertsWsRef.current.close()
-      if (dashboardWsRef.current) dashboardWsRef.current.close()
-      setIsConnected(false)
+    if (!isAuthenticated || userId === undefined) return
+
+    const sockets = [
+      openRealtimeSocket({
+        path: '/ws/alerts/',
+        getTicket: fetchTicket,
+        onMessage: (message) => handleMessage(message, true),
+        onStatusChange: (connected) => {
+          setAlertsOpen(connected)
+          setInterruptedSince((since) => (connected ? null : (since ?? Date.now())))
+        },
+      }),
+    ]
+    if (canFollowDashboard) {
+      sockets.push(
+        openRealtimeSocket({
+          path: '/ws/dashboard/',
+          params: { hospital_id: facilityId },
+          getTicket: fetchTicket,
+          onMessage: (message) => handleMessage(message, false),
+        })
+      )
     }
 
-    return () => {
-      if (alertsWsRef.current) alertsWsRef.current.close()
-      if (dashboardWsRef.current) dashboardWsRef.current.close()
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
-    }
-  }, [isAuthenticated, connectWebSockets])
-
-  const markAsRead = (id: string) => {
-    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: true } : a)))
-  }
-
-  const markAllAsRead = () => {
-    setAlerts((prev) => prev.map((a) => ({ ...a, isRead: true })))
-  }
-
-  const clearAlerts = () => {
-    setAlerts([])
-  }
+    return () => sockets.forEach((socket) => socket.close())
+  }, [isAuthenticated, userId, facilityId, canFollowDashboard, handleMessage])
 
   const subscribe = useCallback((event: string, callback: RealtimeListener) => {
-    if (!listenersRef.current.has(event)) {
-      listenersRef.current.set(event, new Set())
+    let listeners = listenersRef.current.get(event)
+    if (!listeners) {
+      listeners = new Set()
+      listenersRef.current.set(event, listeners)
     }
-    listenersRef.current.get(event)!.add(callback)
+    listeners.add(callback)
     return () => {
       listenersRef.current.get(event)?.delete(callback)
     }
   }, [])
 
-  const unreadCount = alerts.filter((a) => !a.isRead).length
+  const markAsRead = useCallback((id: string) => {
+    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, isRead: true } : a)))
+  }, [])
+  const markAllAsRead = useCallback(() => {
+    setAlerts((prev) => prev.map((a) => ({ ...a, isRead: true })))
+  }, [])
+  const clearAlerts = useCallback(() => setAlerts([]), [])
 
   return (
     <RealtimeContext.Provider
       value={{
-        isConnected,
+        // Une connexion fermée volontairement (déconnexion) ne signale rien :
+        // l'état d'authentification fait foi.
+        isConnected: isAuthenticated && alertsOpen,
+        status: !isAuthenticated
+          ? 'connecting'
+          : alertsOpen
+            ? 'open'
+            : interruptedSince !== null
+              ? 'interrupted'
+              : 'connecting',
+        interruptedSince: isAuthenticated ? interruptedSince : null,
         alerts,
-        unreadCount,
+        unreadCount: alerts.filter((a) => !a.isRead).length,
         markAsRead,
         markAllAsRead,
         clearAlerts,

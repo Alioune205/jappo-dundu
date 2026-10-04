@@ -78,14 +78,35 @@ npm install
 ```bash
 npm run dev
 ```
-L'interface sera accessible sur `http://localhost:5173`. Le serveur de dev redirige automatiquement :
+L'interface sera accessible sur `http://localhost:3000`. Le serveur de dev redirige automatiquement :
 - `/api/*` ➔ `http://127.0.0.1:8000/api/*`
 - `/ws/*` ➔ `ws://127.0.0.1:8000/ws/*`
 
-### Tests Unitaires
+### Tests unitaires et d'intégration (Vitest)
 ```bash
 npm test
 ```
+Règles métier (`pages/domainRules.test.ts`), temps réel (socket, regroupement des
+rafraîchissements, mode dégradé), barrières d'erreur, et pages complètes
+(tableau de bord, lits, sang) avec l'API simulée.
+
+### Tests de bout en bout (Playwright)
+Sur la vraie pile : Django/Daphne + PostgreSQL/PostGIS + Redis + Vite.
+Prérequis : conteneurs `db` et `redis` démarrés (`backend/docker-compose.yml`) et
+l'environnement Python du backend installé (`backend/venv`).
+
+```bash
+npx playwright install chromium        # une fois (ou PLAYWRIGHT_CHANNEL=msedge / chrome)
+npm run test:e2e
+```
+Playwright démarre lui-même un backend sur le port 8010 (`backend/scripts/e2e_server.py`)
+et Vite sur le port 3100. La base `jappo_e2e` est **recréée à chaque campagne** à partir
+des données de démonstration : la base de développement n'est jamais touchée.
+
+Scénarios couverts (`e2e/regulation.spec.ts`) : connexion et flux temps réel par ticket
+(aucun JWT dans l'URL), mission SAMU avec affectation automatique de l'ambulance la plus
+proche puis cycle de vie, admission dans un service visible en temps réel chez un second
+régulateur, page inconnue.
 
 ### Vérification de Types
 ```bash
@@ -108,8 +129,10 @@ Les fichiers statiques minifiés et découpés en chunks optimisés sont génér
    - Un intercepteur single-flight capture les erreurs 401 et régénère le token de façon transparente sans déconnecter l'utilisateur.
 
 2. **WebSockets Sécurisés** :
-   - Connexion authentifiée par paramètre de requête `?token=<access>` sur les canaux `/ws/alerts/` et `/ws/dashboard/`.
-   - Reconnexion automatique avec backoff exponentiel pour garantir la continuité des flux opérationnels même en cas d'instabilité réseau.
+   - Le JWT ne figure jamais dans l'URL : chaque (re)connexion échange le jeton d'accès contre un ticket à usage unique valable 30 s (`POST /api/realtime/ticket/`, puis `?ticket=…`).
+   - Reconnexion automatique avec attente exponentielle (1 s → 30 s), arrêt définitif sur refus d'autorisation.
+   - Flux coupé : l'en-tête l'indique (« Flux interrompu depuis HH:MM ») et les données affichées sont relues toutes les 30 s par l'API REST.
+   - Les événements reçus sont regroupés par fenêtre d'une seconde avant tout rechargement ; les positions GPS sont appliquées au cache sans requête.
 
 3. **Protection des Données Personnelles** :
    - Formatage conforme des coordonnées de donneurs et masquage selon les privilèges du rôle connecté (`hospital_staff` vs `admin`).

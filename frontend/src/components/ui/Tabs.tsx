@@ -14,6 +14,7 @@ interface TabsProps<T extends string = string> {
   className?: string
 }
 
+/** Onglets soulignés : l'onglet actif est marqué par un trait, pas par une couleur de fond. */
 export function Tabs<T extends string = string>({
   tabs,
   activeTab,
@@ -21,32 +22,24 @@ export function Tabs<T extends string = string>({
   className = '',
 }: TabsProps<T>) {
   return (
-    <div className={`flex items-center gap-1.5 p-1 bg-[var(--bg-subtle)] border border-[var(--border-main)] rounded-xl ${className}`}>
+    <div role="tablist" className={`flex items-center gap-4 border-b border-line ${className}`}>
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab
         return (
           <button
             key={tab.id}
             type="button"
+            role="tab"
+            aria-selected={isActive}
             onClick={() => onChange(tab.id)}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 select-none cursor-pointer ${
-              isActive
-                ? 'bg-red-600 text-white shadow-sm'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-surface)]'
+            className={`-mb-px flex cursor-pointer select-none items-center gap-1.5 border-b-2 pb-2 pt-1 text-sm font-medium transition-colors ${
+              isActive ? 'border-fg text-fg' : 'border-transparent text-muted hover:text-fg'
             }`}
           >
             {tab.icon}
             <span>{tab.label}</span>
             {tab.count !== undefined && (
-              <span
-                className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                  isActive
-                    ? 'bg-white/25 text-white'
-                    : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
-                }`}
-              >
-                {tab.count}
-              </span>
+              <span className={`num text-xs ${isActive ? 'text-fg' : 'text-subtle'}`}>{tab.count}</span>
             )}
           </button>
         )

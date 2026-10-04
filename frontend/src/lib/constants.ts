@@ -19,6 +19,31 @@ import type {
 
 export type Tone = 'neutral' | 'brand' | 'danger' | 'warning' | 'success' | 'info' | 'violet'
 
+/**
+ * Traduction des tons vers les quatre couleurs de sens du système
+ * (critique, vigilance, nominal, information). « brand » rejoint le critique
+ * et « violet » l'information ; le reste est neutre.
+ */
+export const TONE_DOT: Record<Tone, string> = {
+  neutral: 'bg-subtle',
+  brand: 'bg-critical',
+  danger: 'bg-critical',
+  warning: 'bg-warning',
+  success: 'bg-ok',
+  info: 'bg-info',
+  violet: 'bg-info',
+}
+
+export const TONE_TEXT: Record<Tone, string> = {
+  neutral: 'text-muted',
+  brand: 'text-critical',
+  danger: 'text-critical',
+  warning: 'text-warning',
+  success: 'text-ok',
+  info: 'text-info',
+  violet: 'text-info',
+}
+
 export interface Option<T extends string> {
   value: T
   label: string
@@ -50,7 +75,8 @@ export const URGENCIES: (Option<Urgency> & { tone: Tone })[] = [
 ]
 
 export const REQUEST_STATUSES: (Option<BloodRequestStatus> & { tone: Tone })[] = [
-  { value: 'open', label: 'Ouverte', tone: 'brand' },
+  // L'urgence porte la gravité : une demande ouverte n'est qu'une information.
+  { value: 'open', label: 'Ouverte', tone: 'info' },
   { value: 'fulfilled', label: 'Satisfaite', tone: 'success' },
   { value: 'cancelled', label: 'Annulée', tone: 'neutral' },
 ]
@@ -90,9 +116,9 @@ export const AMBULANCE_TYPES: Option<AmbulanceType>[] = [
 ]
 
 export const AMBULANCE_STATUSES: (Option<AmbulanceStatus> & { tone: Tone; color: string })[] = [
-  { value: 'available', label: 'Disponible', tone: 'success', color: '#34d399' },
-  { value: 'on_mission', label: 'En mission', tone: 'warning', color: '#fbbf24' },
-  { value: 'out_of_service', label: 'Hors service', tone: 'neutral', color: '#7d8bab' },
+  { value: 'available', label: 'Disponible', tone: 'success', color: '#17b26a' },
+  { value: 'on_mission', label: 'En mission', tone: 'warning', color: '#f79009' },
+  { value: 'out_of_service', label: 'Hors service', tone: 'neutral', color: '#8d96a0' },
 ]
 
 export const MISSION_STATUSES: (Option<MissionStatus> & { tone: Tone; active: boolean })[] = [
@@ -105,9 +131,9 @@ export const MISSION_STATUSES: (Option<MissionStatus> & { tone: Tone; active: bo
 ]
 
 export const RISK_LEVELS: (Option<RiskLevel> & { tone: Tone; color: string })[] = [
-  { value: 'CRITICAL', label: 'Critique', tone: 'danger', color: '#f43f5e' },
-  { value: 'WARNING', label: 'Vigilance', tone: 'warning', color: '#fbbf24' },
-  { value: 'NORMAL', label: 'Normal', tone: 'success', color: '#34d399' },
+  { value: 'CRITICAL', label: 'Critique', tone: 'danger', color: '#f04438' },
+  { value: 'WARNING', label: 'Vigilance', tone: 'warning', color: '#f79009' },
+  { value: 'NORMAL', label: 'Normal', tone: 'success', color: '#17b26a' },
 ]
 
 export const ROLES: (Option<Role> & { tone: Tone })[] = [

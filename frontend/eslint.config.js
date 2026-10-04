@@ -21,6 +21,12 @@ export default defineConfig([
     },
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      // Les contextes exportent leur hook d'accès à côté du Provider (motif
+      // standard) ; seuls ces noms sont tolérés hors composants.
+      'react-refresh/only-export-components': [
+        'error',
+        { allowConstantExport: true, allowExportNames: ['useAuth', 'useTheme', 'useRealtime'] },
+      ],
     },
   },
 ])

@@ -1,16 +1,17 @@
-import React, { useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  ArrowRight,
-} from 'lucide-react'
+import React from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
-import { useRealtime } from '@/context/RealtimeContext'
-import { useTheme } from '@/context/ThemeContext'
 import { Badge } from '@/components/ui/Badge'
 import { StatCard } from '@/components/ui/StatCard'
 import { MapView } from '@/components/map/MapView'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { useThemeColors } from '@/lib/useThemeColors'
+import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
+import { useAmbulancePositions } from '@/lib/useAmbulancePositions'
+import { BED_EVENTS, BLOOD_REQUEST_EVENTS, MISSION_EVENTS, RealtimeEvent } from '@/lib/realtimeEvents'
 import { formatNumber, formatPercent } from '@/lib/format'
 import type {
   BloodRequest,
@@ -30,17 +31,15 @@ import {
   CartesianGrid,
   Cell,
 } from 'recharts'
+import { QK } from '@/lib/queryKeys'
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth()
-  const { subscribe } = useRealtime()
-  const { theme } = useTheme()
-  const queryClient = useQueryClient()
-  const isDark = theme === 'dark'
+  const colors = useThemeColors()
 
   // 1. Demandes de sang ouvertes
   const { data: bloodRequests = [] } = useQuery({
-    queryKey: ['blood-requests', 'open'],
+    queryKey: [...QK.bloodRequests, 'open'],
     queryFn: async () => {
       const res = await api.get<{ results: BloodRequest[] }>('/api/sang/requests/', {
         status: 'open',
@@ -51,13 +50,13 @@ export const Dashboard: React.FC = () => {
 
   // 2. Synthèse des lits
   const { data: bedSummary = [] } = useQuery<BedSummaryRow[]>({
-    queryKey: ['beds-summary'],
+    queryKey: QK.bedsSummary,
     queryFn: () => api.get<BedSummaryRow[]>('/api/lits/capacities/summary/'),
   })
 
   // 3. Flotte d'ambulances
   const { data: ambulances = [] } = useQuery<Ambulance[]>({
-    queryKey: ['ambulances-list'],
+    queryKey: QK.ambulancesList,
     queryFn: async () => {
       const res = await api.get<{ results: Ambulance[] }>('/api/ambulances/vehicles/')
       return res.results || []
@@ -66,7 +65,7 @@ export const Dashboard: React.FC = () => {
 
   // 4. Missions actives
   const { data: activeMissions = [] } = useQuery<Mission[]>({
-    queryKey: ['missions-active'],
+    queryKey: QK.missionsActive,
     queryFn: async () => {
       const res = await api.get<{ results: Mission[] }>('/api/ambulances/missions/', {
         active: true,
@@ -77,30 +76,29 @@ export const Dashboard: React.FC = () => {
 
   // 5. Synthèse des risques ML (Massogui Diop)
   const { data: predictionSummary = [] } = useQuery<PredictionSummaryRow[]>({
-    queryKey: ['predictions-summary'],
+    queryKey: QK.predictionsSummary,
     queryFn: () => api.get<PredictionSummaryRow[]>('/api/ml/predictions/summary/'),
   })
 
   // 6. Établissements (pour la carte)
   const { data: facilities = [] } = useQuery<FacilitySummary[]>({
-    queryKey: ['facilities-map'],
+    queryKey: QK.facilitiesMap,
     queryFn: async () => {
       const res = await api.get<{ results: FacilitySummary[] }>('/api/facilities/')
       return res.results || []
     },
   })
 
-  // Invalidation temps réel
-  useEffect(() => {
-    const unsub = subscribe('*', () => {
-      queryClient.invalidateQueries({ queryKey: ['blood-requests'] })
-      queryClient.invalidateQueries({ queryKey: ['beds-summary'] })
-      queryClient.invalidateQueries({ queryKey: ['ambulances-list'] })
-      queryClient.invalidateQueries({ queryKey: ['missions-active'] })
-      queryClient.invalidateQueries({ queryKey: ['predictions-summary'] })
-    })
-    return unsub
-  }, [subscribe, queryClient])
+  // Temps réel : rechargements regroupés par fenêtre d'une seconde, et
+  // positions GPS appliquées directement au cache (aucune requête).
+  useRealtimeRefresh([
+    { events: BLOOD_REQUEST_EVENTS, queryKeys: [QK.bloodRequests] },
+    { events: BED_EVENTS, queryKeys: [QK.bedsSummary] },
+    { events: MISSION_EVENTS, queryKeys: [QK.missionsActive, QK.ambulancesList] },
+    { events: [RealtimeEvent.ambulanceStatus], queryKeys: [QK.ambulancesList] },
+    { events: [RealtimeEvent.predictionUpdate], queryKeys: [QK.predictionsSummary] },
+  ])
+  useAmbulancePositions(QK.ambulancesList)
 
   // Statistiques calculées
   const totalAvailableBeds = bedSummary.reduce((acc, row) => acc + row.available_beds, 0)
@@ -130,259 +128,223 @@ export const Dashboard: React.FC = () => {
     }, [] as { category: string; total: number; occupied: number; rate: number }[])
     .sort((a, b) => b.rate - a.rate)
 
+  const occupancyTone = globalOccupancy > 0.85 ? 'danger' : globalOccupancy > 0.7 ? 'warning' : 'success'
+  const rateColor = (rate: number) =>
+    rate > 85 ? colors.critical : rate > 70 ? colors.warning : colors.ok
+  const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`
+
   return (
-    <div className="space-y-6">
-      {/* 1. En-tête sobre et direct */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
-            {user?.facility ? user.facility.name : 'Supervision des Urgences Nationales'}
-          </h1>
-          <p className="text-xs text-[var(--text-muted)] mt-1">
-            Indicateurs en temps réel du réseau de santé • Sénégal
-            {user?.facility && ` (${user.facility.city})`}
-          </p>
-        </div>
+    <div className="space-y-5">
+      <PageHeader
+        title={user?.facility ? user.facility.name : 'Supervision nationale'}
+        description={
+          user?.facility
+            ? `Indicateurs temps réel · ${user.facility.city}`
+            : 'Indicateurs temps réel du réseau de santé · Sénégal'
+        }
+      />
 
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Veille Sanitaire Active
-          </span>
-        </div>
-      </div>
-
-      {/* 2. 4 Indicateurs essentiels — Architecture métrique Linear/Stripe */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Lits */}
-        <Link to="/beds" className="block focus:outline-none">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Link to="/beds" className="group block rounded-md">
           <StatCard
-            title="Lits Disponibles"
+            title="Lits disponibles"
             value={formatNumber(totalAvailableBeds)}
-            unit={`/ ${formatNumber(totalBeds)} installés`}
-            trend={`${formatPercent(globalOccupancy)} d'occupation`}
-            trendTone={globalOccupancy > 0.85 ? 'danger' : globalOccupancy > 0.7 ? 'warning' : 'success'}
+            unit={`/ ${formatNumber(totalBeds)}`}
+            trend={`${formatPercent(globalOccupancy)} occupés`}
+            trendTone={occupancyTone}
             progress={{
               value: totalBeds > 0 ? totalBeds - totalAvailableBeds : 0,
               max: totalBeds || 1,
-              tone: globalOccupancy > 0.85 ? 'danger' : globalOccupancy > 0.7 ? 'warning' : 'success',
+              tone: occupancyTone,
             }}
-            description="Réseau hospitalier national"
+            description="Réseau hospitalier"
+            className="h-full group-hover:border-line-strong"
           />
         </Link>
 
-        {/* Sang */}
-        <Link to="/blood" className="block focus:outline-none">
+        <Link to="/blood" className="group block rounded-md">
           <StatCard
-            title="Demandes de Sang"
+            title="Demandes de sang"
             value={bloodRequests.length}
-            unit="en cours"
-            badge={criticalBloodCount > 0 ? `${criticalBloodCount} urgence(s) vitale(s)` : undefined}
+            unit="ouvertes"
+            badge={criticalBloodCount > 0 ? plural(criticalBloodCount, 'vitale') : undefined}
             badgeTone={criticalBloodCount > 0 ? 'danger' : 'neutral'}
-            trend={criticalBloodCount > 0 ? `${criticalBloodCount} urgences vitales` : 'Stocks sous surveillance'}
-            trendTone={criticalBloodCount > 0 ? 'danger' : 'neutral'}
-            description="Banque CNTS & Régions"
+            trend={criticalBloodCount > 0 ? 'Urgence vitale en cours' : 'Aucune urgence vitale'}
+            trendTone={criticalBloodCount > 0 ? 'danger' : 'success'}
+            description="CNTS et régions"
+            className="h-full group-hover:border-line-strong"
           />
         </Link>
 
-        {/* Ambulances */}
-        <Link to="/ambulances" className="block focus:outline-none">
+        <Link to="/ambulances" className="group block rounded-md">
           <StatCard
-            title="Ambulances SMUR"
+            title="Ambulances disponibles"
             value={availableAmbulances}
-            unit={`/ ${ambulances.length} prêtes`}
-            trend={`${activeMissions.length} intervention(s) en cours`}
-            trendTone={availableAmbulances <= 2 ? 'warning' : 'success'}
+            unit={`/ ${ambulances.length}`}
+            trend={plural(activeMissions.length, 'mission') + ' en cours'}
+            trendTone={availableAmbulances <= 2 ? 'warning' : 'neutral'}
             progress={{
-              value: ambulances.length - availableAmbulances,
+              value: availableAmbulances,
               max: ambulances.length || 1,
-              tone: availableAmbulances <= 2 ? 'warning' : 'neutral',
+              tone: availableAmbulances <= 2 ? 'warning' : 'success',
             }}
-            description="Déploiement SAMU 15"
+            description="Flotte SAMU"
+            className="h-full group-hover:border-line-strong"
           />
         </Link>
 
-        {/* Risques ML */}
-        <Link to="/ml" className="block focus:outline-none">
+        <Link to="/ml" className="group block rounded-md">
           <StatCard
-            title="Vigilance Pénuries (IA)"
+            title="Risques de pénurie"
             value={criticalPredictions}
-            unit="risques à 7 jours"
-            badge="CQR HGBoost"
+            unit="critiques à 7 j"
             badgeTone={criticalPredictions > 0 ? 'danger' : 'neutral'}
-            trend={criticalPredictions > 0 ? 'Tension critique J+3' : 'Couverture calibrée (81%)'}
+            trend={criticalPredictions > 0 ? 'Action requise' : 'Aucun risque critique'}
             trendTone={criticalPredictions > 0 ? 'danger' : 'success'}
-            description="Modèle quantile Massogui Diop"
+            description="Modèle quantile CQR"
+            className="h-full group-hover:border-line-strong"
           />
         </Link>
       </div>
 
-      {/* 3. Carte Nationale Complète des Urgences */}
-      <div className="clinical-card p-5 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-main)] pb-3">
-          <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-main)]">
-              Cartographie Opérationnelle Nationale
-            </h2>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">
-              Localisation des hôpitaux, banques de sang et ambulances géolocalisées
-            </p>
-          </div>
-
-          <div className="flex items-center gap-4 text-xs font-medium text-[var(--text-muted)]">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-sky-500" /> Hôpitaux
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-600" /> Banques de Sang
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Ambulances Libres
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> En Mission
-            </span>
-          </div>
+      <section className="rounded-md border border-line bg-surface">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2.5">
+          <h2 className="text-sm font-semibold text-fg">Carte opérationnelle</h2>
+          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted" aria-label="Légende">
+            <li className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-sm bg-info" /> Hôpitaux
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-sm bg-critical" /> Banques de sang · missions
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-sm bg-ok" /> Ambulance libre
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-sm bg-warning" /> En mission
+            </li>
+          </ul>
         </div>
+        <div className="p-2">
+          <MapView facilities={facilities} ambulances={ambulances} missions={activeMissions} height="420px" />
+        </div>
+      </section>
 
-        <MapView
-          facilities={facilities}
-          ambulances={ambulances}
-          missions={activeMissions}
-          height="420px"
-        />
-      </div>
-
-      {/* 4. Deux Blocs Analytiques Complémentaires (50% / 50%) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Taux d'occupation des lits par spécialité */}
-        <div className="clinical-card p-5 space-y-3">
-          <div className="flex items-center justify-between border-b border-[var(--border-main)] pb-3">
-            <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--text-main)]">
-                Occupation des Lits par Spécialité
-              </h3>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Taux de saturation des services vitaux et d'urgence
-              </p>
-            </div>
-            <Link
-              to="/beds"
-              className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline flex items-center gap-1"
-            >
-              Gérer les lits <ArrowRight className="w-3.5 h-3.5" />
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section className="rounded-md border border-line bg-surface">
+          <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
+            <h3 className="text-sm font-semibold text-fg">Occupation par spécialité</h3>
+            <Link to="/beds" className="flex items-center gap-1 text-xs text-muted hover:text-fg">
+              Lits <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
 
-          <div className="h-64 w-full pt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={bedsChartData}
-                margin={{ top: 10, right: 10, left: -20, bottom: 25 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke={isDark ? '#1e293b' : '#e2e8f0'}
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="category"
-                  stroke={isDark ? '#64748b' : '#94a3b8'}
-                  fontSize={10}
-                  interval={0}
-                  angle={-18}
-                  textAnchor="end"
-                />
-                <YAxis
-                  stroke={isDark ? '#64748b' : '#94a3b8'}
-                  fontSize={10}
-                  domain={[0, 100]}
-                  unit="%"
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                    borderColor: isDark ? '#334155' : '#e2e8f0',
-                    borderRadius: '8px',
-                    fontSize: '11px',
-                    color: isDark ? '#f8fafc' : '#0f172a',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                  }}
-                  formatter={(val) => [`${val ?? 0} %`, 'Taux d’occupation']}
-                />
-                <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
-                  {bedsChartData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={
-                        entry.rate > 85 ? '#dc2626' : entry.rate > 70 ? '#d97706' : '#059669'
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Demandes urgentes de sang nécessitant une action */}
-        <div className="clinical-card p-5 space-y-3">
-          <div className="flex items-center justify-between border-b border-[var(--border-main)] pb-3">
-            <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--text-main)]">
-                Demandes de Sang Urgentes ({bloodRequests.length})
-              </h3>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Besoins de transfusion déclarés par les établissements
-              </p>
-            </div>
-            <Link
-              to="/blood"
-              className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline flex items-center gap-1"
-            >
-              Voir tout <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          <div className="divide-y divide-[var(--border-subtle)] overflow-y-auto max-h-64 pr-1">
-            {bloodRequests.length === 0 ? (
-              <div className="py-12 text-center text-xs text-[var(--text-muted)]">
-                Aucune demande de sang en attente actuellement.
+          <div className="h-64 w-full px-2 pb-2 pt-3">
+            {bedsChartData.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-xs text-muted">
+                Aucune capacité déclarée.
               </div>
             ) : (
-              bloodRequests.slice(0, 6).map((req) => (
-                <div key={req.id} className="py-2.5 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-8 h-8 rounded-lg bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 font-mono font-bold flex items-center justify-center shrink-0 text-xs">
-                      {req.blood_group}
-                    </span>
-                    <div className="truncate">
-                      <div className="font-semibold text-[var(--text-main)] truncate">
-                        {req.facility?.name || 'Hôpital'}
-                      </div>
-                      <div className="text-[11px] text-[var(--text-muted)]">
-                        Besoin de <strong className="text-[var(--text-main)]">{req.units_remaining} poches</strong> • {req.facility?.city}
-                      </div>
-                    </div>
-                  </div>
-
-                  <Badge
-                    tone={
-                      req.urgency === 'critical'
-                        ? 'danger'
-                        : req.urgency === 'urgent'
-                        ? 'warning'
-                        : 'info'
-                    }
-                    size="sm"
-                  >
-                    {req.urgency_display}
-                  </Badge>
-                </div>
-              ))
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={bedsChartData} margin={{ top: 4, right: 8, left: -16, bottom: 28 }}>
+                  <CartesianGrid stroke={colors.line} vertical={false} />
+                  <XAxis
+                    dataKey="category"
+                    tick={{ fill: colors.muted }}
+                    tickLine={false}
+                    axisLine={{ stroke: colors.line }}
+                    fontSize={10}
+                    interval={0}
+                    angle={-18}
+                    textAnchor="end"
+                  />
+                  <YAxis
+                    tick={{ fill: colors.muted }}
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={10}
+                    fontFamily="IBM Plex Mono, monospace"
+                    domain={[0, 100]}
+                    unit="%"
+                  />
+                  <Tooltip
+                    cursor={{ fill: colors.raised }}
+                    contentStyle={{
+                      backgroundColor: colors.surface,
+                      borderColor: colors.lineStrong,
+                      borderRadius: 4,
+                      fontSize: 12,
+                      color: colors.fg,
+                      boxShadow: 'none',
+                    }}
+                    labelStyle={{ color: colors.fg }}
+                    itemStyle={{ color: colors.muted }}
+                    formatter={(val) => [`${val ?? 0} %`, 'Occupation']}
+                  />
+                  <Bar dataKey="rate" radius={[2, 2, 0, 0]} maxBarSize={36}>
+                    {bedsChartData.map((entry) => (
+                      <Cell key={entry.category} fill={rateColor(entry.rate)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             )}
           </div>
-        </div>
+        </section>
+
+        <section className="flex flex-col rounded-md border border-line bg-surface">
+          <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
+            <h3 className="text-sm font-semibold text-fg">
+              Demandes de sang ouvertes
+              <span className="num ml-1.5 font-normal text-muted">{bloodRequests.length}</span>
+            </h3>
+            <Link to="/blood" className="flex items-center gap-1 text-xs text-muted hover:text-fg">
+              Tout voir <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          {bloodRequests.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center py-12 text-xs text-muted">
+              Aucune demande en attente.
+            </div>
+          ) : (
+            <table className="ops-table">
+              <thead>
+                <tr>
+                  <th scope="col">Groupe</th>
+                  <th scope="col">Établissement</th>
+                  <th scope="col" className="text-right">Poches</th>
+                  <th scope="col">Urgence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bloodRequests.slice(0, 6).map((req) => (
+                  <tr
+                    key={req.id}
+                    data-severity={
+                      req.urgency === 'critical' ? 'critical' : req.urgency === 'urgent' ? 'warning' : undefined
+                    }
+                  >
+                    <td className="num font-medium text-fg">{req.blood_group}</td>
+                    <td className="w-full max-w-0">
+                      <div className="truncate text-fg">{req.facility?.name || '—'}</div>
+                      <div className="truncate text-2xs text-muted">{req.facility?.city}</div>
+                    </td>
+                    <td className="num text-right text-fg">{req.units_remaining}</td>
+                    <td>
+                      <Badge
+                        tone={req.urgency === 'critical' ? 'danger' : req.urgency === 'urgent' ? 'warning' : 'info'}
+                        size="sm"
+                      >
+                        {req.urgency_display}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
       </div>
     </div>
   )

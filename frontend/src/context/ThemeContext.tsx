@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useState } from 'react'
 
 type Theme = 'light' | 'dark'
 
@@ -8,28 +8,31 @@ interface ThemeContextType {
   toggleTheme: () => void
 }
 
+/** Clé partagée avec le script anti-flash de index.html. */
+const STORAGE_KEY = 'jappo-dundu.theme'
+
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Par défaut : 'light' (Mode Clinique Épuré haute visibilité)
-  const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem('jd_theme')
-    return (saved === 'dark' || saved === 'light') ? saved : 'light'
-  })
+  // Le sombre est le mode par défaut (poste de régulation 24/7). index.html a
+  // déjà appliqué la classe avant le rendu : on part de l'état du document.
+  const [theme, setThemeState] = useState<Theme>(() =>
+    document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  )
 
-  useEffect(() => {
-    localStorage.setItem('jd_theme', theme)
-    const root = document.documentElement
-    if (theme === 'dark') {
-      root.classList.add('dark')
-    } else {
-      root.classList.remove('dark')
+  // La classe est posée avant le re-rendu : les composants qui lisent les
+  // variables CSS calculées (graphiques) voient déjà les nouvelles valeurs.
+  const setTheme = useCallback((next: Theme) => {
+    document.documentElement.classList.toggle('dark', next === 'dark')
+    try {
+      localStorage.setItem(STORAGE_KEY, next)
+    } catch {
+      // Stockage indisponible (navigation privée) : le thème reste en mémoire.
     }
-  }, [theme])
+    setThemeState(next)
+  }, [])
 
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))
-  }
+  const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light')
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>

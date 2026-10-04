@@ -379,13 +379,24 @@ export interface ModelMetadata {
   notes: string
 }
 
-export interface PredictResponse {
-  status: 'success'
-  message: string
-  predictions_count: number
-  risk_summary: Partial<Record<RiskLevel, number>>
-  skipped_series: number | unknown[]
-  model_version: string
+export type PredictionJobStatus = 'pending' | 'running' | 'succeeded' | 'failed'
+
+/**
+ * Prédiction à la demande, exécutée en arrière-plan (POST /api/ml/predict/ → 202).
+ * Les champs de résultat ne sont présents qu'une fois la tâche réussie.
+ */
+export interface PredictionJob {
+  job_id: string
+  status: PredictionJobStatus
+  status_url: string
+  filters: { region: RegionCode | null; blood_group: BloodGroup | null; days_ahead: number }
+  created_at: string
+  finished_at: string | null
+  message?: string
+  predictions_count?: number
+  risk_summary?: Partial<Record<RiskLevel, number>>
+  skipped_series?: number | unknown[]
+  model_version?: string
 }
 
 export interface StockRecord {
