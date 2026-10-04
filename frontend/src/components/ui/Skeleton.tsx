@@ -1,7 +1,11 @@
 import React from 'react'
 
 export const Skeleton: React.FC<{ className?: string }> = ({ className = 'h-4 w-full' }) => {
-  return <div className={`skeleton ${className}`} />
+  return (
+    <div
+      className={`animate-pulse rounded bg-slate-200 dark:bg-slate-800 ${className}`}
+    />
+  )
 }
 
 interface EmptyStateProps {
@@ -21,12 +25,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 }) => {
   return (
     <div
-      className={`surface p-12 text-center flex flex-col items-center justify-center border-dashed border-white/10 ${className}`}
+      className={`clinical-card p-12 text-center flex flex-col items-center justify-center border-dashed ${className}`}
     >
       {icon ? (
-        <div className="p-4 rounded-2xl bg-ink-800 text-ink-400 mb-4">{icon}</div>
+        <div className="p-4 rounded-2xl bg-[var(--bg-subtle)] text-[var(--text-muted)] mb-4">
+          {icon}
+        </div>
       ) : (
-        <div className="p-4 rounded-2xl bg-ink-800 text-ink-400 mb-4">
+        <div className="p-4 rounded-2xl bg-[var(--bg-subtle)] text-[var(--text-muted)] mb-4">
           <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"
@@ -37,8 +43,10 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           </svg>
         </div>
       )}
-      <h4 className="text-base font-semibold text-ink-200">{title}</h4>
-      {description && <p className="text-xs text-ink-400 max-w-sm mt-1">{description}</p>}
+      <h4 className="text-base font-semibold text-[var(--text-main)]">{title}</h4>
+      {description && (
+        <p className="text-xs text-[var(--text-muted)] max-w-sm mt-1">{description}</p>
+      )}
       {action && <div className="mt-5">{action}</div>}
     </div>
   )

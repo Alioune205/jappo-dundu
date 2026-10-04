@@ -5,7 +5,7 @@ import { Header } from './Header'
 
 export const AppLayout: React.FC = () => {
   return (
-    <div className="flex min-h-screen bg-[#080c14] text-slate-100 selection:bg-rose-500/30 selection:text-white">
+    <div className="flex min-h-screen bg-[var(--bg-canvas)] text-[var(--text-main)] transition-colors duration-200">
       {/* Sidebar Navigation fixe */}
       <Sidebar />
 

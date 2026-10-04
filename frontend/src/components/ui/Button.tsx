@@ -22,13 +22,15 @@ export const Button: React.FC<ButtonProps> = ({
 
   const variants = {
     primary:
-      'bg-brand-600 hover:bg-brand-500 text-white shadow-brand active:scale-[0.98] border border-brand-400/30',
+      'bg-red-600 hover:bg-red-700 text-white shadow-sm active:scale-[0.98] border border-red-500/30',
     secondary:
-      'bg-ink-800 hover:bg-ink-700 text-ink-100 border border-white/10 active:scale-[0.98]',
+      'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-100 dark:border-slate-700 active:scale-[0.98]',
     danger:
-      'bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 active:scale-[0.98]',
-    ghost: 'hover:bg-white/[0.06] text-ink-300 hover:text-white',
-    outline: 'border border-white/15 hover:border-white/30 text-ink-200 hover:text-white',
+      'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:hover:bg-rose-900/50 dark:text-rose-300 dark:border-rose-800 active:scale-[0.98]',
+    ghost:
+      'hover:bg-slate-100 text-slate-600 hover:text-slate-900 dark:hover:bg-slate-800 dark:text-slate-300 dark:hover:text-white',
+    outline:
+      'border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-900 dark:border-slate-700 dark:hover:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800',
   }
 
   const sizes = {

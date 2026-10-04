@@ -26,17 +26,17 @@ export const BloodMatrixWidget: React.FC<BloodMatrixWidgetProps> = ({ bloodReque
   })
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-[#0c121e] overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-900/60">
+    <div className="clinical-card overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border-main)] bg-[var(--bg-subtle)]">
         <div>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-            Tension des Réserves Sanguines
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-main)]">
+            Tension des Réserves Sanguines (CNTS)
           </h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Déficits déclarés par groupe ABO/Rh</p>
+          <p className="text-[11px] text-[var(--text-muted)] mt-0.5">Déficits déclarés par groupe ABO/Rh</p>
         </div>
         <Link
           to="/blood"
-          className="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+          className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-main)] flex items-center gap-1 transition-colors"
         >
           Mobiliser <ArrowRight className="w-3.5 h-3.5" />
         </Link>
@@ -52,16 +52,16 @@ export const BloodMatrixWidget: React.FC<BloodMatrixWidgetProps> = ({ bloodReque
                 key={item.group}
                 className={`p-2.5 rounded-lg border text-center transition-all ${
                   item.isCritical
-                    ? 'border-rose-500/50 bg-rose-500/10'
+                    ? 'border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40'
                     : item.hasDeficit
-                    ? 'border-amber-500/40 bg-amber-500/5'
-                    : 'border-slate-800 bg-slate-900/60'
+                    ? 'border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30'
+                    : 'border-[var(--border-main)] bg-[var(--bg-surface)]'
                 }`}
               >
                 <div className="flex items-center justify-center gap-1">
-                  <span className="font-mono font-bold text-sm text-white">{item.group}</span>
+                  <span className="font-mono font-bold text-sm text-[var(--text-main)]">{item.group}</span>
                   {isOminus && (
-                    <span className="text-[9px] font-bold text-rose-400" title="Donneur universel">
+                    <span className="text-[9px] font-bold text-rose-600 dark:text-rose-400" title="Donneur universel">
                       ★
                     </span>
                   )}
@@ -70,19 +70,19 @@ export const BloodMatrixWidget: React.FC<BloodMatrixWidgetProps> = ({ bloodReque
                 <div className="mt-1">
                   {item.hasDeficit ? (
                     <div>
-                      <span className="font-mono font-bold text-xs text-rose-400 block">
+                      <span className="font-mono font-bold text-xs text-rose-600 dark:text-rose-400 block">
                         -{item.needed} p.
                       </span>
-                      <span className="text-[9px] text-slate-400 uppercase font-medium">
+                      <span className="text-[9px] text-[var(--text-muted)] uppercase font-semibold">
                         {item.isCritical ? 'Vital' : 'Urgent'}
                       </span>
                     </div>
                   ) : (
                     <div>
-                      <span className="text-xs font-mono font-semibold text-emerald-400 block">
+                      <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 block">
                         OK
                       </span>
-                      <span className="text-[9px] text-slate-400 uppercase">Stable</span>
+                      <span className="text-[9px] text-[var(--text-muted)] uppercase">Stable</span>
                     </div>
                   )}
                 </div>
@@ -91,11 +91,11 @@ export const BloodMatrixWidget: React.FC<BloodMatrixWidgetProps> = ({ bloodReque
           })}
         </div>
 
-        <div className="mt-3.5 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+        <div className="mt-3.5 pt-3 border-t border-[var(--border-subtle)] flex items-center justify-between text-[11px] text-[var(--text-muted)]">
           <span>★ O- : Donneur universel d'urgence vitale</span>
           <Link
             to="/blood"
-            className="text-rose-400 hover:text-rose-300 font-semibold hover:underline"
+            className="text-rose-600 dark:text-rose-400 hover:underline font-semibold"
           >
             Lancer un appel donneurs ➔
           </Link>

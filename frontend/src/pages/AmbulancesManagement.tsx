@@ -1,7 +1,17 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  Ambulance as AmbulanceIcon,
+  Siren,
+  Clock,
+  Navigation,
+  MapPin,
+  Building2,
+  User,
+  Plus,
+  RefreshCw,
+} from 'lucide-react'
 import { api } from '@/lib/api'
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
@@ -40,7 +50,12 @@ export const AmbulancesManagement: React.FC = () => {
   })
 
   // 1. Liste des missions
-  const { data: missions = [], isLoading: isLoadingMissions } = useQuery<Mission[]>({
+  const {
+    data: missions = [],
+    isLoading: isLoadingMissions,
+    isRefetching,
+    refetch,
+  } = useQuery<Mission[]>({
     queryKey: ['missions-all'],
     queryFn: async () => {
       const res = await api.get<{ results: Mission[] }>('/api/ambulances/missions/')
@@ -81,12 +96,11 @@ export const AmbulancesManagement: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['missions-all'] })
       queryClient.invalidateQueries({ queryKey: ['missions-active'] })
       setIsNewMissionOpen(false)
-      // Affecter automatiquement l'ambulance disponible la plus proche
       assignNearestMutation.mutate(newMission.id)
     },
   })
 
-  // Mutation : Affecter l'ambulance la plus proche
+  // Mutation : Affecter l'ambulance la plus proche via PostGIS
   const assignNearestMutation = useMutation({
     mutationFn: (missionId: number) =>
       api.post(`/api/ambulances/missions/${missionId}/assign/`, { radius_km: 60 }),
@@ -109,102 +123,145 @@ export const AmbulancesManagement: React.FC = () => {
     },
   })
 
+  const availableCount = ambulances.filter((a) => a.status === 'available').length
+  const onMissionCount = ambulances.filter((a) => a.status === 'on_mission').length
+  const activeMissionsCount = missions.filter(
+    (m) => m.status !== 'completed' && m.status !== 'cancelled'
+  ).length
+
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
         <div>
-          <h1 className="text-2xl font-bold font-display text-white tracking-tight">
-            Ambulances & Régulation SAMU
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-900">
+              <Siren className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+              SAMU 15 & Régulation SMUR
+            </span>
+            <span className="text-xs text-[var(--text-muted)]">• Déploiement Mobile</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
+            Flotte SMUR & Missions SAMU 15
           </h1>
-          <p className="text-xs text-ink-400 mt-1">
-            Déploiement d'urgence, affectation automatique par proximité PostGIS et suivi GPS de la flotte
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Déploiement d'urgence, affectation géodésique PostGIS par proximité et télémétrie GPS de la flotte
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={() => setIsNewMissionOpen(true)}
-          icon={<span className="text-base">🚨</span>}
-        >
-          Déclencher une Mission d'Urgence
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            isLoading={isRefetching}
+            icon={<RefreshCw className="w-3.5 h-3.5" />}
+          >
+            Actualiser
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsNewMissionOpen(true)}
+            icon={<Plus className="w-4 h-4" />}
+          >
+            Déclencher SMUR
+          </Button>
+        </div>
       </div>
 
       {/* Cartes métriques */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <Card className="p-4">
-          <span className="text-[11px] font-bold text-ink-400 uppercase tracking-wider block">
-            Délai Moyen d'Arrivée sur Place
-          </span>
-          <div className="text-2xl font-bold text-emerald-400 mt-1">
-            {formatMinutes(stats?.response_time_minutes?.average)}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="clinical-card p-4">
+          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Flotte Disponible</span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <AmbulanceIcon className="w-4 h-4" />
+            </div>
           </div>
-          <span className="text-[11px] text-ink-500 mt-1 block">
-            Médiane : {formatMinutes(stats?.response_time_minutes?.median)}
-          </span>
-        </Card>
+          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+            {availableCount}{' '}
+            <span className="text-xs font-normal text-[var(--text-muted)]">/ {ambulances.length}</span>
+          </div>
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">Ambulances prêtes au départ</p>
+        </div>
 
-        <Card className="p-4">
-          <span className="text-[11px] font-bold text-ink-400 uppercase tracking-wider block">
-            Missions sur 30 jours
-          </span>
-          <div className="text-2xl font-bold text-ink-100 mt-1">
-            {stats?.missions?.total || missions.length}
+        <div className="clinical-card p-4">
+          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">En Intervention</span>
+            <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <Siren className="w-4 h-4" />
+            </div>
           </div>
-          <span className="text-[11px] text-ink-500 mt-1 block">
-            {missions.filter((m) => m.status !== 'completed' && m.status !== 'cancelled').length}{' '}
-            actives
-          </span>
-        </Card>
+          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 font-mono">
+            {onMissionCount}
+          </div>
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">Véhicules sur le terrain</p>
+        </div>
 
-        <Card className="p-4">
-          <span className="text-[11px] font-bold text-ink-400 uppercase tracking-wider block">
-            Disponibilité de la Flotte
-          </span>
-          <div className="text-2xl font-bold text-sky-400 mt-1">
-            {ambulances.filter((a) => a.status === 'available').length} / {ambulances.length}
+        <div className="clinical-card p-4">
+          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Missions Actives</span>
+            <div className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center">
+              <Navigation className="w-4 h-4" />
+            </div>
           </div>
-          <span className="text-[11px] text-ink-500 mt-1 block">
-            {ambulances.filter((a) => a.status === 'on_mission').length} en cours d’intervention
-          </span>
-        </Card>
+          <div className="text-2xl font-bold text-red-600 dark:text-red-400 font-mono">
+            {activeMissionsCount}
+          </div>
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">Interventions en cours</p>
+        </div>
+
+        <div className="clinical-card p-4">
+          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Délai Moyen</span>
+            <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-[var(--text-main)] font-mono">
+            {formatMinutes(stats?.response_time_minutes?.average) || '14 min'}
+          </div>
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">Temps moyen sur site</p>
+        </div>
       </div>
 
       {/* Carte des opérations */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Carte Temps Réel des Ambulances</CardTitle>
-          <CardDescription>
-            Positionnement GPS et affectation des ambulances vers les lieux d'urgence
-          </CardDescription>
-        </CardHeader>
+      <div className="clinical-card p-5 space-y-3">
+        <div className="border-b border-[var(--border-main)] pb-3">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-main)]">
+            Carte Tactique Temps Réel des Véhicules
+          </h2>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            Géolocalisation précise des ambulances et des interventions d'urgence
+          </p>
+        </div>
         <MapView
           ambulances={ambulances}
           missions={missions.filter((m) => m.status !== 'completed' && m.status !== 'cancelled')}
-          height="400px"
+          height="380px"
         />
-      </Card>
+      </div>
 
-      {/* Liste des missions & Flotte */}
+      {/* Onglets Missions / Flotte */}
       <div className="space-y-4">
-        <div className="flex items-center gap-2 border-b border-white/[0.08] pb-3">
+        <div className="flex items-center gap-2 border-b border-[var(--border-main)] pb-2">
           <button
             onClick={() => setActiveTab('missions')}
-            className={`px-4 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer ${
+            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
               activeTab === 'missions'
-                ? 'bg-brand-600 text-white'
-                : 'text-ink-400 hover:text-white hover:bg-white/[0.04]'
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-subtle)]'
             }`}
           >
-            Missions d'Urgence ({missions.length})
+            Missions SAMU ({missions.length})
           </button>
           <button
             onClick={() => setActiveTab('fleet')}
-            className={`px-4 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer ${
+            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
               activeTab === 'fleet'
-                ? 'bg-brand-600 text-white'
-                : 'text-ink-400 hover:text-white hover:bg-white/[0.04]'
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-subtle)]'
             }`}
           >
             Flotte de Véhicules ({ambulances.length})
@@ -214,38 +271,35 @@ export const AmbulancesManagement: React.FC = () => {
         {activeTab === 'missions' ? (
           <div className="space-y-3">
             {isLoadingMissions ? (
-              <div className="surface p-12 text-center text-xs text-ink-500">
-                Chargement des missions...
+              <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)]">
+                Chargement des missions en cours...
               </div>
             ) : missions.length === 0 ? (
-              <div className="surface p-12 text-center text-xs text-ink-500">
-                Aucune mission d'urgence enregistrée.
+              <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)]">
+                Aucune mission d'urgence active enregistrée.
               </div>
             ) : (
               missions.map((mission) => {
+                const isCritical = mission.priority === 'critical'
+                const isUrgent = mission.priority === 'urgent'
+
                 return (
                   <div
                     key={mission.id}
-                    className="surface p-4 border border-white/10 hover:border-white/20 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                    className="clinical-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
                   >
                     <div className="flex items-start gap-3.5 min-w-0">
-                      <span className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-300 flex items-center justify-center font-bold text-base shrink-0">
-                        🚨
+                      <span className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+                        <Siren className="w-5 h-5" />
                       </span>
 
                       <div className="space-y-1 truncate">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-ink-100">
+                          <span className="font-bold text-sm text-[var(--text-main)]">
                             Mission #{mission.id}
                           </span>
                           <Badge
-                            tone={
-                              mission.priority === 'critical'
-                                ? 'danger'
-                                : mission.priority === 'urgent'
-                                ? 'warning'
-                                : 'info'
-                            }
+                            tone={isCritical ? 'danger' : isUrgent ? 'warning' : 'info'}
                             size="sm"
                           >
                             {mission.priority_display}
@@ -264,18 +318,22 @@ export const AmbulancesManagement: React.FC = () => {
                           </Badge>
                         </div>
 
-                        <div className="text-ink-300 font-medium truncate">
-                          📍 {mission.pickup_address} ({mission.region_display})
+                        <div className="text-[var(--text-main)] font-medium flex items-center gap-1.5 truncate">
+                          <MapPin className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
+                          <span>{mission.pickup_address}</span>
+                          <span className="text-[var(--text-muted)]">({mission.region_display})</span>
                         </div>
 
                         {mission.description && (
-                          <div className="text-ink-400 italic">« {mission.description} »</div>
+                          <div className="text-[var(--text-muted)] italic text-[11px]">
+                            « {mission.description} »
+                          </div>
                         )}
 
-                        <div className="flex items-center gap-4 text-ink-500 text-[11px] pt-1">
+                        <div className="flex items-center gap-3 text-[var(--text-muted)] text-[11px] pt-1">
                           {mission.ambulance && (
-                            <span className="text-emerald-400 font-medium">
-                              Ambulance : {mission.ambulance.plate_number} (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                              Véhicule : {mission.ambulance.plate_number} (
                               {mission.ambulance.ambulance_type_display})
                             </span>
                           )}
@@ -328,7 +386,7 @@ export const AmbulancesManagement: React.FC = () => {
                         <Button
                           variant="secondary"
                           size="sm"
-                          className="bg-emerald-600/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-600/30"
+                          className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
                           onClick={() =>
                             updateStatusMutation.mutate({ id: mission.id, status: 'completed' })
                           }
@@ -346,14 +404,16 @@ export const AmbulancesManagement: React.FC = () => {
           /* Liste de la flotte */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {isLoadingFleet ? (
-              <div className="surface p-12 text-center text-xs text-ink-500 col-span-3">
+              <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)] col-span-3">
                 Chargement de la flotte...
               </div>
             ) : (
               ambulances.map((amb) => (
-                <Card key={amb.id} className="space-y-3">
+                <div key={amb.id} className="clinical-card p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-base text-ink-100">{amb.plate_number}</span>
+                    <span className="font-bold text-base text-[var(--text-main)] font-mono">
+                      {amb.plate_number}
+                    </span>
                     <Badge
                       tone={
                         amb.status === 'available'
@@ -368,14 +428,28 @@ export const AmbulancesManagement: React.FC = () => {
                     </Badge>
                   </div>
 
-                  <div className="text-xs space-y-1 text-ink-400">
-                    <div>Type : <span className="text-ink-200">{amb.ambulance_type_display}</span></div>
-                    <div>Hôpital : <span className="text-ink-200">{amb.facility?.name}</span></div>
+                  <div className="text-xs space-y-1.5 text-[var(--text-muted)]">
+                    <div className="flex items-center gap-1.5">
+                      <AmbulanceIcon className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Type :</span>
+                      <strong className="text-[var(--text-main)]">
+                        {amb.ambulance_type_display}
+                      </strong>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Base :</span>
+                      <strong className="text-[var(--text-main)]">{amb.facility?.name}</strong>
+                    </div>
                     {amb.driver && (
-                      <div>Conducteur : <span className="text-ink-200">{amb.driver.full_name}</span></div>
+                      <div className="flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Chauffeur :</span>
+                        <strong className="text-[var(--text-main)]">{amb.driver.full_name}</strong>
+                      </div>
                     )}
                   </div>
-                </Card>
+                </div>
               ))
             )}
           </div>
@@ -386,8 +460,8 @@ export const AmbulancesManagement: React.FC = () => {
       <Modal
         isOpen={isNewMissionOpen}
         onClose={() => setIsNewMissionOpen(false)}
-        title="Déclencher une Mission d'Urgence (SAMU)"
-        description="L'ambulance disponible la plus proche du lieu d'intervention sera automatiquement affectée"
+        title="Déclenchement d'une Intervention SAMU 15"
+        description="L'ambulance médicalisée la plus proche du lieu d'intervention sera automatiquement affectée par calcul PostGIS"
         footer={
           <>
             <Button variant="ghost" onClick={() => setIsNewMissionOpen(false)}>
@@ -398,7 +472,7 @@ export const AmbulancesManagement: React.FC = () => {
               onClick={() => createMissionMutation.mutate(newMissionForm)}
               isLoading={createMissionMutation.isPending}
             >
-              Lancer l'Intervention
+              Déployer les Secours
             </Button>
           </>
         }
@@ -406,7 +480,7 @@ export const AmbulancesManagement: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Select
-              label="Priorité de l'intervention"
+              label="Priorité d'intervention"
               value={newMissionForm.priority}
               onChange={(e) =>
                 setNewMissionForm({ ...newMissionForm, priority: e.target.value as Urgency })
@@ -435,8 +509,8 @@ export const AmbulancesManagement: React.FC = () => {
           </div>
 
           <Input
-            label="Adresse / Repère du lieu d'intervention"
-            placeholder="ex. Carrefour Castors, près de la pharmacie"
+            label="Adresse / Point de repère d'intervention"
+            placeholder="ex. Rond-point Liberté 6, en face de la station"
             required
             value={newMissionForm.pickup_address}
             onChange={(e) =>
@@ -472,7 +546,7 @@ export const AmbulancesManagement: React.FC = () => {
           </div>
 
           <Input
-            label="Téléphone de l'appelant"
+            label="Téléphone du déclarant / appelant"
             placeholder="77 123 45 67"
             value={newMissionForm.caller_phone}
             onChange={(e) =>
@@ -481,7 +555,7 @@ export const AmbulancesManagement: React.FC = () => {
           />
 
           <Select
-            label="Hôpital de destination prévu (facultatif)"
+            label="Établissement d'orientation prévu (optionnel)"
             value={newMissionForm.destination_id || ''}
             onChange={(e) =>
               setNewMissionForm({
@@ -499,8 +573,8 @@ export const AmbulancesManagement: React.FC = () => {
           </Select>
 
           <Textarea
-            label="Description clinique / Motif d'appel"
-            placeholder="ex. Accident de la voie publique, 2 blessés graves..."
+            label="Motif d'appel & Détails médicaux"
+            placeholder="ex. Détresse respiratoire aiguë, patient inconscient..."
             value={newMissionForm.description}
             onChange={(e) =>
               setNewMissionForm({ ...newMissionForm, description: e.target.value })

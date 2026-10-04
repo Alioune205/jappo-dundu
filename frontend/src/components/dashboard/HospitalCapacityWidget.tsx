@@ -14,17 +14,17 @@ export const HospitalCapacityWidget: React.FC<HospitalCapacityWidgetProps> = ({ 
   )
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-[#0c121e] overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-900/60">
+    <div className="clinical-card overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border-main)] bg-[var(--bg-subtle)]">
         <div>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-main)]">
             Tension Hospitalière (Urgences & Réa)
           </h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">Capacité d'accueil en temps réel</p>
+          <p className="text-[11px] text-[var(--text-muted)] mt-0.5">Capacité d'accueil immédiate</p>
         </div>
         <Link
           to="/beds"
-          className="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+          className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-main)] flex items-center gap-1 transition-colors"
         >
           Orienter <ArrowRight className="w-3.5 h-3.5" />
         </Link>
@@ -32,7 +32,7 @@ export const HospitalCapacityWidget: React.FC<HospitalCapacityWidgetProps> = ({ 
 
       <div className="p-4 space-y-3.5">
         {criticalCapacities.length === 0 ? (
-          <div className="text-center py-6 text-xs text-slate-400">
+          <div className="text-center py-6 text-xs text-[var(--text-muted)]">
             Aucun service d'urgence renseigné.
           </div>
         ) : (
@@ -45,10 +45,10 @@ export const HospitalCapacityWidget: React.FC<HospitalCapacityWidgetProps> = ({ 
               <div key={cap.id} className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <div className="truncate pr-2">
-                    <span className="font-semibold text-slate-200 truncate block">
+                    <span className="font-semibold text-[var(--text-main)] truncate block">
                       {cap.facility?.name}
                     </span>
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[10px] text-[var(--text-muted)]">
                       {cap.category_display} • {cap.facility?.city}
                     </span>
                   </div>
@@ -57,22 +57,22 @@ export const HospitalCapacityWidget: React.FC<HospitalCapacityWidgetProps> = ({ 
                     <span
                       className={`font-mono font-bold text-xs ${
                         isCritical
-                          ? 'text-rose-400'
+                          ? 'text-rose-600 dark:text-rose-400'
                           : isWarning
-                          ? 'text-amber-400'
-                          : 'text-emerald-400'
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
                       }`}
                     >
                       {cap.available_beds} lits libres
                     </span>
-                    <span className="text-[10px] text-slate-400 block font-mono">
+                    <span className="text-[10px] text-[var(--text-muted)] block font-mono">
                       {cap.occupied_beds}/{cap.total_beds} ({percentage}%)
                     </span>
                   </div>
                 </div>
 
                 {/* Barre de tension visuelle */}
-                <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                <div className="h-1.5 w-full rounded-full bg-[var(--bg-subtle)] overflow-hidden">
                   <div
                     className={`h-full transition-all duration-300 ${
                       isCritical

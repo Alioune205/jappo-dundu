@@ -1,8 +1,17 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  Droplet,
+  Plus,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  Phone,
+  UserCheck,
+  RefreshCw,
+} from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
@@ -51,7 +60,12 @@ export const BloodManagement: React.FC = () => {
   const [lookupError, setLookupError] = useState<string | null>(null)
 
   // 1. Liste des demandes de sang
-  const { data: requests = [], isLoading } = useQuery<BloodRequest[]>({
+  const {
+    data: requests = [],
+    isLoading,
+    isRefetching,
+    refetch,
+  } = useQuery<BloodRequest[]>({
     queryKey: ['blood-requests', statusFilter, bloodGroupFilter, urgencyFilter, regionFilter],
     queryFn: async () => {
       const res = await api.get<{ results: BloodRequest[] }>('/api/sang/requests/', {
@@ -64,7 +78,7 @@ export const BloodManagement: React.FC = () => {
     },
   })
 
-  // 2. Donneurs compatibles suggérés pour la demande sélectionnée
+  // 2. Donneurs compatibles suggérés pour la demande sélectionnée (PostGIS KNN)
   const { data: matches = [], isLoading: isLoadingMatches } = useQuery<DonorMatch[]>({
     queryKey: ['request-matches', selectedRequest?.id],
     queryFn: async () => {
@@ -156,7 +170,7 @@ export const BloodManagement: React.FC = () => {
         facility_id: user?.facility?.id,
       }),
     onSuccess: () => {
-      alert('Don spontané enregistré avec succès ! Le profil du donneur a été mis à jour.')
+      alert('Don enregistré avec succès ! Le profil du donneur a été mis à jour.')
       setLookedUpDonor(null)
       setLookupPhone('')
     },
@@ -165,38 +179,123 @@ export const BloodManagement: React.FC = () => {
     },
   })
 
+  // Statistiques agrégées
+  const stats = useMemo(() => {
+    const totalOpen = requests.filter((r) => r.status === 'open').length
+    const criticalCount = requests.filter((r) => r.status === 'open' && r.urgency === 'critical').length
+    const totalUnitsNeeded = requests
+      .filter((r) => r.status === 'open')
+      .reduce((acc, r) => acc + r.units_remaining, 0)
+    const fulfilledCount = requests.filter((r) => r.status === 'fulfilled').length
+    return { totalOpen, criticalCount, totalUnitsNeeded, fulfilledCount }
+  }, [requests])
+
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* En-tête de section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* En-tête institutionnel CNTS */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
         <div>
-          <h1 className="text-2xl font-bold font-display text-white tracking-tight">
-            Banque de Sang & Transfusion
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-900">
+              <Droplet className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+              CNTS & Banques de Sang Régionales
+            </span>
+            <span className="text-xs text-[var(--text-muted)]">• Coordination Transfusionnelle</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
+            Banque de Sang & Urgences Transfusionnelles
           </h1>
-          <p className="text-xs text-ink-400 mt-1">
-            Gestion des demandes de poches, appariement géographique de donneurs compatibles et dons
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Gestion des demandes de poches, appariement géodésique PostGIS de donneurs compatibles et mobilisation
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={() => setIsCreateOpen(true)}
-          icon={<span className="text-base">🩸</span>}
-        >
-          Nouvelle Demande de Sang
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            isLoading={isRefetching}
+            icon={<RefreshCw className="w-3.5 h-3.5" />}
+          >
+            Actualiser
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsCreateOpen(true)}
+            icon={<Plus className="w-4 h-4" />}
+          >
+            Nouvelle Demande
+          </Button>
+        </div>
+      </div>
+
+      {/* Cartes KPI d'urgence transfusionnelle */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="clinical-card p-4">
+          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Demandes en Cours</span>
+            <div className="w-7 h-7 rounded-lg bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center">
+              <Droplet className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-red-600 dark:text-red-400 font-mono">
+            {stats.totalOpen}
+          </div>
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">Demandes ouvertes actives</p>
+        </div>
+
+        <div className="clinical-card p-4">
+          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Urgence Vitale P1</span>
+            <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 font-mono">
+            {stats.criticalCount}
+          </div>
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">Cas critiques immédiats</p>
+        </div>
+
+        <div className="clinical-card p-4">
+          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Poches Requises</span>
+            <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-[var(--text-main)] font-mono">
+            {stats.totalUnitsNeeded}
+          </div>
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">Poches en attente de collecte</p>
+        </div>
+
+        <div className="clinical-card p-4">
+          <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
+            <span className="text-xs font-semibold uppercase tracking-wider">Demandes Satisfaites</span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+            {stats.fulfilledCount}
+          </div>
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">Collectes accomplies</p>
+        </div>
       </div>
 
       {/* Barre de Filtres */}
-      <Card className="p-4">
+      <div className="clinical-card p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <Select
-            label="Statut de la demande"
+            label="Statut"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
             <option value="">Tous les statuts</option>
-            <option value="open">Ouvertes (en cours)</option>
+            <option value="open">Ouvertes (actives)</option>
             <option value="fulfilled">Satisfaites (terminées)</option>
             <option value="cancelled">Annulées</option>
           </Select>
@@ -206,7 +305,7 @@ export const BloodManagement: React.FC = () => {
             value={bloodGroupFilter}
             onChange={(e) => setBloodGroupFilter(e.target.value)}
           >
-            <option value="">Tous les groupes</option>
+            <option value="">Tous les 8 groupes</option>
             {BLOOD_GROUPS.map((g) => (
               <option key={g} value={g}>
                 Groupe {g}
@@ -228,11 +327,11 @@ export const BloodManagement: React.FC = () => {
           </Select>
 
           <Select
-            label="Région"
+            label="Région sanitaire"
             value={regionFilter}
             onChange={(e) => setRegionFilter(e.target.value)}
           >
-            <option value="">Toutes les régions</option>
+            <option value="">Toutes les 14 régions</option>
             {REGIONS.map((r) => (
               <option key={r.value} value={r.value}>
                 {r.label}
@@ -240,67 +339,72 @@ export const BloodManagement: React.FC = () => {
             ))}
           </Select>
         </div>
-      </Card>
+      </div>
 
       {/* Disposition principale : Liste + Panneau latéral de détails */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Liste des demandes (2 colonnes) */}
         <div className="lg:col-span-2 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Demandes Transfusionnelles ({requests.length})
+            </h2>
+          </div>
+
           {isLoading ? (
-            <div className="surface p-12 text-center text-xs text-ink-500">
-              Chargement des demandes de sang...
+            <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)]">
+              Chargement des demandes de sang en temps réel...
             </div>
           ) : requests.length === 0 ? (
-            <div className="surface p-12 text-center text-xs text-ink-500">
+            <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)]">
               Aucune demande ne correspond à ces critères.
             </div>
           ) : (
             requests.map((req) => {
               const isSelected = selectedRequest?.id === req.id
+              const isCritical = req.urgency === 'critical'
+              const isUrgent = req.urgency === 'urgent'
+
               return (
                 <div
                   key={req.id}
                   onClick={() => setSelectedRequest(req)}
-                  className={`surface p-4 transition-all duration-200 cursor-pointer flex items-center justify-between gap-4 border ${
+                  className={`clinical-card p-4 transition-all duration-200 cursor-pointer flex items-center justify-between gap-4 ${
                     isSelected
-                      ? 'border-brand-500/80 bg-brand-500/[0.05] shadow-brand'
-                      : 'hover:border-white/20'
+                      ? 'ring-2 ring-red-500 bg-red-50/20 dark:bg-red-950/20'
+                      : 'hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
                   <div className="flex items-center gap-4 min-w-0">
-                    <span className="w-12 h-12 rounded-2xl bg-brand-600/20 border border-brand-500/40 text-brand-300 font-display font-bold text-base flex items-center justify-center shrink-0">
+                    <span className="w-12 h-12 rounded-xl bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 font-mono font-bold text-base flex items-center justify-center shrink-0">
                       {req.blood_group}
                     </span>
 
                     <div className="truncate">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-ink-100 truncate">
+                        <span className="font-bold text-sm text-[var(--text-main)] truncate">
                           {req.facility?.name}
                         </span>
                         <Badge
-                          tone={
-                            req.urgency === 'critical'
-                              ? 'danger'
-                              : req.urgency === 'urgent'
-                              ? 'warning'
-                              : 'info'
-                          }
+                          tone={isCritical ? 'danger' : isUrgent ? 'warning' : 'info'}
                           size="sm"
                         >
                           {req.urgency_display}
                         </Badge>
                       </div>
 
-                      <div className="text-xs text-ink-400 mt-1 flex items-center gap-3">
+                      <div className="text-xs text-[var(--text-muted)] mt-1 flex items-center gap-3">
                         <span>
-                          Requis : <strong className="text-white">{req.units_needed} poches</strong>
+                          Requis : <strong className="text-[var(--text-main)]">{req.units_needed} poches</strong>
                         </span>
                         <span>•</span>
                         <span>
-                          Restant :{' '}
+                          Manquantes :{' '}
                           <strong
                             className={
-                              req.units_remaining > 0 ? 'text-rose-400' : 'text-emerald-400'
+                              req.units_remaining > 0
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-emerald-600 dark:text-emerald-400'
                             }
                           >
                             {req.units_remaining}
@@ -325,7 +429,7 @@ export const BloodManagement: React.FC = () => {
                     >
                       {req.status_display}
                     </Badge>
-                    <div className="text-[10px] text-ink-500 mt-1">
+                    <div className="text-[10px] text-[var(--text-muted)] mt-1">
                       {formatDateTime(req.created_at)}
                     </div>
                   </div>
@@ -338,16 +442,18 @@ export const BloodManagement: React.FC = () => {
         {/* Détail & Actions pour la demande sélectionnée (1 colonne) */}
         <div className="space-y-6">
           {selectedRequest ? (
-            <Card className="sticky top-20 space-y-5">
-              <CardHeader className="pb-3 border-b border-white/[0.08]">
+            <div className="clinical-card p-5 sticky top-20 space-y-4">
+              <div className="pb-3 border-b border-[var(--border-main)] flex items-start justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold text-white">
+                    <span className="text-base font-bold text-[var(--text-main)]">
                       Demande #{selectedRequest.id}
                     </span>
                     <Badge tone="brand">{selectedRequest.blood_group}</Badge>
                   </div>
-                  <CardDescription>{selectedRequest.facility?.name}</CardDescription>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    {selectedRequest.facility?.name} • {selectedRequest.facility?.city}
+                  </p>
                 </div>
 
                 {selectedRequest.status === 'open' && (
@@ -360,56 +466,69 @@ export const BloodManagement: React.FC = () => {
                     Annuler
                   </Button>
                 )}
-              </CardHeader>
+              </div>
 
               {/* Statuts et compteurs */}
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2.5 rounded-xl bg-ink-850 border border-white/[0.04]">
-                  <span className="text-ink-400 text-[10px] uppercase">Poches collectées</span>
-                  <div className="text-base font-bold text-emerald-400">
+                <div className="p-3 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-main)]">
+                  <span className="text-[var(--text-muted)] text-[10px] uppercase font-semibold block">
+                    Poches collectées
+                  </span>
+                  <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
                     {selectedRequest.units_collected} / {selectedRequest.units_needed}
                   </div>
                 </div>
-                <div className="p-2.5 rounded-xl bg-ink-850 border border-white/[0.04]">
-                  <span className="text-ink-400 text-[10px] uppercase">Rayon de recherche</span>
-                  <div className="text-base font-bold text-ink-200">
+                <div className="p-3 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-main)]">
+                  <span className="text-[var(--text-muted)] text-[10px] uppercase font-semibold block">
+                    Rayon de recherche
+                  </span>
+                  <div className="text-base font-bold text-[var(--text-main)] font-mono mt-0.5">
                     {selectedRequest.search_radius_km} km
                   </div>
                 </div>
               </div>
 
               {selectedRequest.notes && (
-                <div className="p-3 rounded-xl bg-ink-850 text-xs text-ink-300 italic">
+                <div className="p-3 rounded-lg bg-[var(--bg-subtle)] text-xs text-[var(--text-main)] italic border-l-2 border-red-500">
                   « {selectedRequest.notes} »
                 </div>
               )}
 
-              {/* Donneurs suggérés compatibles (PostGIS) */}
+              {/* Donneurs compatibles proches (PostGIS KNN) */}
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-ink-300">
-                    Donneurs compatibles proches ({matches.length})
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    Donneurs Proches ({matches.length})
                   </h4>
-                  <span className="text-[10px] text-ink-500">PostGIS KNN</span>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                    Calculé PostGIS
+                  </span>
                 </div>
 
                 {isLoadingMatches ? (
-                  <div className="text-xs text-ink-500 text-center py-4">Recherche...</div>
+                  <div className="text-xs text-[var(--text-muted)] text-center py-4">
+                    Recherche des profils compatibles...
+                  </div>
                 ) : matches.length === 0 ? (
-                  <div className="text-xs text-ink-500 p-3 bg-ink-850 rounded-xl text-center">
-                    Aucun donneur disponible dans un rayon de {selectedRequest.search_radius_km} km.
+                  <div className="text-xs text-[var(--text-muted)] p-3 bg-[var(--bg-subtle)] rounded-lg text-center">
+                    Aucun donneur disponible dans ce rayon géographique.
                   </div>
                 ) : (
-                  <div className="max-h-48 overflow-y-auto divide-y divide-white/[0.04] text-xs">
+                  <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
                     {matches.map((m) => (
-                      <div key={m.donor_id} className="py-2 flex items-center justify-between">
+                      <div
+                        key={m.donor_id}
+                        className="p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-main)] text-xs flex items-center justify-between"
+                      >
                         <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-ink-800 text-brand-400 font-bold flex items-center justify-center text-[11px]">
+                          <span className="w-7 h-7 rounded bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 font-mono font-bold flex items-center justify-center text-xs">
                             {m.blood_group}
                           </span>
-                          <span className="text-ink-300">Donneur #{m.donor_id}</span>
+                          <span className="font-medium text-[var(--text-main)]">
+                            Donneur #{m.donor_id}
+                          </span>
                         </div>
-                        <span className="text-ink-400 text-[11px]">
+                        <span className="text-[var(--text-muted)] font-mono">
                           {formatDistance(m.distance_km)}
                         </span>
                       </div>
@@ -419,29 +538,38 @@ export const BloodManagement: React.FC = () => {
               </div>
 
               {/* Réponses reçues des donneurs */}
-              <div className="space-y-3 pt-2 border-t border-white/[0.08]">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-ink-300">
+              <div className="space-y-3 pt-2 border-t border-[var(--border-main)]">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
                   Réponses des Donneurs ({responses.length})
                 </h4>
 
                 {isLoadingResponses ? (
-                  <div className="text-xs text-ink-500 text-center py-4">Chargement...</div>
+                  <div className="text-xs text-[var(--text-muted)] text-center py-4">
+                    Chargement des réponses...
+                  </div>
                 ) : responses.length === 0 ? (
-                  <div className="text-xs text-ink-500 p-3 bg-ink-850 rounded-xl text-center">
+                  <div className="text-xs text-[var(--text-muted)] p-3 bg-[var(--bg-subtle)] rounded-lg text-center">
                     Aucune réponse enregistrée pour le moment.
                   </div>
                 ) : (
-                  <div className="max-h-48 overflow-y-auto divide-y divide-white/[0.04] text-xs">
+                  <div className="max-h-48 overflow-y-auto space-y-2 pr-1 text-xs">
                     {responses.map((resp) => (
-                      <div key={resp.id} className="py-2.5 flex items-center justify-between gap-2">
+                      <div
+                        key={resp.id}
+                        className="p-2.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-main)] flex items-center justify-between gap-2"
+                      >
                         <div>
-                          <div className="font-semibold text-ink-200">
+                          <div className="font-bold text-[var(--text-main)]">
                             {resp.donor.full_name || `Donneur #${resp.donor.id}`}
                           </div>
                           {resp.donor.phone_number && (
-                            <div className="text-[11px] text-sky-400">
+                            <a
+                              href={`tel:${resp.donor.phone_number}`}
+                              className="text-[11px] text-red-600 dark:text-red-400 font-semibold flex items-center gap-1 mt-0.5 hover:underline"
+                            >
+                              <Phone className="w-3 h-3" />
                               {resp.donor.phone_number}
-                            </div>
+                            </a>
                           )}
                         </div>
 
@@ -481,20 +609,26 @@ export const BloodManagement: React.FC = () => {
                   </div>
                 )}
               </div>
-            </Card>
+            </div>
           ) : (
-            <div className="surface p-8 text-center text-xs text-ink-500 border border-dashed border-white/10 rounded-2xl">
-              Sélectionnez une demande dans la liste pour voir les donneurs géolocalisés et gérer les
-              réponses.
+            <div className="clinical-card p-8 text-center text-xs text-[var(--text-muted)] border-dashed">
+              Sélectionnez une demande dans la liste pour voir les donneurs géolocalisés et gérer les réponses.
             </div>
           )}
 
           {/* Recherche rapide donneur par téléphone (enregistrement direct de don) */}
-          <Card className="space-y-4">
-            <CardTitle className="text-sm">Enregistrement Rapide de Don</CardTitle>
-            <CardDescription>
-              Retrouvez un donneur citoyen par son numéro de téléphone
-            </CardDescription>
+          <div className="clinical-card p-5 space-y-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--text-main)]">
+                  Enregistrement Rapide de Don
+                </h3>
+              </div>
+              <p className="text-xs text-[var(--text-muted)]">
+                Retrouvez un donneur bénévole par son numéro de téléphone mobile
+              </p>
+            </div>
 
             <form onSubmit={handleLookup} className="flex gap-2">
               <Input
@@ -503,28 +637,32 @@ export const BloodManagement: React.FC = () => {
                 onChange={(e) => setLookupPhone(e.target.value)}
               />
               <Button type="submit" variant="secondary" size="md">
-                Chercher
+                Rechercher
               </Button>
             </form>
 
-            {lookupError && <p className="text-xs text-rose-400">{lookupError}</p>}
+            {lookupError && (
+              <p className="text-xs text-red-600 dark:text-red-400 font-medium">{lookupError}</p>
+            )}
 
             {lookedUpDonor && (
-              <div className="p-3 rounded-xl bg-ink-850 border border-white/[0.08] space-y-2 text-xs">
+              <div className="p-3 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-main)] space-y-2 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-ink-100">{lookedUpDonor.full_name}</span>
+                  <span className="font-bold text-[var(--text-main)]">{lookedUpDonor.full_name}</span>
                   <Badge tone="brand">{lookedUpDonor.blood_group}</Badge>
                 </div>
-                <div className="text-ink-400 text-[11px]">
+                <div className="text-[var(--text-muted)] text-[11px]">
                   Dernier don : {formatDate(lookedUpDonor.last_donation_date)}
                 </div>
-                <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center justify-between pt-2 border-t border-[var(--border-main)]">
                   <span
                     className={
-                      lookedUpDonor.is_eligible ? 'text-emerald-400 font-medium' : 'text-rose-400'
+                      lookedUpDonor.is_eligible
+                        ? 'text-emerald-600 dark:text-emerald-400 font-medium'
+                        : 'text-red-600 dark:text-red-400'
                     }
                   >
-                    {lookedUpDonor.is_eligible ? '✓ Éligible au don' : '✕ Inéligible'}
+                    {lookedUpDonor.is_eligible ? '✓ Éligible au don' : '✕ Inéligible temporairement'}
                   </span>
                   <Button
                     variant="primary"
@@ -532,12 +670,12 @@ export const BloodManagement: React.FC = () => {
                     onClick={() => recordSpontaneousDonation.mutate(lookedUpDonor.id)}
                     isLoading={recordSpontaneousDonation.isPending}
                   >
-                    Enregistrer Don
+                    Valider le Don
                   </Button>
                 </div>
               </div>
             )}
-          </Card>
+          </div>
         </div>
       </div>
 
@@ -545,8 +683,8 @@ export const BloodManagement: React.FC = () => {
       <Modal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        title="Créer une Demande de Sang"
-        description="Une alerte temps réel sera immédiatement diffusée aux donneurs compatibles proches"
+        title="Création d'une Demande de Sang d'Urgence"
+        description="Une alerte temps réel sera immédiatement diffusée aux donneurs compatibles proches via WebSocket et notification"
         footer={
           <>
             <Button variant="ghost" onClick={() => setIsCreateOpen(false)}>

@@ -1,7 +1,10 @@
 import React, { useState } from 'react'
+import {
+  Building2,
+  CheckCircle2,
+} from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { api } from '@/lib/api'
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -88,73 +91,93 @@ export const Profile: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+    <div className="max-w-4xl mx-auto space-y-6">
       {/* En-tête */}
-      <div>
-        <h1 className="text-2xl font-bold font-display text-white tracking-tight">
+      <div className="pb-4 border-b border-[var(--border-main)]">
+        <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
           Mon Compte & Sécurité
         </h1>
-        <p className="text-xs text-ink-400 mt-1">
-          Informations personnelles, établissement rattaché et authentification
+        <p className="text-xs text-[var(--text-muted)] mt-1">
+          Habilitations professionnelles, établissement de rattachement et authentification sécurisée
         </p>
       </div>
 
       {/* Carte d'identité professionnelle */}
-      <Card className="p-6">
+      <div className="clinical-card p-6">
         <div className="flex items-center gap-5">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center font-display font-bold text-2xl text-white shadow-brand shrink-0">
+          <div className="w-16 h-16 rounded-2xl bg-red-600 text-white flex items-center justify-center font-bold text-2xl shadow-sm shrink-0">
             {user?.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
           </div>
 
           <div className="space-y-1 truncate">
             <div className="flex items-center gap-3">
-              <h2 className="text-lg font-bold text-ink-100">{user?.full_name}</h2>
+              <h2 className="text-lg font-bold text-[var(--text-main)]">{user?.full_name}</h2>
               <Badge tone="brand" size="sm">
                 {user?.role === 'admin' ? 'Administrateur' : 'Personnel Hospitalier'}
               </Badge>
             </div>
-            <div className="text-xs text-ink-400">
-              Identifiant : <span className="font-mono text-ink-200">{user?.username}</span>
+            <div className="text-xs text-[var(--text-muted)]">
+              Identifiant : <span className="font-mono text-[var(--text-main)]">{user?.username}</span>
             </div>
             {user?.facility && (
-              <div className="text-xs text-sky-400 font-medium">
-                🏥 {user.facility.name} ({user.facility.city})
+              <div className="text-xs text-sky-600 dark:text-sky-400 font-semibold flex items-center gap-1.5 mt-0.5">
+                <Building2 className="w-3.5 h-3.5" />
+                <span>
+                  {user.facility.name} ({user.facility.city})
+                </span>
               </div>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6 mt-6 border-t border-white/[0.06] text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6 mt-6 border-t border-[var(--border-main)] text-xs">
           <div>
-            <span className="text-ink-500 text-[10px] uppercase block">Inscrit le</span>
-            <span className="font-semibold text-ink-300">{formatDateTime(user?.date_joined)}</span>
-          </div>
-          <div>
-            <span className="text-ink-500 text-[10px] uppercase block">Dernière connexion</span>
-            <span className="font-semibold text-ink-300">
-              {user?.last_login ? formatDateTime(user.last_login) : 'Session courante'}
+            <span className="text-[var(--text-muted)] text-[10px] uppercase font-semibold block">
+              Inscrit le
+            </span>
+            <span className="font-semibold text-[var(--text-main)]">
+              {formatDateTime(user?.date_joined)}
             </span>
           </div>
           <div>
-            <span className="text-ink-500 text-[10px] uppercase block">Région</span>
-            <span className="font-semibold text-ink-300 capitalize">
+            <span className="text-[var(--text-muted)] text-[10px] uppercase font-semibold block">
+              Dernière connexion
+            </span>
+            <span className="font-semibold text-[var(--text-main)]">
+              {user?.last_login ? formatDateTime(user.last_login) : 'Session active'}
+            </span>
+          </div>
+          <div>
+            <span className="text-[var(--text-muted)] text-[10px] uppercase font-semibold block">
+              Région
+            </span>
+            <span className="font-semibold text-[var(--text-main)] capitalize">
               {user?.region_display || user?.region || 'National'}
             </span>
           </div>
           <div>
-            <span className="text-ink-500 text-[10px] uppercase block">Statut du Compte</span>
-            <span className="font-semibold text-emerald-400">✓ Actif</span>
+            <span className="text-[var(--text-muted)] text-[10px] uppercase font-semibold block">
+              Statut du Compte
+            </span>
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Opérationnel
+            </span>
           </div>
         </div>
-      </Card>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Modifier les coordonnées */}
-        <Card className="p-6 space-y-4">
-          <CardHeader className="p-0 mb-4">
-            <CardTitle className="text-base">Coordonnées Professionnelles</CardTitle>
-            <CardDescription>Mettez à jour votre nom, e-mail et numéro de contact</CardDescription>
-          </CardHeader>
+        <div className="clinical-card p-6 space-y-4">
+          <div className="border-b border-[var(--border-main)] pb-3">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--text-main)]">
+              Coordonnées Professionnelles
+            </h3>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              Mettez à jour vos coordonnées de contact d'urgence
+            </p>
+          </div>
 
           {profileMsg && (
             <Alert tone={profileMsg.type} onClose={() => setProfileMsg(null)}>
@@ -200,16 +223,18 @@ export const Profile: React.FC = () => {
               Enregistrer les Modifications
             </Button>
           </form>
-        </Card>
+        </div>
 
         {/* Changer le mot de passe */}
-        <Card className="p-6 space-y-4">
-          <CardHeader className="p-0 mb-4">
-            <CardTitle className="text-base">Sécurité du Mot de Passe</CardTitle>
-            <CardDescription>
-              Ferme automatiquement les autres sessions actives
-            </CardDescription>
-          </CardHeader>
+        <div className="clinical-card p-6 space-y-4">
+          <div className="border-b border-[var(--border-main)] pb-3">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--text-main)]">
+              Sécurité & Authentification
+            </h3>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              La modification révoque automatiquement les autres sessions actives
+            </p>
+          </div>
 
           {passwordMsg && (
             <Alert tone={passwordMsg.type} onClose={() => setPasswordMsg(null)}>
@@ -250,10 +275,10 @@ export const Profile: React.FC = () => {
               className="w-full"
               isLoading={isChangingPassword}
             >
-              Modifier mon Mot de Passe
+              Mettre à Jour le Mot de Passe
             </Button>
           </form>
-        </Card>
+        </div>
       </div>
     </div>
   )

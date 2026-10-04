@@ -1,173 +1,143 @@
 @import 'tailwindcss';
 
 /*
- * Système de design Jappo Dundu
- * - ink   : fonds et textes (bleu nuit profond, lisible de jour comme de nuit en salle de régulation)
- * - brand : rouge sang, identité et actions principales
- * Les couleurs fonctionnelles (lits = émeraude, ambulances = ambre, prévisions = violet)
- * reprennent la palette Tailwind.
+ * Système de Design Clinique Jappo Dundu (Inspiré des consoles de régulation médicale réelles & Shadcn/UI)
+ * - Mode Clinique Lumineux (par défaut) : haute visibilité, fond #F8FAFC, surfaces blanches #FFFFFF, bordures #E2E8F0.
+ * - Mode Salle de Crise Sombre (.dark) : immersion 24/7, fond #090D16, surfaces #0F172A, bordures #1E293B.
  */
-@theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: 'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
-
-  --color-ink-950: #060a13;
-  --color-ink-900: #0b1220;
-  --color-ink-850: #0f1729;
-  --color-ink-800: #141d33;
-  --color-ink-700: #1e2a45;
-  --color-ink-600: #2b3a5c;
-  --color-ink-500: #4a5a7e;
-  --color-ink-400: #7d8bab;
-  --color-ink-300: #a9b4cc;
-  --color-ink-200: #cfd6e4;
-  --color-ink-100: #e8ecf4;
-
-  --color-brand-300: #fda4b4;
-  --color-brand-400: #fb7189;
-  --color-brand-500: #f43f5e;
-  --color-brand-600: #e11d48;
-  --color-brand-700: #be123c;
-
-  --shadow-glow: 0 0 0 1px rgb(255 255 255 / 0.04), 0 12px 40px -12px rgb(0 0 0 / 0.6);
-  --shadow-brand: 0 10px 30px -10px rgb(225 29 72 / 0.55);
-
-  --animate-fade-in: fade-in 0.35s ease-out both;
-  --animate-slide-up: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-  --animate-ping-slow: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
-  --animate-shimmer: shimmer 1.6s linear infinite;
-
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-  @keyframes slide-up {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  @keyframes shimmer {
-    from {
-      background-position: -400px 0;
-    }
-    to {
-      background-position: 400px 0;
-    }
-  }
-}
 
 @layer base {
-  html {
+  :root {
+    --bg-canvas: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-subtle: #f1f5f9;
+    --border-main: #e2e8f0;
+    --border-subtle: #edf2f7;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --text-subtle: #94a3b8;
+
+    color-scheme: light;
+  }
+
+  .dark {
+    --bg-canvas: #090d16;
+    --bg-surface: #0f172a;
+    --bg-subtle: #1e293b;
+    --border-main: #1e293b;
+    --border-subtle: #162032;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-subtle: #64748b;
+
     color-scheme: dark;
+  }
+
+  html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    @apply min-h-screen bg-[#080c14] font-sans text-slate-100;
-    background-image: radial-gradient(1000px 500px at 50% -100px, rgba(30, 41, 59, 0.4), transparent 80%);
-    background-attachment: fixed;
+    background-color: var(--bg-canvas);
+    color: var(--text-main);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    min-height: 100vh;
   }
 
-  h1,
-  h2,
-  h3 {
-    @apply font-display tracking-tight;
-  }
-
-  :focus-visible {
-    @apply outline-2 outline-offset-2 outline-brand-400;
-  }
-
-  ::selection {
-    @apply bg-brand-600/40 text-white;
-  }
-
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-ink-700) transparent;
-  }
-
-  input[type='number']::-webkit-inner-spin-button {
-    @apply opacity-40;
-  }
-
-  dialog::backdrop {
-    background: rgb(3 6 12 / 0.72);
-    backdrop-filter: blur(4px);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-    }
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.02em;
   }
 }
 
 @layer components {
-  .surface {
-    @apply rounded-2xl border border-white/[0.06] bg-ink-900/70 shadow-glow backdrop-blur-xl;
+  /* Surface unifiée style carte Shadcn */
+  .clinical-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-main);
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .clinical-card:hover {
+    border-color: #cbd5e1;
+  }
+  .dark .clinical-card:hover {
+    border-color: #334155;
   }
 
-  .skeleton {
-    @apply rounded-md;
-    background: linear-gradient(90deg, var(--color-ink-800) 0px, var(--color-ink-700) 160px, var(--color-ink-800) 320px);
-    background-size: 800px 100%;
-    animation: var(--animate-shimmer);
-  }
-
+  /* Entrées de formulaire épurées */
+  .clinical-input,
   .field-input {
-    @apply w-full rounded-xl border border-white/10 bg-ink-850 px-3.5 py-2.5 text-sm text-ink-100 placeholder:text-ink-500 transition-colors outline-none;
-    @apply hover:border-white/20 focus:border-brand-400/70 focus:ring-4 focus:ring-brand-500/15;
-    @apply disabled:cursor-not-allowed disabled:opacity-60;
+    width: 100%;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-main);
+    background-color: var(--bg-surface);
+    color: var(--text-main);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    outline: none;
+  }
+  .clinical-input:focus,
+  .field-input:focus {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+  }
+  .clinical-input::placeholder,
+  .field-input::placeholder {
+    color: var(--text-subtle);
   }
 
-  .field-input[aria-invalid='true'] {
-    @apply border-brand-500/80 focus:ring-brand-500/25;
+  /* Table clinique épurée */
+  .clinical-table {
+    width: 100%;
+    text-align: left;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .clinical-table th {
+    background-color: var(--bg-subtle);
+    color: var(--text-muted);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid var(--border-main);
+  }
+  .clinical-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 0.8125rem;
+    color: var(--text-main);
+  }
+  .clinical-table tr:last-child td {
+    border-bottom: none;
+  }
+  .clinical-table tr:hover td {
+    background-color: var(--bg-subtle);
   }
 }
 
-/* Leaflet en thème sombre (popups, contrôles, attribution) */
+/* Leaflet maps integration */
 .leaflet-container {
-  @apply bg-ink-900 font-sans;
+  font-family: inherit;
+  background-color: var(--bg-canvas);
 }
-.leaflet-popup-content-wrapper,
+.leaflet-popup-content-wrapper {
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--border-main);
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.15);
+}
 .leaflet-popup-tip {
-  @apply border border-white/10 bg-ink-850 text-ink-100 shadow-glow;
+  background-color: var(--bg-surface);
 }
 .leaflet-popup-content {
-  @apply m-3 text-sm leading-relaxed;
-}
-.leaflet-container a.leaflet-popup-close-button {
-  @apply text-ink-400 hover:text-white;
-}
-.leaflet-bar a,
-.leaflet-bar a:hover {
-  @apply border-white/10 bg-ink-850 text-ink-100;
-}
-.leaflet-bar a:hover {
-  @apply bg-ink-700;
-}
-.leaflet-control-attribution {
-  @apply bg-ink-950/70! text-[10px] text-ink-400!;
-}
-.leaflet-control-attribution a {
-  @apply text-ink-300!;
-}
-.map-pin {
-  background: transparent;
-  border: 0;
+  margin: 0.75rem 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
 }

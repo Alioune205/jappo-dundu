@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { Shield, Hospital, Droplet, Ambulance } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -36,12 +37,21 @@ export const Login: React.FC = () => {
     }
   }
 
+  const fillCredentials = (u: string, p: string) => {
+    setUsername(u)
+    setPassword(p)
+    setErrorMsg(null)
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[#080c14] relative">
-      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-[#0f172a] shadow-xl p-8 relative z-10">
-        {/* En-tête officiel */}
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-rose-600 flex items-center justify-center mx-auto mb-4 text-white shadow-sm">
+    <div
+      className="min-h-screen flex items-center justify-center p-4 relative"
+      style={{ backgroundColor: 'var(--bg-canvas)' }}
+    >
+      <div className="w-full max-w-md clinical-card p-8 relative z-10 shadow-xl">
+        {/* En-tête institutionnel */}
+        <div className="text-center mb-6">
+          <div className="w-12 h-12 rounded-xl bg-red-600 flex items-center justify-center mx-auto mb-3 text-white shadow-sm">
             <svg
               className="w-6 h-6"
               viewBox="0 0 24 24"
@@ -55,23 +65,26 @@ export const Login: React.FC = () => {
               <path d="M5 12h14" />
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-white tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
             Jappo Dundu
           </h1>
-          <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider font-medium">
-            Plateforme Nationale des Urgences Médicales
+          <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold mt-0.5">
+            Plateforme Nationale des Urgences Médicales du Sénégal
           </p>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 mt-2 rounded-full text-[11px] font-medium bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-900">
+            Portail Professionnel & SAMU 15
+          </div>
         </div>
 
         {errorMsg && (
-          <Alert tone="danger" className="mb-6" onClose={() => setErrorMsg(null)}>
+          <Alert tone="danger" className="mb-5" onClose={() => setErrorMsg(null)}>
             {errorMsg}
           </Alert>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            label="Identifiant ou e-mail institutionnel"
+            label="Identifiant institutionnel"
             id="username"
             name="username"
             type="text"
@@ -99,15 +112,71 @@ export const Login: React.FC = () => {
             variant="primary"
             size="lg"
             isLoading={isSubmitting}
-            className="w-full mt-3 bg-rose-600 hover:bg-rose-500 text-white font-medium"
+            className="w-full mt-2"
           >
-            Se connecter au portail
+            Se Connecter
           </Button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-slate-800 text-center">
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            Accès sécurisé réservé aux centres de transfusion, hôpitaux et services de régulation SAMU du Sénégal.
+        {/* Comptes de démonstration pré-configurés */}
+        <div className="mt-6 pt-5 border-t border-[var(--border-main)] space-y-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block text-center">
+            Accès Rapide Démonstration
+          </span>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => fillCredentials('admin', 'Password123!')}
+              className="p-2 rounded-lg bg-[var(--bg-subtle)] hover:border-slate-400 dark:hover:border-slate-600 border border-[var(--border-main)] text-left transition-colors cursor-pointer"
+            >
+              <div className="font-semibold text-[var(--text-main)] flex items-center gap-1">
+                <Shield className="w-3 h-3 text-red-600 dark:text-red-400" />
+                Admin
+              </div>
+              <div className="text-[10px] text-[var(--text-muted)]">admin / Password123!</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fillCredentials('dr.diop', 'Password123!')}
+              className="p-2 rounded-lg bg-[var(--bg-subtle)] hover:border-slate-400 dark:hover:border-slate-600 border border-[var(--border-main)] text-left transition-colors cursor-pointer"
+            >
+              <div className="font-semibold text-[var(--text-main)] flex items-center gap-1">
+                <Hospital className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                Hôpital (Lits)
+              </div>
+              <div className="text-[10px] text-[var(--text-muted)]">dr.diop / Password123!</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fillCredentials('cnts.dakar', 'Password123!')}
+              className="p-2 rounded-lg bg-[var(--bg-subtle)] hover:border-slate-400 dark:hover:border-slate-600 border border-[var(--border-main)] text-left transition-colors cursor-pointer"
+            >
+              <div className="font-semibold text-[var(--text-main)] flex items-center gap-1">
+                <Droplet className="w-3 h-3 text-red-600 dark:text-red-400" />
+                CNTS (Sang)
+              </div>
+              <div className="text-[10px] text-[var(--text-muted)]">cnts.dakar / Password123!</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fillCredentials('samu.driver', 'Password123!')}
+              className="p-2 rounded-lg bg-[var(--bg-subtle)] hover:border-slate-400 dark:hover:border-slate-600 border border-[var(--border-main)] text-left transition-colors cursor-pointer"
+            >
+              <div className="font-semibold text-[var(--text-main)] flex items-center gap-1">
+                <Ambulance className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                SAMU (SMUR)
+              </div>
+              <div className="text-[10px] text-[var(--text-muted)]">samu.driver / Password123!</div>
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 text-center">
+          <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+            Système protégé et audité sous contrôle du Ministère de la Santé et du SAMU National.
           </p>
         </div>
       </div>

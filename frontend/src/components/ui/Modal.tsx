@@ -59,18 +59,18 @@ export const Modal: React.FC<ModalProps> = ({
       onClose={onClose}
       className={`fixed inset-0 m-auto w-full ${widthClasses[maxWidth]} bg-transparent p-4 z-50 focus:outline-none`}
     >
-      <div className="surface border border-white/10 bg-ink-900/95 shadow-2xl rounded-2xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh]">
+      <div className="clinical-card bg-[var(--bg-surface)] border border-[var(--border-main)] shadow-2xl rounded-2xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-main)] bg-[var(--bg-surface)]">
           <div>
-            <h2 className="text-base font-semibold text-ink-100">{title}</h2>
-            {description && <p className="text-xs text-ink-400 mt-0.5">{description}</p>}
+            <h2 className="text-base font-semibold text-[var(--text-main)]">{title}</h2>
+            {description && <p className="text-xs text-[var(--text-muted)] mt-0.5">{description}</p>}
           </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="text-ink-400 hover:text-white p-1.5 h-auto rounded-lg"
+            className="p-1.5 h-auto rounded-lg"
             aria-label="Fermer"
           >
             <svg
@@ -86,13 +86,13 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 overflow-y-auto space-y-4 text-sm text-ink-200">
+        <div className="px-6 py-5 overflow-y-auto space-y-4 text-sm text-[var(--text-main)]">
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-end gap-3 px-6 py-4 bg-ink-950/40 border-t border-white/[0.08]">
+          <div className="flex items-center justify-end gap-3 px-6 py-4 bg-[var(--bg-subtle)] border-t border-[var(--border-main)]">
             {footer}
           </div>
         )}

@@ -1,8 +1,14 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  Plus,
+  Phone,
+  MapPin,
+  Shield,
+  RefreshCw,
+} from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
-import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
@@ -66,7 +72,12 @@ export const FacilitiesManagement: React.FC = () => {
   const [userError, setUserError] = useState<string | null>(null)
 
   // 1. Liste des Établissements
-  const { data: facilities = [], isLoading: isLoadingFacilities } = useQuery<Facility[]>({
+  const {
+    data: facilities = [],
+    isLoading: isLoadingFacilities,
+    isRefetching: isRefetchingFacilities,
+    refetch: refetchFacilities,
+  } = useQuery<Facility[]>({
     queryKey: ['admin-facilities', filterRegion, filterType],
     queryFn: async () => {
       const res = await api.get<{ results: Facility[] }>('/api/facilities/', {
@@ -78,7 +89,12 @@ export const FacilitiesManagement: React.FC = () => {
   })
 
   // 2. Liste des Utilisateurs
-  const { data: users = [], isLoading: isLoadingUsers } = useQuery<AdminUser[]>({
+  const {
+    data: users = [],
+    isLoading: isLoadingUsers,
+    isRefetching: isRefetchingUsers,
+    refetch: refetchUsers,
+  } = useQuery<AdminUser[]>({
     queryKey: ['admin-users', userRoleFilter, userSearch],
     queryFn: async () => {
       const res = await api.get<{ results: AdminUser[] }>('/api/users/', {
@@ -132,239 +148,274 @@ export const FacilitiesManagement: React.FC = () => {
       })
     },
     onError: (err: unknown) => {
-      setUserError(err instanceof Error ? err.message : 'Erreur lors de la création du compte')
+      setUserError(err instanceof Error ? err.message : 'Erreur lors de la création de l’utilisateur')
     },
   })
 
-  if (!isAdmin) {
-    return (
-      <div className="surface p-12 text-center text-rose-400">
-        Accès restreint aux administrateurs du système.
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6">
       {/* En-tête */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
         <div>
-          <h1 className="text-2xl font-bold font-display text-white tracking-tight">
-            Administration & Référentiel
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+              <Shield className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+              Administration Système
+            </span>
+            <span className="text-xs text-[var(--text-muted)]">• Répertoire National</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
+            Établissements de Santé & Comptes
           </h1>
-          <p className="text-xs text-ink-400 mt-1">
-            Gestion du parc des hôpitaux, centres de transfusion et comptes d'accès
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Gestion du maillage territorial des structures sanitaires et des habilitations professionnelles
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          {activeTab === 'facilities' ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (activeTab === 'facilities') refetchFacilities()
+              else refetchUsers()
+            }}
+            isLoading={isRefetchingFacilities || isRefetchingUsers}
+            icon={<RefreshCw className="w-3.5 h-3.5" />}
+          >
+            Actualiser
+          </Button>
+
+          {isAdmin && activeTab === 'facilities' && (
             <Button
               variant="primary"
+              size="sm"
               onClick={() => setIsFacilityModalOpen(true)}
-              icon={<span className="text-base">🏥</span>}
+              icon={<Plus className="w-4 h-4" />}
             >
-              Ajouter un Établissement
+              Nouvel Établissement
             </Button>
-          ) : (
+          )}
+
+          {isAdmin && activeTab === 'users' && (
             <Button
               variant="primary"
+              size="sm"
               onClick={() => setIsUserModalOpen(true)}
-              icon={<span className="text-base">👤</span>}
+              icon={<Plus className="w-4 h-4" />}
             >
-              Créer un Utilisateur
+              Créer un Compte
             </Button>
           )}
         </div>
       </div>
 
       {/* Onglets Établissements vs Utilisateurs */}
-      <div className="flex items-center gap-2 border-b border-white/[0.08] pb-3">
-        <button
-          onClick={() => setActiveTab('facilities')}
-          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer ${
-            activeTab === 'facilities'
-              ? 'bg-brand-600 text-white'
-              : 'text-ink-400 hover:text-white hover:bg-white/[0.04]'
-          }`}
-        >
-          Établissements de Santé ({facilities.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`px-4 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer ${
-            activeTab === 'users'
-              ? 'bg-brand-600 text-white'
-              : 'text-ink-400 hover:text-white hover:bg-white/[0.04]'
-          }`}
-        >
-          Utilisateurs & Droits ({users.length})
-        </button>
-      </div>
-
-      {activeTab === 'facilities' ? (
-        /* Section Établissements */
-        <div className="space-y-4">
-          <Card className="p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Select
-                label="Filtrer par Région"
-                value={filterRegion}
-                onChange={(e) => setFilterRegion(e.target.value)}
-              >
-                <option value="">Toutes les régions</option>
-                {REGIONS.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
-              </Select>
-
-              <Select
-                label="Type d'Établissement"
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-              >
-                <option value="">Tous les types</option>
-                {FACILITY_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </Card>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {isLoadingFacilities ? (
-              <div className="surface p-12 text-center text-xs text-ink-500 col-span-3">
-                Chargement des établissements...
-              </div>
-            ) : (
-              facilities.map((fac) => (
-                <Card key={fac.id} className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h4 className="font-bold text-sm text-ink-100">{fac.name}</h4>
-                      <span className="text-[11px] text-sky-400 font-medium">
-                        {fac.facility_type_display}
-                      </span>
-                    </div>
-                    <Badge tone={fac.is_active ? 'success' : 'neutral'} size="sm">
-                      {fac.is_active ? 'Actif' : 'Désactivé'}
-                    </Badge>
-                  </div>
-
-                  <div className="text-xs space-y-1 text-ink-400 border-t border-white/[0.04] pt-2">
-                    <div>Ville : <span className="text-ink-200">{fac.city} ({fac.region_display})</span></div>
-                    {fac.address && <div>Adresse : <span className="text-ink-200">{fac.address}</span></div>}
-                    {fac.phone_number && (
-                      <div>Téléphone : <span className="text-ink-200">{fac.phone_number}</span></div>
-                    )}
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 border-b border-[var(--border-main)] pb-2">
+          <button
+            onClick={() => setActiveTab('facilities')}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+              activeTab === 'facilities'
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-subtle)]'
+            }`}
+          >
+            Structures Sanitaires ({facilities.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+              activeTab === 'users'
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-subtle)]'
+            }`}
+          >
+            Utilisateurs & Accès ({users.length})
+          </button>
         </div>
-      ) : (
-        /* Section Utilisateurs */
-        <div className="space-y-4">
-          <Card className="p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Input
-                label="Rechercher"
-                placeholder="Nom, email ou téléphone..."
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-              />
 
-              <Select
-                label="Filtrer par Rôle"
-                value={userRoleFilter}
-                onChange={(e) => setUserRoleFilter(e.target.value)}
-              >
-                <option value="">Tous les rôles</option>
-                {ROLES.map((r) => (
-                  <option key={r.value} value={r.value}>
-                    {r.label}
-                  </option>
-                ))}
-              </Select>
+        {activeTab === 'facilities' ? (
+          /* Section Établissements */
+          <div className="space-y-4">
+            <div className="clinical-card p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Select
+                  label="Filtrer par Région"
+                  value={filterRegion}
+                  onChange={(e) => setFilterRegion(e.target.value)}
+                >
+                  <option value="">Toutes les régions</option>
+                  {REGIONS.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </Select>
+
+                <Select
+                  label="Type d'Établissement"
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                >
+                  <option value="">Tous les types</option>
+                  {FACILITY_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </div>
-          </Card>
 
-          <div className="surface border border-white/10 rounded-2xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-ink-950/60 text-ink-400 font-semibold border-b border-white/[0.08]">
-                  <tr>
-                    <th className="py-3 px-4">Utilisateur</th>
-                    <th className="py-3 px-4">Identifiant</th>
-                    <th className="py-3 px-4">Rôle</th>
-                    <th className="py-3 px-4">Établissement</th>
-                    <th className="py-3 px-4">Téléphone</th>
-                    <th className="py-3 px-4">Date de Création</th>
-                    <th className="py-3 px-4 text-right">Statut</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/[0.04] text-ink-200">
-                  {isLoadingUsers ? (
-                    <tr>
-                      <td colSpan={7} className="py-8 text-center text-ink-500">
-                        Chargement des utilisateurs...
-                      </td>
-                    </tr>
-                  ) : users.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-8 text-center text-ink-500">
-                        Aucun utilisateur trouvé.
-                      </td>
-                    </tr>
-                  ) : (
-                    users.map((u) => (
-                      <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3 px-4 font-semibold text-ink-100">{u.full_name}</td>
-                        <td className="py-3 px-4 text-ink-400">{u.username}</td>
-                        <td className="py-3 px-4">
-                          <Badge
-                            tone={
-                              u.role === 'admin'
-                                ? 'brand'
-                                : u.role === 'hospital_staff'
-                                ? 'info'
-                                : 'neutral'
-                            }
-                            size="sm"
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {isLoadingFacilities ? (
+                <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)] col-span-3">
+                  Chargement des établissements...
+                </div>
+              ) : facilities.length === 0 ? (
+                <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)] col-span-3">
+                  Aucun établissement trouvé.
+                </div>
+              ) : (
+                facilities.map((fac) => (
+                  <div key={fac.id} className="clinical-card p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-sm text-[var(--text-main)]">{fac.name}</h4>
+                        <span className="text-[11px] text-sky-600 dark:text-sky-400 font-medium">
+                          {fac.facility_type_display}
+                        </span>
+                      </div>
+                      <Badge tone={fac.is_active ? 'success' : 'neutral'} size="sm">
+                        {fac.is_active ? 'Actif' : 'Désactivé'}
+                      </Badge>
+                    </div>
+
+                    <div className="text-xs space-y-1.5 text-[var(--text-muted)] border-t border-[var(--border-main)] pt-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span>
+                          {fac.city} ({fac.region_display})
+                        </span>
+                      </div>
+                      {fac.address && <div className="text-[11px] truncate">« {fac.address} »</div>}
+                      {fac.phone_number && (
+                        <div className="flex items-center gap-1.5">
+                          <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <a
+                            href={`tel:${fac.phone_number}`}
+                            className="text-red-600 dark:text-red-400 font-semibold hover:underline"
                           >
-                            {u.role ? u.role : 'Donneur'}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4 text-ink-300">
-                          {u.facility ? u.facility.name : '—'}
-                        </td>
-                        <td className="py-3 px-4 text-ink-400">{u.phone_number || '—'}</td>
-                        <td className="py-3 px-4 text-ink-400">{formatDateTime(u.date_joined)}</td>
-                        <td className="py-3 px-4 text-right">
-                          <Badge tone={u.is_active ? 'success' : 'neutral'} size="sm">
-                            {u.is_active ? 'Actif' : 'Bloqué'}
-                          </Badge>
+                            {fac.phone_number}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Section Utilisateurs */
+          <div className="space-y-4">
+            <div className="clinical-card p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Rechercher un compte"
+                  placeholder="Nom, identifiant ou téléphone..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                />
+
+                <Select
+                  label="Filtrer par Rôle"
+                  value={userRoleFilter}
+                  onChange={(e) => setUserRoleFilter(e.target.value)}
+                >
+                  <option value="">Tous les rôles</option>
+                  {ROLES.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+
+            <div className="clinical-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="clinical-table">
+                  <thead>
+                    <tr>
+                      <th>Utilisateur</th>
+                      <th>Identifiant</th>
+                      <th>Rôle</th>
+                      <th>Établissement</th>
+                      <th>Téléphone</th>
+                      <th>Création</th>
+                      <th className="text-right">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isLoadingUsers ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-[var(--text-muted)]">
+                          Chargement des utilisateurs...
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : users.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-[var(--text-muted)]">
+                          Aucun utilisateur trouvé.
+                        </td>
+                      </tr>
+                    ) : (
+                      users.map((u) => (
+                        <tr key={u.id}>
+                          <td className="font-semibold text-[var(--text-main)]">{u.full_name}</td>
+                          <td className="text-[var(--text-muted)] font-mono text-xs">{u.username}</td>
+                          <td>
+                            <Badge
+                              tone={
+                                u.role === 'admin'
+                                  ? 'brand'
+                                  : u.role === 'hospital_staff'
+                                  ? 'info'
+                                  : 'neutral'
+                              }
+                              size="sm"
+                            >
+                              {u.role ? u.role : 'Donneur'}
+                            </Badge>
+                          </td>
+                          <td className="text-[var(--text-main)]">
+                            {u.facility ? u.facility.name : '—'}
+                          </td>
+                          <td className="text-[var(--text-muted)] font-mono">{u.phone_number || '—'}</td>
+                          <td className="text-[var(--text-muted)]">{formatDateTime(u.date_joined)}</td>
+                          <td className="text-right">
+                            <Badge tone={u.is_active ? 'success' : 'neutral'} size="sm">
+                              {u.is_active ? 'Actif' : 'Bloqué'}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Modale d'ajout d'établissement */}
       <Modal
         isOpen={isFacilityModalOpen}
         onClose={() => setIsFacilityModalOpen(false)}
-        title="Ajouter un Établissement de Santé"
+        title="Création d'une Structure Sanitaire"
         footer={
           <>
             <Button variant="ghost" onClick={() => setIsFacilityModalOpen(false)}>
@@ -490,7 +541,7 @@ export const FacilitiesManagement: React.FC = () => {
       <Modal
         isOpen={isUserModalOpen}
         onClose={() => setIsUserModalOpen(false)}
-        title="Créer un Compte Professionnel"
+        title="Création d'un Compte Hospitalier / SAMU"
         footer={
           <>
             <Button variant="ghost" onClick={() => setIsUserModalOpen(false)}>
@@ -533,7 +584,7 @@ export const FacilitiesManagement: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="Identifiant de connexion"
+              label="Identifiant"
               required
               placeholder="ex. dr.diallo"
               value={userForm.username}

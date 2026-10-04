@@ -9,23 +9,23 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const TONE_CLASSES: Record<Tone, string> = {
-  neutral: 'bg-ink-800 text-ink-300 border-white/10',
-  brand: 'bg-brand-600/15 text-brand-300 border-brand-500/30',
-  danger: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
-  warning: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  success: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  info: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
-  violet: 'bg-violet-500/15 text-violet-300 border-violet-500/30',
+  neutral: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+  brand: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+  danger: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+  warning: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+  success: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
+  info: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800',
+  violet: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800',
 }
 
 const DOT_CLASSES: Record<Tone, string> = {
-  neutral: 'bg-ink-400',
-  brand: 'bg-brand-400',
-  danger: 'bg-rose-400',
-  warning: 'bg-amber-400',
-  success: 'bg-emerald-400',
-  info: 'bg-sky-400',
-  violet: 'bg-violet-400',
+  neutral: 'bg-slate-500',
+  brand: 'bg-rose-600',
+  danger: 'bg-rose-600',
+  warning: 'bg-amber-600',
+  success: 'bg-emerald-600',
+  info: 'bg-sky-600',
+  violet: 'bg-indigo-600',
 }
 
 export const Badge: React.FC<BadgeProps> = ({
@@ -36,11 +36,11 @@ export const Badge: React.FC<BadgeProps> = ({
   children,
   ...props
 }) => {
-  const sizeClass = size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs'
+  const sizeClass = size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 font-medium rounded-full border ${TONE_CLASSES[tone]} ${sizeClass} ${className}`}
+      className={`inline-flex items-center gap-1.5 font-semibold rounded-full border ${TONE_CLASSES[tone]} ${sizeClass} ${className}`}
       {...props}
     >
       {dot && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOT_CLASSES[tone]}`} />}

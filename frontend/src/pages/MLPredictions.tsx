@@ -1,7 +1,14 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  Brain,
+  ShieldCheck,
+  TrendingDown,
+  Database,
+  Play,
+  RefreshCw,
+} from 'lucide-react'
 import { api } from '@/lib/api'
-import { Card, CardTitle, CardDescription } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Select, Input } from '@/components/ui/Input'
@@ -13,26 +20,34 @@ import type { Prediction, ModelMetadata, PredictResponse } from '@/types/api'
 export const MLPredictions: React.FC = () => {
   const queryClient = useQueryClient()
 
-  // Filtres
+  // Filtres de consultation
   const [filterRegion, setFilterRegion] = useState('')
   const [filterBloodGroup, setFilterBloodGroup] = useState('')
   const [filterRiskLevel, setFilterRiskLevel] = useState('')
 
-  // Formulaire de prédiction à la demande
+  // Formulaire d'exécution du modèle
   const [runRegion, setRunRegion] = useState('')
   const [runBloodGroup, setRunBloodGroup] = useState('')
   const [runDaysAhead, setRunDaysAhead] = useState(7)
   const [runSuccessMsg, setRunSuccessMsg] = useState<string | null>(null)
 
-  // 1. Modèle actif et métriques
-  const { data: modelInfoData } = useQuery<{ status: string; model: ModelMetadata }>({
+  // 1. Métadonnées du modèle actif (El Hadji Massogui Diop)
+  const { data: modelInfoData } = useQuery<{
+    status: string
+    model: ModelMetadata
+  }>({
     queryKey: ['ml-model-info'],
     queryFn: () => api.get<{ status: string; model: ModelMetadata }>('/api/ml/model-info/'),
   })
   const model = modelInfoData?.model
 
   // 2. Liste des prédictions
-  const { data: predictions = [], isLoading } = useQuery<Prediction[]>({
+  const {
+    data: predictions = [],
+    isLoading,
+    isRefetching,
+    refetch,
+  } = useQuery<Prediction[]>({
     queryKey: ['ml-predictions-list', filterRegion, filterBloodGroup, filterRiskLevel],
     queryFn: async () => {
       const res = await api.get<{ results: Prediction[] }>('/api/ml/predictions/', {
@@ -44,7 +59,7 @@ export const MLPredictions: React.FC = () => {
     },
   })
 
-  // Mutation : Lancer une prédiction à la demande
+  // Mutation : Exécuter le modèle prédictif
   const predictMutation = useMutation({
     mutationFn: () =>
       api.post<PredictResponse>('/api/ml/predict/', {
@@ -54,7 +69,7 @@ export const MLPredictions: React.FC = () => {
       }),
     onSuccess: (data) => {
       setRunSuccessMsg(
-        `${data.predictions_count} prédictions générées avec succès (Modèle v${data.model_version})`
+        `${data.predictions_count} prédictions générées avec succès (Modèle v${data.model_version}) et diffusées en temps réel sur le WebSocket national.`
       )
       queryClient.invalidateQueries({ queryKey: ['ml-predictions-list'] })
       queryClient.invalidateQueries({ queryKey: ['predictions-summary'] })
@@ -65,93 +80,129 @@ export const MLPredictions: React.FC = () => {
   })
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* En-tête */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6">
+      {/* En-tête scientifique et institutionnel */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[var(--border-main)]">
         <div>
-          <h1 className="text-2xl font-bold font-display text-white tracking-tight">
-            Intelligence Artificielle & Pénuries de Sang
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900">
+              <Brain className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              Machine Learning & Vigilance Transfusionnelle
+            </span>
+            <span className="text-xs text-[var(--text-muted)]">• CQR Calibré P10-P90</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">
+            Intelligence Prédictive des Stocks Sanguins
           </h1>
-          <p className="text-xs text-ink-400 mt-1">
-            Modèle prédictif multi-horizon avec régression quantile et calibration conformelle à 80 %
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Modèle de régression quantile conformaliste multi-horizon pour l'anticipation des pénuries de sang au Sénégal
           </p>
         </div>
 
-        <Badge tone="violet" size="md">
-          HistGradientBoostingRegressor • CQR Calibré
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            isLoading={isRefetching}
+            icon={<RefreshCw className="w-3.5 h-3.5" />}
+          >
+            Actualiser
+          </Button>
+        </div>
       </div>
 
-      {/* Métriques du modèle actif */}
+      {/* Cartes métriques du modèle ML de Massogui Diop */}
       {model && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-4 border-violet-500/20 bg-violet-500/[0.02]">
-            <span className="text-[10px] font-bold text-ink-400 uppercase tracking-wider block">
-              Version du Modèle
-            </span>
-            <div className="text-xl font-bold text-violet-300 mt-1">v{model.version}</div>
-            <span className="text-[11px] text-ink-500 mt-0.5 block truncate">
-              {model.algorithm}
-            </span>
-          </Card>
-
-          <Card className="p-4 border-emerald-500/20 bg-emerald-500/[0.02]">
-            <span className="text-[10px] font-bold text-ink-400 uppercase tracking-wider block">
-              Couverture Intervalle (P10-P90)
-            </span>
-            <div className="text-xl font-bold text-emerald-400 mt-1">
-              81.0 %{' '}
-              <span className="text-xs font-normal text-ink-400">(cible 80 %)</span>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="clinical-card p-4">
+            <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Couverture CQR</span>
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
             </div>
-            <span className="text-[11px] text-emerald-500 mt-0.5 block">
-              ✓ Calibration Conforme Robuste
-            </span>
-          </Card>
-
-          <Card className="p-4 border-sky-500/20 bg-sky-500/[0.02]">
-            <span className="text-[10px] font-bold text-ink-400 uppercase tracking-wider block">
-              Erreur Moyenne Absolue (MAE)
-            </span>
-            <div className="text-xl font-bold text-sky-400 mt-1">
-              {model.mae !== null ? `${formatNumber(model.mae, 2)} poches` : '—'}
+            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+              81.0%
             </div>
-            <span className="text-[11px] text-sky-500 mt-0.5 block">-25 % vs persistance</span>
-          </Card>
+            <p className="text-[11px] text-[var(--text-muted)] mt-1">
+              Cible théorique : 80.0% (P10 - P90)
+            </p>
+          </div>
 
-          <Card className="p-4 border-brand-500/20 bg-brand-500/[0.02]">
-            <span className="text-[10px] font-bold text-ink-400 uppercase tracking-wider block">
-              Échantillons d'Apprentissage
-            </span>
-            <div className="text-xl font-bold text-brand-300 mt-1">
+          <div className="clinical-card p-4">
+            <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Erreur MAE</span>
+              <div className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                <TrendingDown className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold text-sky-600 dark:text-sky-400 font-mono">
+              {model.mae !== null ? `${formatNumber(model.mae, 1)}` : '—'}{' '}
+              <span className="text-xs font-normal text-[var(--text-muted)]">poches</span>
+            </div>
+            <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+              -25% vs modèle de persistance
+            </p>
+          </div>
+
+          <div className="clinical-card p-4">
+            <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Algorithme Actif</span>
+              <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                <Brain className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-lg font-bold text-[var(--text-main)] truncate mt-1">
+              v{model.version} • HistGradient
+            </div>
+            <p className="text-[11px] text-[var(--text-muted)] mt-1 truncate">
+              Boosting avec quantile loss
+            </p>
+          </div>
+
+          <div className="clinical-card p-4">
+            <div className="flex items-center justify-between text-[var(--text-muted)] mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Échantillons</span>
+              <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center">
+                <Database className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold text-[var(--text-main)] font-mono">
               {formatNumber(model.training_samples)}
             </div>
-            <span className="text-[11px] text-ink-500 mt-0.5 block">
-              14 régions du Sénégal
-            </span>
-          </Card>
+            <p className="text-[11px] text-[var(--text-muted)] mt-1">14 régions du Sénégal couvertes</p>
+          </div>
         </div>
       )}
 
-      {/* Lancer une prédiction à la demande */}
-      <Card className="p-5 border-violet-500/30 bg-violet-500/[0.03]">
-        <CardTitle className="text-sm">Déclencher une Prédiction à la Demande</CardTitle>
-        <CardDescription>
-          Calcule les tendances d'approvisionnement et diffuse automatiquement les alertes aux hôpitaux
-        </CardDescription>
+      {/* Module d'exécution à la demande du modèle */}
+      <div className="clinical-card p-5 border-l-4 border-l-indigo-600 space-y-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Brain className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <h3 className="text-sm font-bold uppercase tracking-wider text-[var(--text-main)]">
+              Simulateur & Générateur de Prédictions
+            </h3>
+          </div>
+          <p className="text-xs text-[var(--text-muted)]">
+            Exécutez le modèle pour projeter la demande future et déclencher la diffusion temps réel sur le WebSocket des banques de sang
+          </p>
+        </div>
 
         {runSuccessMsg && (
-          <Alert tone="success" className="my-3" onClose={() => setRunSuccessMsg(null)}>
+          <Alert tone="success" onClose={() => setRunSuccessMsg(null)}>
             {runSuccessMsg}
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
           <Select
             label="Région cible"
             value={runRegion}
             onChange={(e) => setRunRegion(e.target.value)}
           >
-            <option value="">Toutes les régions</option>
+            <option value="">Toutes les 14 régions</option>
             {REGIONS.map((r) => (
               <option key={r.value} value={r.value}>
                 {r.label}
@@ -164,16 +215,16 @@ export const MLPredictions: React.FC = () => {
             value={runBloodGroup}
             onChange={(e) => setRunBloodGroup(e.target.value)}
           >
-            <option value="">Tous les groupes</option>
+            <option value="">Tous les 8 groupes (ABO/Rh)</option>
             {BLOOD_GROUPS.map((g) => (
               <option key={g} value={g}>
-                {g}
+                Groupe {g}
               </option>
             ))}
           </Select>
 
           <Input
-            label="Horizon (jours)"
+            label="Horizon temporel (jours)"
             type="number"
             min={1}
             max={30}
@@ -181,29 +232,28 @@ export const MLPredictions: React.FC = () => {
             onChange={(e) => setRunDaysAhead(parseInt(e.target.value, 10) || 7)}
           />
 
-          <div className="flex items-end">
-            <Button
-              variant="primary"
-              size="md"
-              className="w-full bg-violet-600 hover:bg-violet-500 border-violet-400/40"
-              isLoading={predictMutation.isPending}
-              onClick={() => predictMutation.mutate()}
-            >
-              Exécuter le Modèle
-            </Button>
-          </div>
+          <Button
+            variant="primary"
+            size="md"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 border-indigo-500/30"
+            isLoading={predictMutation.isPending}
+            onClick={() => predictMutation.mutate()}
+            icon={<Play className="w-4 h-4 fill-current" />}
+          >
+            Lancer le Calcul
+          </Button>
         </div>
-      </Card>
+      </div>
 
-      {/* Liste des prédictions futures et risques de pénurie */}
+      {/* Tableau des prévisions et risques de pénurie */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-base font-bold text-ink-100">
-              Prévisions & Niveaux de Réserve Sanguine ({predictions.length})
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Projections de Stocks & Alertes ({predictions.length})
             </h2>
-            <p className="text-xs text-ink-400">
-              Surveillance des stocks prévus avec intervalle de confiance P10 - P90
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              Estimation par intervalle de confiance P10 - P90 avec calcul des jours de réserve
             </p>
           </div>
 
@@ -251,30 +301,29 @@ export const MLPredictions: React.FC = () => {
         </div>
 
         {isLoading ? (
-          <div className="surface p-12 text-center text-xs text-ink-500">
-            Chargement des prévisions...
+          <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)]">
+            Chargement des prévisions algorithmiques...
           </div>
         ) : predictions.length === 0 ? (
-          <div className="surface p-12 text-center text-xs text-ink-500">
-            Aucune prédiction pour ces critères. Vous pouvez exécuter le modèle ci-dessus.
+          <div className="clinical-card p-12 text-center text-xs text-[var(--text-muted)]">
+            Aucune prédiction pour ces critères. Utilisez le simulateur ci-dessus pour lancer un calcul.
           </div>
         ) : (
-          <div className="surface border border-white/10 rounded-2xl overflow-hidden">
+          <div className="clinical-card overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-ink-950/60 text-ink-400 font-semibold border-b border-white/[0.08]">
+              <table className="clinical-table">
+                <thead>
                   <tr>
-                    <th className="py-3 px-4">Centre Transfusion</th>
-                    <th className="py-3 px-4">Région</th>
-                    <th className="py-3 px-4">Groupe</th>
-                    <th className="py-3 px-4">Date Prévue</th>
-                    <th className="py-3 px-4">Stock Estimé</th>
-                    <th className="py-3 px-4">Intervalle P10-P90</th>
-                    <th className="py-3 px-4">Jours de Réserve</th>
-                    <th className="py-3 px-4 text-right">Niveau de Risque</th>
+                    <th>Banque / Région</th>
+                    <th>Groupe</th>
+                    <th>Date Prévue</th>
+                    <th>Stock Estimé</th>
+                    <th>Intervalle P10-P90 (CQR)</th>
+                    <th>Jours de Réserve</th>
+                    <th className="text-right">Niveau de Risque</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/[0.04] text-ink-200">
+                <tbody>
                   {predictions.map((p) => {
                     const isCritical = p.risk_level === 'CRITICAL'
                     const isWarning = p.risk_level === 'WARNING'
@@ -282,40 +331,62 @@ export const MLPredictions: React.FC = () => {
                     return (
                       <tr
                         key={p.id}
-                        className={`hover:bg-white/[0.02] transition-colors ${
+                        className={
                           isCritical
-                            ? 'bg-rose-500/[0.03]'
+                            ? 'bg-red-500/[0.04]'
                             : isWarning
-                            ? 'bg-amber-500/[0.02]'
+                            ? 'bg-amber-500/[0.03]'
                             : ''
-                        }`}
+                        }
                       >
-                        <td className="py-3 px-4 font-semibold text-ink-100">{p.center_name}</td>
-                        <td className="py-3 px-4 text-ink-300">{p.region_display}</td>
-                        <td className="py-3 px-4">
-                          <span className="font-bold text-brand-400">{p.blood_group}</span>
+                        <td className="font-semibold text-[var(--text-main)]">
+                          <div>{p.center_name || 'CNTS Dakar'}</div>
+                          <div className="text-[11px] text-[var(--text-muted)] font-normal">
+                            {p.region_display}
+                          </div>
                         </td>
-                        <td className="py-3 px-4 text-ink-300">{formatDate(p.prediction_date)}</td>
-                        <td className="py-3 px-4 font-bold text-ink-100">
-                          {p.predicted_units} poches
-                        </td>
-                        <td className="py-3 px-4 text-ink-400 font-mono text-[11px]">
-                          [{p.lower_bound ?? '—'} ; {p.upper_bound ?? '—'}]
-                        </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`font-semibold ${
-                              isCritical
-                                ? 'text-rose-400'
-                                : isWarning
-                                ? 'text-amber-400'
-                                : 'text-emerald-400'
-                            }`}
-                          >
-                            {p.days_of_supply !== null ? `${formatNumber(p.days_of_supply, 1)} j` : '—'}
+                        <td>
+                          <span className="font-bold text-red-600 dark:text-red-400 font-mono text-sm px-2 py-0.5 rounded bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900">
+                            {p.blood_group}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="text-[var(--text-muted)]">
+                          {formatDate(p.prediction_date)}
+                        </td>
+                        <td className="font-bold text-[var(--text-main)] font-mono text-sm">
+                          {p.predicted_units} <span className="text-xs font-normal text-[var(--text-muted)]">poches</span>
+                        </td>
+                        <td>
+                          <div className="font-mono text-xs text-[var(--text-muted)]">
+                            [{p.lower_bound ?? '—'} ; {p.upper_bound ?? '—'}]
+                          </div>
+                          {p.lower_bound !== null && p.upper_bound !== null && (
+                            <div className="w-24 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
+                              <div
+                                className="h-full bg-indigo-500 rounded-full"
+                                style={{
+                                  width: `${Math.min(100, Math.max(10, ((p.predicted_units - p.lower_bound) / (p.upper_bound - p.lower_bound || 1)) * 100))}%`,
+                                }}
+                              />
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <span
+                            className={`font-semibold font-mono ${
+                              isCritical
+                                ? 'text-red-600 dark:text-red-400 font-bold'
+                                : isWarning
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-emerald-600 dark:text-emerald-400'
+                            }`}
+                          >
+                            {p.days_of_supply !== null
+                              ? `${formatNumber(p.days_of_supply, 1)} jours`
+                              : '—'}
+                          </span>
+                        </td>
+                        <td className="text-right">
                           <Badge
                             tone={isCritical ? 'danger' : isWarning ? 'warning' : 'success'}
                             size="sm"

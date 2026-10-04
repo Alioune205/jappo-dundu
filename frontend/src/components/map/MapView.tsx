@@ -4,8 +4,9 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { FacilitySummary, Ambulance, Mission } from '@/types/api'
 import { DAKAR_CENTER } from '@/lib/constants'
+import { useTheme } from '@/context/ThemeContext'
 
-// Icônes vectorielles SVG professionnelles (aucun emoji)
+// Icônes vectorielles SVG professionnelles
 const SVG_ICONS = {
   hospital: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12"/><path d="M6 12h12"/><path d="M3 3h18v18H3z" stroke-width="1.5"/></svg>`,
   bloodBank: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>`,
@@ -21,10 +22,10 @@ function createMarkerIcon(color: string, svgContent: string, pulse = false): L.D
       <div style="position: relative; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
         ${
           pulse
-            ? `<div style="position: absolute; inset: -4px; border-radius: 9999px; background-color: ${color}; opacity: 0.25; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>`
+            ? `<div style="position: absolute; inset: -4px; border-radius: 9999px; background-color: ${color}; opacity: 0.3; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>`
             : ''
         }
-        <div style="width: 28px; height: 28px; border-radius: 8px; background: #0b1324; border: 1.5px solid ${color}; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.6); color: ${color};">
+        <div style="width: 28px; height: 28px; border-radius: 8px; background: #ffffff; border: 2px solid ${color}; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.15); color: ${color};">
           ${svgContent}
         </div>
       </div>
@@ -35,12 +36,12 @@ function createMarkerIcon(color: string, svgContent: string, pulse = false): L.D
   })
 }
 
-const hospitalIcon = createMarkerIcon('#38bdf8', SVG_ICONS.hospital)
-const bloodBankIcon = createMarkerIcon('#f43f5e', SVG_ICONS.bloodBank)
-const ambulanceAvailableIcon = createMarkerIcon('#10b981', SVG_ICONS.ambulance)
-const ambulanceBusyIcon = createMarkerIcon('#f59e0b', SVG_ICONS.ambulance, true)
+const hospitalIcon = createMarkerIcon('#0284c7', SVG_ICONS.hospital)
+const bloodBankIcon = createMarkerIcon('#dc2626', SVG_ICONS.bloodBank)
+const ambulanceAvailableIcon = createMarkerIcon('#059669', SVG_ICONS.ambulance)
+const ambulanceBusyIcon = createMarkerIcon('#d97706', SVG_ICONS.ambulance, true)
 const ambulanceOfflineIcon = createMarkerIcon('#64748b', SVG_ICONS.ambulance)
-const missionIcon = createMarkerIcon('#ef4444', SVG_ICONS.alert, true)
+const missionIcon = createMarkerIcon('#dc2626', SVG_ICONS.alert, true)
 
 interface MapViewProps {
   facilities?: FacilitySummary[]
@@ -71,29 +72,42 @@ export const MapView: React.FC<MapViewProps> = ({
   selectedPoint,
   className = '',
 }) => {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+
+  const tileBase = isDark
+    ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+    : 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+
+  const tileRef = isDark
+    ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
+    : 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
+
   return (
     <div
       style={{ height }}
-      className={`w-full rounded-xl overflow-hidden border border-slate-800 bg-[#090d16] shadow-xl relative z-0 ${className}`}
+      className={`w-full rounded-xl overflow-hidden border border-[var(--border-main)] bg-[var(--bg-canvas)] shadow-xs relative z-0 ${className}`}
     >
       <MapContainer
         center={center}
         zoom={zoom}
         scrollWheelZoom={false}
-        style={{ height: '100%', width: '100%', background: '#090d16' }}
+        style={{ height: '100%', width: '100%' }}
       >
         <ChangeView center={center} zoom={zoom} />
 
-        {/* Couche de base Esri Dark Gray (élégante, sombre, SANS filigrane ni clé requise) */}
+        {/* Couche de base Esri adaptative (Clair ou Sombre selon le thème) */}
         <TileLayer
+          key={`base-${theme}`}
           attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+          url={tileBase}
           maxZoom={16}
         />
-        {/* Couche de référence pour les noms de rues, villes et repères géographiques */}
+        {/* Couche de référence pour les étiquettes de villes et axes routiers */}
         <TileLayer
+          key={`ref-${theme}`}
           attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
+          url={tileRef}
           maxZoom={16}
         />
 
@@ -110,23 +124,23 @@ export const MapView: React.FC<MapViewProps> = ({
                   <div className="flex items-center gap-2">
                     <span
                       className={`w-2 h-2 rounded-full ${
-                        isBloodBank ? 'bg-rose-500' : 'bg-sky-400'
+                        isBloodBank ? 'bg-rose-600' : 'bg-sky-600'
                       }`}
                     />
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--text-muted)]">
                       {facility.facility_type_display}
                     </span>
                   </div>
-                  <div className="font-semibold text-slate-100 text-sm leading-snug">
+                  <div className="font-bold text-[var(--text-main)] text-sm leading-snug">
                     {facility.name}
                   </div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-[var(--text-muted)]">
                     {facility.city} {facility.region && `(${facility.region.toUpperCase()})`}
                   </div>
                   {facility.phone_number && (
                     <a
                       href={`tel:${facility.phone_number}`}
-                      className="inline-flex items-center gap-1.5 text-xs text-sky-400 font-medium hover:underline pt-1"
+                      className="inline-flex items-center gap-1.5 text-xs text-sky-600 font-semibold hover:underline pt-1"
                     >
                       <span>📞</span> {facility.phone_number}
                     </a>
@@ -149,29 +163,29 @@ export const MapView: React.FC<MapViewProps> = ({
               <Popup>
                 <div className="space-y-1.5 p-1 min-w-[190px]">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono font-bold text-xs text-amber-400">
+                    <span className="font-mono font-bold text-xs text-amber-600">
                       {amb.plate_number}
                     </span>
                     <span
                       className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                         amb.status === 'available'
-                          ? 'bg-emerald-500/20 text-emerald-300'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : amb.status === 'on_mission'
-                          ? 'bg-amber-500/20 text-amber-300'
-                          : 'bg-slate-500/20 text-slate-400'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : 'bg-slate-100 text-slate-700'
                       }`}
                     >
                       {amb.status_display}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-300">{amb.ambulance_type_display}</div>
+                  <div className="text-xs text-[var(--text-main)]">{amb.ambulance_type_display}</div>
                   {amb.driver && (
-                    <div className="text-xs text-slate-400">
-                      Chauffeur : <span className="text-slate-200">{amb.driver.full_name}</span>
+                    <div className="text-xs text-[var(--text-muted)]">
+                      Chauffeur : <span className="text-[var(--text-main)] font-medium">{amb.driver.full_name}</span>
                     </div>
                   )}
                   {amb.facility && (
-                    <div className="text-[11px] text-slate-400 border-t border-slate-800 pt-1">
+                    <div className="text-[11px] text-[var(--text-muted)] border-t border-[var(--border-subtle)] pt-1">
                       {amb.facility.name}
                     </div>
                   )}
@@ -193,17 +207,17 @@ export const MapView: React.FC<MapViewProps> = ({
               <Popup>
                 <div className="space-y-1.5 p-1 min-w-[210px]">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-rose-400">Intervention #{mission.id}</span>
-                    <span className="text-[10px] font-semibold text-rose-300 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
+                    <span className="font-bold text-xs text-rose-600">Intervention #{mission.id}</span>
+                    <span className="text-[10px] font-semibold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
                       {mission.priority_display}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-200 font-medium">{mission.pickup_address}</div>
-                  <div className="text-[11px] text-slate-400">
-                    Statut : <span className="text-slate-300">{mission.status_display}</span>
+                  <div className="text-xs text-[var(--text-main)] font-medium">{mission.pickup_address}</div>
+                  <div className="text-[11px] text-[var(--text-muted)]">
+                    Statut : <span className="text-[var(--text-main)]">{mission.status_display}</span>
                   </div>
                   {mission.ambulance && (
-                    <div className="text-xs text-emerald-400 font-mono font-medium pt-0.5">
+                    <div className="text-xs text-emerald-600 font-mono font-bold pt-0.5">
                       Véhicule assigné : {mission.ambulance.plate_number}
                     </div>
                   )}
@@ -215,9 +229,9 @@ export const MapView: React.FC<MapViewProps> = ({
 
         {/* Point sélectionné manuellement */}
         {selectedPoint && (
-          <Marker position={selectedPoint} icon={createMarkerIcon('#a855f7', SVG_ICONS.pin, true)}>
+          <Marker position={selectedPoint} icon={createMarkerIcon('#7c3aed', SVG_ICONS.pin, true)}>
             <Popup>
-              <div className="text-xs font-semibold text-purple-300 p-1">Position sélectionnée</div>
+              <div className="text-xs font-semibold text-purple-700 p-1">Position sélectionnée</div>
             </Popup>
           </Marker>
         )}

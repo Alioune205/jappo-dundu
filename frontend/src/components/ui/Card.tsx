@@ -7,8 +7,8 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 export const Card: React.FC<CardProps> = ({ hover = false, className = '', children, ...props }) => {
   return (
     <div
-      className={`surface p-5 transition-all duration-200 ${
-        hover ? 'hover:border-white/15 hover:shadow-2xl hover:-translate-y-0.5' : ''
+      className={`clinical-card p-5 ${
+        hover ? 'hover:-translate-y-0.5 hover:shadow-md cursor-pointer' : ''
       } ${className}`}
       {...props}
     >
@@ -32,7 +32,7 @@ export const CardTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({
   children,
   ...props
 }) => (
-  <h3 className={`text-base font-semibold text-ink-100 ${className}`} {...props}>
+  <h3 className={`text-sm font-bold text-[var(--text-main)] uppercase tracking-wider ${className}`} {...props}>
     {children}
   </h3>
 )
@@ -42,7 +42,7 @@ export const CardDescription: React.FC<React.HTMLAttributes<HTMLParagraphElement
   children,
   ...props
 }) => (
-  <p className={`text-xs text-ink-400 mt-0.5 ${className}`} {...props}>
+  <p className={`text-xs text-[var(--text-muted)] mt-0.5 ${className}`} {...props}>
     {children}
   </p>
 )
