@@ -51,15 +51,15 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
 
         <div className="h-4 w-px bg-[var(--border-main)] hidden sm:block" />
 
-        {/* Statut WebSocket */}
+        {/* Statut Opérationnel */}
         <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-main)] text-xs">
           <span
             className={`w-2 h-2 rounded-full ${
-              isConnected ? 'bg-emerald-500' : 'bg-rose-500'
+              isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-500/70'
             }`}
           />
           <span className="text-[var(--text-muted)] text-[11px] font-medium">
-            {isConnected ? 'Flux national actif' : 'Connexion...'}
+            {isConnected ? 'Flux temps réel' : 'Veille opérationnelle'}
           </span>
         </div>
 
