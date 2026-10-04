@@ -24,6 +24,8 @@ urlpatterns = [
 
     # === Machine Learning (El Hadji Massogui Diop) ===
     path('api/ml/', include('ml.urls')),
+    # === Temps réel : tickets de connexion WebSocket (El Hadji Massogui Diop) ===
+    path('api/realtime/', include('realtime.urls')),
 
     # === Cœur métier (Ibrahima Khalilou Diallo) ===
     path('api/users/', include('users.urls')),

@@ -99,9 +99,15 @@ dans le registre (admin Django) et peut être réactivé.
 |---|---|
 | `GET /api/ml/predictions/` | Prédictions à venir. Filtres : `region`, `blood_group`, `risk_level`, `center`, `include_past=true` (400 si une valeur est invalide) |
 | `GET /api/ml/predictions/summary/` | Nombre de risques par région, la plus critique en premier |
-| `POST /api/ml/predict/` | `{"region", "blood_group", "days_ahead"}` (tous facultatifs) ; limité à 30 appels par heure ; 503 si aucun modèle n'est actif |
+| `POST /api/ml/predict/` | `{"region", "blood_group", "days_ahead"}` (tous facultatifs) ; limité à 30 appels par heure ; 503 si aucun modèle n'est actif. Répond **202** avec `job_id` et `status_url` : le calcul (plusieurs secondes) tourne en arrière-plan |
+| `GET /api/ml/predict/<job_id>/` | État de la tâche : `pending`, `running`, `succeeded` (avec `predictions_count`, `risk_summary`, `model_version`) ou `failed` (avec `message`). Visible par son auteur et les administrateurs ; conservé 1 h |
 | `GET /api/ml/model-info/` | Modèle actif et métriques détaillées |
 | `GET /api/ml/stocks/` | Historique des stocks (`days` de 1 à 365, `region`, `blood_group`, `center`) |
+
+Pourquoi en arrière-plan : sous Daphne, les vues synchrones partagent un seul
+thread ; un calcul dans la requête gelait toute l'API (lits, sang, SAMU). Les
+calculs sont sérialisés (un worker) et une demande identique déjà en cours est
+réutilisée. `ML_PREDICT_ASYNC=False` exécute le calcul dans la requête (tests).
 
 Chaque prédiction enregistrée remplace la précédente pour le même périmètre, puis :
 - le tableau de bord reçoit un `prediction_update` ;

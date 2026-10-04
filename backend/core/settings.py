@@ -15,6 +15,7 @@ from pathlib import Path
 
 from decouple import Csv, config
 from django.core.exceptions import ImproperlyConfigured
+from django.utils.csp import CSP
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -90,6 +91,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'django.middleware.csp.ContentSecurityPolicyMiddleware',
 ]
 
 ROOT_URLCONF = 'core.urls'
@@ -217,6 +219,22 @@ SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 X_FRAME_OPTIONS = 'DENY'
 SESSION_COOKIE_HTTPONLY = True
 
+# Content-Security-Policy des réponses Django (API JSON et administration).
+# L'application React a sa propre politique, émise par Caddy (deploy/Caddyfile).
+# Aucun script inline ni tiers : une injection HTML ne peut ni exécuter de
+# code, ni exfiltrer de données vers un domaine extérieur.
+SECURE_CSP = {
+    'default-src': [CSP.SELF],
+    'script-src': [CSP.SELF],
+    # Attributs style= de l'administration Django.
+    'style-src': [CSP.SELF, CSP.UNSAFE_INLINE],
+    'img-src': [CSP.SELF, 'data:'],
+    'object-src': [CSP.NONE],
+    'base-uri': [CSP.SELF],
+    'form-action': [CSP.SELF],
+    'frame-ancestors': [CSP.NONE],
+}
+
 
 # =============================================================
 # DJANGO REST FRAMEWORK (El Hadji Massogui Diop)
@@ -239,8 +257,13 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon_burst': '5/second',
         'anon_sustained': '100/hour',
-        'user_burst': '10/second',
-        'user_sustained': '1000/hour',
+        # Utilisateurs authentifiés : un chargement du tableau de bord émet à
+        # lui seul ~10 requêtes (données, tickets WebSocket, profil) et les
+        # écrans se rafraîchissent sur événement temps réel. Des plafonds plus
+        # bas (anciennement 10/s et 1000/h) bloquaient un régulateur en pleine
+        # garde ; ceux-ci arrêtent toujours un script qui martèle l'API.
+        'user_burst': config('THROTTLE_USER_BURST_RATE', default='30/second'),
+        'user_sustained': config('THROTTLE_USER_SUSTAINED_RATE', default='10000/hour'),
         'login': config('THROTTLE_LOGIN_RATE', default='10/minute'),
         'ml_predict': config('THROTTLE_ML_PREDICT_RATE', default='30/hour'),
     },
@@ -346,6 +369,13 @@ ML_MODEL_DIR = BASE_DIR / config('ML_MODEL_DIR', default='ml/trained_models')
 # Valeurs par défaut à valider avec le CNTS.
 ML_SHORTAGE_CRITICAL_DAYS = config('ML_SHORTAGE_CRITICAL_DAYS', default=2.0, cast=float)
 ML_SHORTAGE_WARNING_DAYS = config('ML_SHORTAGE_WARNING_DAYS', default=5.0, cast=float)
+
+# Prédictions à la demande exécutées hors de la requête HTTP (ml/services/jobs.py).
+# False : exécution dans la requête (tests ; la réponse garde la même forme).
+ML_PREDICT_ASYNC = config('ML_PREDICT_ASYNC', default=True, cast=bool)
+
+# Durée de vie d'un ticket de connexion WebSocket (realtime/tickets.py).
+REALTIME_TICKET_TTL = config('REALTIME_TICKET_TTL', default=30, cast=int)
 
 
 # =============================================================

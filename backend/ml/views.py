@@ -11,14 +11,16 @@ import logging
 from datetime import timedelta
 
 from django.db.models import Count, Q
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework import generics, status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import APIException, NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from security.permissions import IsAdminOrHospitalStaff
+from security.roles import Role, user_has_role
 
 from .constants import BLOOD_GROUP_CODES, REGION_CODES, REGION_LABELS
 from .models import BloodStockRecord, MLModelMetadata, PredictionResult
@@ -29,7 +31,7 @@ from .serializers import (
     PredictionResultSerializer,
     PredictionSummarySerializer,
 )
-from .services.predictor import BloodShortagePredictor
+from .services import jobs, registry
 from .services.registry import ModelNotAvailableError
 from .services.risk import RISK_LEVELS
 
@@ -127,11 +129,20 @@ class PredictionByRegionView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class ServiceUnavailable(APIException):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    default_detail = 'Service de prédiction indisponible.'
+    default_code = 'service_unavailable'
+
+
 class PredictOnDemandView(APIView):
-    """Lance une prédiction et diffuse les alertes en temps réel.
+    """Lance une prédiction en arrière-plan (voir services/jobs.py).
 
     POST /api/ml/predict/
     {"region": "dakar", "blood_group": "O+", "days_ahead": 7}  (tout optionnel)
+    → 202 {"job_id", "status", "status_url", ...} ; le calcul (plusieurs
+    secondes) ne bloque plus le serveur. Suivi : GET status_url, ou
+    l'événement temps réel ``prediction_update``.
     """
 
     permission_classes = [IsAdminOrHospitalStaff]
@@ -143,42 +154,63 @@ class PredictOnDemandView(APIView):
     def post(self, request):
         serializer = PredictionRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        region = serializer.validated_data.get('region')
-        blood_group = serializer.validated_data.get('blood_group')
-        days_ahead = serializer.validated_data['days_ahead']
 
+        # Contrôle immédiat (modèle en mémoire après le premier chargement) :
+        # l'absence de modèle reste une erreur 503 synchrone.
         try:
-            run = BloodShortagePredictor().predict_and_save(
-                region=region,
-                blood_group=blood_group,
-                days_ahead=days_ahead,
-            )
+            registry.load_active_bundle()
         except ModelNotAvailableError as exc:
-            return Response(
-                {'status': 'error', 'message': str(exc)},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
+            raise ServiceUnavailable(str(exc)) from None
 
+        job = jobs.submit_prediction(
+            request.user,
+            region=serializer.validated_data.get('region'),
+            blood_group=serializer.validated_data.get('blood_group'),
+            days_ahead=serializer.validated_data['days_ahead'],
+        )
         logger.info(
-            "Prédiction à la demande par %s : %d résultats",
-            request.user.get_username(), run.count,
+            "Prédiction %s demandée par %s", job['id'], request.user.get_username()
         )
         return Response(
-            {
-                'status': 'success',
-                'message': f'{run.count} prédictions générées.',
-                'predictions_count': run.count,
-                'risk_summary': run.risk_summary(),
-                'skipped_series': run.skipped_series,
-                'model_version': run.model_version,
-                'filters': {
-                    'region': region,
-                    'blood_group': blood_group,
-                    'days_ahead': days_ahead,
-                },
-            },
-            status=status.HTTP_200_OK,
+            _job_payload(request, job), status=status.HTTP_202_ACCEPTED
         )
+
+
+class PredictionJobView(APIView):
+    """État d'une prédiction à la demande.
+
+    GET /api/ml/predict/<job_id>/ → status : pending, running, succeeded, failed.
+    Visible par son auteur et par les administrateurs.
+    """
+
+    permission_classes = [IsAdminOrHospitalStaff]
+
+    def get(self, request, job_id):
+        job = jobs.get_job(job_id)
+        if job is None or (
+            job['requested_by'] != request.user.pk and not user_has_role(request.user, Role.ADMIN)
+        ):
+            raise NotFound('Tâche inconnue ou expirée.')
+        return Response(_job_payload(request, job))
+
+
+def _job_payload(request, job):
+    payload = {
+        'job_id': job['id'],
+        'status': job['status'],
+        'status_url': request.build_absolute_uri(
+            reverse('ml:predict-job', kwargs={'job_id': job['id']})
+        ),
+        'filters': job['filters'],
+        'created_at': job['created_at'],
+        'finished_at': job['finished_at'],
+    }
+    if job['status'] == jobs.SUCCEEDED:
+        payload.update(job['result'])
+        payload['message'] = f"{job['result']['predictions_count']} prédictions générées."
+    elif job['status'] == jobs.FAILED:
+        payload['message'] = job['error']
+    return payload
 
 
 class ModelInfoView(APIView):

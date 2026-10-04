@@ -332,6 +332,15 @@ class MiddlewareTests(TestCase):
         self.assertIn('camera=()', response['Permissions-Policy'])
         self.assertEqual(response['Cache-Control'], 'no-store')
 
+    def test_content_security_policy(self):
+        response = self.client.get('/api/ml/predictions/')
+        policy = response['Content-Security-Policy']
+        self.assertIn("default-src 'self'", policy)
+        self.assertIn("script-src 'self'", policy)
+        self.assertNotIn("script-src 'self' 'unsafe-inline'", policy)
+        self.assertIn("object-src 'none'", policy)
+        self.assertIn("frame-ancestors 'none'", policy)
+
     def test_requests_are_logged(self):
         with self.assertLogs('jappo_dundu.security', 'WARNING') as logs:
             self.client.get('/api/ml/predictions/')

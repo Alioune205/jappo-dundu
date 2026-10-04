@@ -12,6 +12,7 @@ from .views import (
     PredictionByRegionView,
     PredictionListView,
     PredictOnDemandView,
+    PredictionJobView,
 )
 
 app_name = 'ml'
@@ -31,6 +32,11 @@ urlpatterns = [
         'predict/',
         PredictOnDemandView.as_view(),
         name='predict-on-demand',
+    ),
+    path(
+        'predict/<str:job_id>/',
+        PredictionJobView.as_view(),
+        name='predict-job',
     ),
     path(
         'model-info/',

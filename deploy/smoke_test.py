@@ -183,7 +183,10 @@ def s08_ws_rejects_anonymous(ctx):
 
 def s09_s10_realtime_prediction(ctx):
     """WebSocket authentifié puis prédiction diffusée en temps réel."""
-    url = f"{ctx.ws_url}/ws/dashboard/?token={ctx.state['access']}"
+    # Le JWT ne va jamais dans l'URL : on l'échange contre un ticket à usage unique.
+    ticket = http(ctx, 'POST', '/api/realtime/ticket/', token=ctx.state['access'])
+    expect_status(ticket, 201, "ticket WebSocket")
+    url = f"{ctx.ws_url}/ws/dashboard/?ticket={ticket.body['ticket']}"
     with ws_connect(url, open_timeout=TIMEOUT) as ws:
         welcome = json.loads(ws.recv(timeout=10))
         expect(welcome['type'] == 'connection_established', f"accueil : {welcome}")
@@ -192,14 +195,19 @@ def s09_s10_realtime_prediction(ctx):
 
         response = http(ctx, 'POST', '/api/ml/predict/', token=ctx.state['access'],
                         payload={'days_ahead': 7})
-        expect_status(response, 200, "prédiction à la demande")
-        ctx.state['predictions_count'] = response.body['predictions_count']
+        # Le calcul tourne en arrière-plan : réponse immédiate 202 + identifiant de tâche.
+        expect_status(response, 202, "prédiction à la demande")
+        job_id = response.body['job_id']
 
-        deadline = time.monotonic() + 15
+        deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             message = json.loads(ws.recv(timeout=max(0.1, deadline - time.monotonic())))
             if message['type'] == 'prediction_update':
                 data = message['data']
+                job = http(ctx, 'GET', f'/api/ml/predict/{job_id}/', token=ctx.state['access'])
+                expect_status(job, 200, "état de la tâche de prédiction")
+                expect(job.body['status'] == 'succeeded', f"tâche : {job.body}")
+                ctx.state['predictions_count'] = job.body['predictions_count']
                 expect(
                     data['predictions_count'] == ctx.state['predictions_count'],
                     f"diffusion incohérente : {data}",
@@ -208,7 +216,7 @@ def s09_s10_realtime_prediction(ctx):
                     f"{data['predictions_count']} prédictions, diffusées en temps réel "
                     f"({data['risk_summary']})"
                 )
-    raise AssertionError("aucun prediction_update reçu en 15 s")
+    raise AssertionError("aucun prediction_update reçu en 30 s")
 
 
 def s11_predictions_listing(ctx):
