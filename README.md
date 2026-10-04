@@ -39,11 +39,11 @@ Guides d'intégration de l'API : `backend/users/README.md`, `backend/sang/README
 
 ### 💻 Serigne Mbacké Faye — Frontend Web
 *L'interface institutionnelle pour les hôpitaux.*
-- [ ] Mettre en place le projet React (dans `/frontend`) et le routing.
-- [ ] Créer les composants UI partagés (tableaux, boutons, formulaires avec Tailwind).
-- [ ] Développer les modules web de gestion.
-- [ ] Intégrer les cartes géographiques interactives (Leaflet / Google Maps).
-- [ ] Développer le tableau de bord décisionnel (KPI, graphiques) et connecter les WebSockets.
+- [x] Mettre en place le projet React (dans `/frontend`) et le routing.
+- [x] Créer les composants UI partagés (tableaux, boutons, formulaires avec Tailwind).
+- [x] Développer les modules web de gestion.
+- [x] Intégrer les cartes géographiques interactives (Leaflet / Google Maps).
+- [x] Développer le tableau de bord décisionnel (KPI, graphiques) et connecter les WebSockets.
 
 ### 🤖 El Hadji Massogui Diop — ML, DevOps & Sécurité
 *L'intelligence artificielle, l'infrastructure serveur et la sécurité.*
