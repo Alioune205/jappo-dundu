@@ -66,3 +66,17 @@ combinaison. Dans du code métier : `security.roles.user_has_role(user, Role.DON
   `Permissions-Policy`, `Cache-Control: no-store` sur l'API, et HSTS en production.
 - Chaque réponse porte un `X-Request-ID` (réutilisé s'il est fourni par le client
   ou le proxy), présent aussi dans les journaux.
+
+## Format des erreurs de l'API
+
+Toutes les routes suivent la convention Django REST Framework :
+
+| Cas | Corps de la réponse |
+|---|---|
+| Erreur générale (401, 403, 404, 429, 503…) | `{"detail": "Message lisible."}` |
+| Données invalides (400) | `{"champ": ["Message…"], "non_field_errors": ["…"]}` |
+
+Le client web (`frontend/src/lib/api.ts`, `parseErrorBody`) affiche `detail`,
+ou les messages par champ à côté des formulaires. Une nouvelle vue doit lever
+les exceptions DRF (`NotFound`, `ValidationError`, `APIException`…) plutôt que
+construire son propre corps d'erreur.

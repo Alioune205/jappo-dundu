@@ -13,6 +13,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.cache import cache
 from django.core.management import call_command
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.throttling import SimpleRateThrottle
@@ -31,6 +32,7 @@ ENDPOINTS = (
 )
 
 
+@override_settings(ML_PREDICT_ASYNC=False)
 class MLAPITestCase(TrainedModelTestCase):
 
     @classmethod
@@ -76,7 +78,8 @@ class PredictEndpointTests(MLAPITestCase):
 
     def test_predict_then_list(self):
         response = self.predict(days_ahead=7)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.data['status'], 'succeeded')
         self.assertEqual(response.data['predictions_count'], TEST_SERIES * 7)
         self.assertEqual(response.data['model_version'], 'test-1')
         self.assertEqual(sum(response.data['risk_summary'].values()), TEST_SERIES * 7)
@@ -96,13 +99,64 @@ class PredictEndpointTests(MLAPITestCase):
         MLModelMetadata.objects.update(is_active=False)
         response = self.predict()
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
-        self.assertNotIn(str(self.model_dir), response.data['message'])
+        self.assertNotIn(str(self.model_dir), response.data['detail'])
 
     def test_predict_is_rate_limited(self):
         rates = {**SimpleRateThrottle.THROTTLE_RATES, 'ml_predict': '1/hour'}
         with mock.patch.object(SimpleRateThrottle, 'THROTTLE_RATES', rates):
-            self.assertEqual(self.predict(days_ahead=1).status_code, 200)
+            self.assertEqual(self.predict(days_ahead=1).status_code, 202)
             self.assertEqual(self.predict(days_ahead=1).status_code, 429)
+
+
+class PredictionJobTests(MLAPITestCase):
+    """Suivi des prédictions exécutées en arrière-plan."""
+
+    def test_job_status_is_readable_by_its_author(self):
+        job = self.predict(days_ahead=2).data
+        response = self.client.get(f"/api/ml/predict/{job['job_id']}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['status'], 'succeeded')
+        self.assertEqual(response.data['predictions_count'], TEST_SERIES * 2)
+        self.assertTrue(job['status_url'].endswith(f"/api/ml/predict/{job['job_id']}/"))
+
+    def test_job_is_hidden_from_other_users(self):
+        job = self.predict(days_ahead=2).data
+        other = User.objects.create_user('autre')
+        other.groups.add(Group.objects.get(name='hospital_staff'))
+        self.client.force_authenticate(other)
+        self.assertEqual(self.client.get(f"/api/ml/predict/{job['job_id']}/").status_code, 404)
+
+    def test_unknown_job(self):
+        self.assertEqual(self.client.get('/api/ml/predict/inconnu/').status_code, 404)
+
+    def test_failure_is_reported_on_the_job(self):
+        with mock.patch(
+            'ml.services.predictor.BloodShortagePredictor.predict_and_save',
+            side_effect=RuntimeError('séries incohérentes'),
+        ):
+            response = self.predict(days_ahead=2)
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.data['status'], 'failed')
+        self.assertEqual(response.data['message'], 'séries incohérentes')
+
+    @override_settings(ML_PREDICT_ASYNC=True)
+    def test_async_request_returns_before_the_computation(self):
+        with mock.patch('ml.services.jobs._get_executor') as executor:
+            response = self.predict(days_ahead=3)
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.data['status'], 'pending')
+        self.assertNotIn('predictions_count', response.data)
+        executor.return_value.submit.assert_called_once()
+
+    @override_settings(ML_PREDICT_ASYNC=True)
+    def test_identical_pending_request_is_not_duplicated(self):
+        with mock.patch('ml.services.jobs._get_executor') as executor:
+            first = self.predict(days_ahead=3).data
+            second = self.predict(days_ahead=3).data
+            other_scope = self.predict(days_ahead=4).data
+        self.assertEqual(first['job_id'], second['job_id'])
+        self.assertNotEqual(first['job_id'], other_scope['job_id'])
+        self.assertEqual(executor.return_value.submit.call_count, 2)
 
 
 class ListingTests(MLAPITestCase):

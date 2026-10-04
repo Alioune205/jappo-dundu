@@ -32,7 +32,7 @@ minute : la connexion est limitée à 10 tentatives par minute et par adresse IP
 | S06 | Dépendances | `GET /api/status/` (admin) | 200, base et channel layer `up` |
 | S07 | Modèle ML | `GET /api/ml/model-info/` | 200, version et métriques du modèle actif |
 | S08 | WebSocket anonyme | connexion à `/ws/alerts/` sans token | fermeture avec le code 4401 |
-| S09 | Prédiction diffusée en temps réel | connexion à `/ws/dashboard/?token=…`, `ping`, puis `POST /api/ml/predict/` | `pong`, puis message `prediction_update` reçu en moins de 15 s |
+| S09 | Prédiction diffusée en temps réel | ticket via `POST /api/realtime/ticket/`, connexion à `/ws/dashboard/?ticket=…`, `ping`, puis `POST /api/ml/predict/` (202 + `job_id`) | `pong`, puis message `prediction_update` reçu en moins de 30 s ; `GET /api/ml/predict/<job_id>/` → `succeeded` |
 | S11 | Consultation | `GET /api/ml/predictions/` et `/summary/` | le nombre listé correspond au nombre généré |
 | S12 | Rotation du refresh | rafraîchir, puis rejouer l'ancien refresh | 200, puis 401 |
 | S13 | Déconnexion | `POST /api/auth/logout/`, puis réutiliser le refresh | 200, puis 401 |

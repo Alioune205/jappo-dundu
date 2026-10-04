@@ -34,6 +34,15 @@
 
 	# Frontend React (application monopage)
 	handle {
+		# Content-Security-Policy de l'interface (l'API a la sienne, émise par Django).
+		# - scripts : uniquement les fichiers du domaine, aucun script inline ;
+		# - styles inline tolérés (attributs style= de React, Leaflet, Recharts) ;
+		# - polices Google Fonts, tuiles cartographiques Esri ;
+		# - connexions : API et WebSocket du même domaine uniquement.
+		# Si l'API est servie sur un autre domaine (VITE_API_BASE_URL), l'ajouter à connect-src.
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://server.arcgisonline.com; connect-src 'self' wss://{host}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		header Permissions-Policy "geolocation=(self), camera=(), microphone=(), payment=(), usb=()"
+		header X-Frame-Options "DENY"
 		root * /srv/frontend
 		try_files {path} /index.html
 		file_server

@@ -9,9 +9,21 @@ Responsable : El Hadji Massogui Diop
 | Alertes | `wss://<domaine>/ws/alerts/` | tout utilisateur connecté |
 | Tableau de bord | `wss://<domaine>/ws/dashboard/` | `admin`, `hospital_staff` |
 
-Authentification avec le même access token que l'API REST :
-- navigateur : `new WebSocket(url + '?token=' + access)` ;
-- React Native : en-tête `Authorization: Bearer <access>`, ou la query string.
+Authentification :
+- navigateur : l'API WebSocket ne permet pas d'envoyer d'en-tête. Le client
+  échange son access token contre un **ticket à usage unique** (valable 30 s),
+  puis l'ajoute à l'URL :
+
+  ```js
+  const { ticket } = await api.post('/api/realtime/ticket/')  // Authorization: Bearer <access>
+  new WebSocket(`${url}?ticket=${ticket}`)
+  ```
+
+  Un ticket neuf est nécessaire à chaque (re)connexion. Le JWT n'est **jamais**
+  accepté dans l'URL : une query string finit dans les journaux des proxies et
+  outils de supervision, où un jeton d'accès pourrait être rejoué.
+- mobile, scripts : en-tête `Authorization: Bearer <access>` (même access token
+  que l'API REST).
 
 Périmètre (paramètres de l'URL) :
 - `/ws/alerts/` sans paramètre : flux national, toutes les alertes ;
@@ -23,7 +35,7 @@ Codes de fermeture :
 
 | Code | Signification | Action côté client |
 |---|---|---|
-| 4401 | token absent, invalide ou expiré | rafraîchir le token, puis se reconnecter |
+| 4401 | ticket ou token absent, invalide, expiré ou déjà utilisé | demander un nouveau ticket (rafraîchir le token si besoin), puis se reconnecter |
 | 4403 | rôle insuffisant | ne pas se reconnecter |
 | 4400 | paramètre invalide (région inconnue…) | corriger l'URL |
 

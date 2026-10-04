@@ -7,10 +7,15 @@ Ce projet de fin d'études vise à interconnecter les établissements de santé,
 
 ## 🏗️ Architecture du Projet
 
-Le projet est divisé en 3 parties distinctes dans ce dépôt :
-1. **`/backend`** : L'API robuste développée avec **Django REST Framework** et **PostgreSQL/PostGIS**.
-2. **`/frontend`** : L'interface web pour les hôpitaux développée avec **React**.
-3. **`/mobile`** : L'application mobile citoyenne pour les donneurs développée avec **React Native**.
+État du dépôt :
+1. **`/backend`** : API **Django REST Framework**, **PostgreSQL/PostGIS**, temps réel **Django Channels** (Redis) et modèle de prévision des pénuries de sang.
+2. **`/frontend`** : interface web **React** des hôpitaux, du CNTS et de la régulation SAMU.
+3. **`/deploy`** : déploiement de production (Docker Compose, reverse proxy Caddy, tests de fumée).
+
+**Prévu, pas encore dans ce dépôt :** l'application mobile citoyenne des donneurs
+(**React Native / Expo**, futur dossier `/mobile`). L'API est déjà prête pour elle
+(authentification par en-tête `Authorization`, flux temps réel, recherche de
+donneurs à proximité) ; en attendant, les équipages SAMU utilisent l'interface web.
 
 ---
 
