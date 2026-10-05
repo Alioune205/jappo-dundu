@@ -379,6 +379,17 @@ export interface ModelMetadata {
   notes: string
 }
 
+export interface ModelInfo {
+  status: string
+  model: ModelMetadata
+  /** Répartition de l'historique de stock par origine (simulation, import, saisie). */
+  training_data?: {
+    records_by_source: Partial<Record<'synthetic' | 'import' | 'manual', number>>
+    /** Part simulée (0 à 1) ; null sans historique. */
+    synthetic_share: number | null
+  }
+}
+
 export type PredictionJobStatus = 'pending' | 'running' | 'succeeded' | 'failed'
 
 /**

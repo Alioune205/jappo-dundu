@@ -13,7 +13,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Skeleton, EmptyState } from '@/components/ui/Skeleton'
 import { BLOOD_GROUPS, REGIONS, RISK_LEVELS, toneOf } from '@/lib/constants'
 import { formatDate, formatNumber, formatPercent } from '@/lib/format'
-import type { Prediction, ModelMetadata, PredictionJob } from '@/types/api'
+import type { Prediction, ModelInfo, PredictionJob } from '@/types/api'
 import { QK } from '@/lib/queryKeys'
 
 /** Intervalle de suivi d'un calcul de prévision en arrière-plan (ms). */
@@ -39,14 +39,12 @@ export const MLPredictions: React.FC = () => {
   const [runMsg, setRunMsg] = useState<{ type: 'success' | 'danger'; text: string } | null>(null)
 
   // 1. Métadonnées du modèle actif (El Hadji Massogui Diop)
-  const { data: modelInfoData } = useQuery<{
-    status: string
-    model: ModelMetadata
-  }>({
+  const { data: modelInfoData } = useQuery<ModelInfo>({
     queryKey: QK.mlModelInfo,
-    queryFn: () => api.get<{ status: string; model: ModelMetadata }>('/api/ml/model-info/'),
+    queryFn: () => api.get<ModelInfo>('/api/ml/model-info/'),
   })
   const model = modelInfoData?.model
+  const syntheticShare = modelInfoData?.training_data?.synthetic_share ?? null
 
   // 2. Liste des prédictions
   const {
@@ -137,6 +135,14 @@ export const MLPredictions: React.FC = () => {
           </Button>
         }
       />
+
+      {model && syntheticShare != null && syntheticShare > 0 && (
+        <Alert tone="warning" title="Modèle de démonstration : données simulées">
+          {formatPercent(syntheticShare)} de l’historique de stock est simulé. Les métriques ci-dessous
+          mesurent le modèle sur ces données, pas sur le terrain : à recalculer sur l’historique réel du CNTS
+          avant toute décision.
+        </Alert>
+      )}
 
       {model && (
         <section aria-label="Modèle actif">

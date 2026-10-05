@@ -234,10 +234,21 @@ class ModelInfoView(APIView):
                 },
                 status=status.HTTP_404_NOT_FOUND,
             )
+        counts = dict(
+            BloodStockRecord.objects.values_list('source').annotate(n=Count('id')).values_list('source', 'n')
+        )
+        total = sum(counts.values())
+        synthetic = counts.get(BloodStockRecord.Source.SYNTHETIC, 0)
         return Response(
             {
                 'status': 'active',
                 'model': MLModelMetadataSerializer(active_model).data,
+                # Part de l'historique de stock qui est simulé : tant qu'elle n'est pas
+                # nulle, les métriques ci-dessus ne valent pas pour le terrain.
+                'training_data': {
+                    'records_by_source': counts,
+                    'synthetic_share': round(synthetic / total, 4) if total else None,
+                },
             },
             status=status.HTTP_200_OK,
         )

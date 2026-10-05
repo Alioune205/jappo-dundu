@@ -14,11 +14,13 @@ from django.contrib.auth.models import Group
 from django.core.cache import cache
 from django.core.management import call_command
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.throttling import SimpleRateThrottle
 
 from ml.models import MLModelMetadata, PredictionResult
+from ml.services import jobs
 
 from .helpers import TEST_SERIES, TrainedModelTestCase
 
@@ -158,6 +160,19 @@ class PredictionJobTests(MLAPITestCase):
         self.assertNotEqual(first['job_id'], other_scope['job_id'])
         self.assertEqual(executor.return_value.submit.call_count, 2)
 
+    @override_settings(ML_PREDICT_ASYNC=True, ML_JOB_STALE_SECONDS=60)
+    def test_lost_job_does_not_block_its_scope(self):
+        # Processus redémarré pendant le calcul : la tâche reste « pending » en cache.
+        with mock.patch('ml.services.jobs._get_executor') as executor:
+            lost = self.predict(days_ahead=3).data
+            self.assertEqual(self.predict(days_ahead=3).data['job_id'], lost['job_id'])
+            later = timezone.now() + timedelta(minutes=5)
+            with mock.patch('ml.services.jobs.timezone.now', return_value=later):
+                retried = self.predict(days_ahead=3).data
+        self.assertNotEqual(retried['job_id'], lost['job_id'])
+        self.assertEqual(executor.return_value.submit.call_count, 2)
+        self.assertEqual(jobs.get_job(lost['job_id'])['status'], jobs.FAILED)
+
 
 class ListingTests(MLAPITestCase):
 
@@ -200,6 +215,8 @@ class ListingTests(MLAPITestCase):
         data = self.client.get('/api/ml/model-info/').data
         self.assertEqual(data['status'], 'active')
         self.assertIn('baseline_mae', data['model']['metrics'])
+        # Historique de test entièrement simulé : l'API doit le dire.
+        self.assertEqual(data['training_data']['synthetic_share'], 1.0)
         MLModelMetadata.objects.update(is_active=False)
         self.assertEqual(self.client.get('/api/ml/model-info/').status_code, 404)
 

@@ -14,7 +14,16 @@ Fonctionnement :
   par ``GET /api/ml/predict/<id>/`` ; la fin du calcul est aussi diffusée
   en temps réel (``prediction_update``), comme auparavant ;
 - une demande identique déjà en attente ou en cours est réutilisée plutôt
-  que dupliquée.
+  que dupliquée ; le périmètre est réservé de façon atomique (``cache.add``)
+  pour que deux processus ne lancent pas le même calcul ;
+- une tâche restée ``pending``/``running`` au-delà de ``ML_JOB_STALE_SECONDS``
+  (processus redémarré pendant le calcul : la file est en mémoire) est
+  déclarée échouée et la demande suivante relance le calcul, au lieu de
+  bloquer le périmètre jusqu'à l'expiration du cache (1 h).
+
+Limite : la file reste propre à chaque processus. Avec plusieurs workers
+Daphne, les calculs ne sont plus sérialisés entre processus ; passer alors à
+une file partagée (RQ ou Celery sur le Redis existant).
 
 ``ML_PREDICT_ASYNC = False`` exécute la tâche dans la requête (tests) ;
 la réponse garde exactement la même forme.
@@ -26,6 +35,7 @@ import logging
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 from django.conf import settings
 from django.core.cache import cache
@@ -35,6 +45,8 @@ from django.utils import timezone
 logger = logging.getLogger('jappo_dundu.ml')
 
 JOB_TTL_SECONDS = 60 * 60
+# Au-delà, une tâche non terminée est considérée comme perdue.
+DEFAULT_STALE_SECONDS = 15 * 60
 PENDING, RUNNING, SUCCEEDED, FAILED = 'pending', 'running', 'succeeded', 'failed'
 TERMINAL = {SUCCEEDED, FAILED}
 
@@ -76,16 +88,40 @@ def _update(job, **changes):
     return job
 
 
+def _is_stale(job):
+    limit = getattr(settings, 'ML_JOB_STALE_SECONDS', DEFAULT_STALE_SECONDS)
+    since = datetime.fromisoformat(job.get('started_at') or job['created_at'])
+    return (timezone.now() - since).total_seconds() > limit
+
+
+def _live_job(scope_key):
+    """Tâche en attente ou en cours sur ce périmètre ; libère le périmètre sinon."""
+    existing_id = cache.get(scope_key)
+    if not existing_id:
+        return None
+    existing = get_job(existing_id)
+    if existing and existing['status'] not in TERMINAL:
+        if not _is_stale(existing):
+            return existing
+        logger.warning("Prédiction %s perdue (aucune fin après le délai) : relancée.", existing['id'])
+        _update(
+            existing,
+            status=FAILED,
+            finished_at=timezone.now().isoformat(),
+            error="Calcul interrompu (redémarrage du serveur). Relancez la prédiction.",
+        )
+    cache.delete(scope_key)
+    return None
+
+
 def submit_prediction(user, region=None, blood_group=None, days_ahead=7):
     """Soumet une prédiction ; retourne l'état de la tâche (nouvelle ou réutilisée)."""
     filters = {'region': region, 'blood_group': blood_group, 'days_ahead': days_ahead}
     scope_key = _scope_key(filters)
 
-    existing_id = cache.get(scope_key)
-    if existing_id:
-        existing = get_job(existing_id)
-        if existing and existing['status'] not in TERMINAL:
-            return existing
+    existing = _live_job(scope_key)
+    if existing:
+        return existing
 
     job = {
         'id': uuid.uuid4().hex,
@@ -98,7 +134,13 @@ def submit_prediction(user, region=None, blood_group=None, days_ahead=7):
         'error': None,
     }
     _save(job)
-    cache.set(scope_key, job['id'], timeout=JOB_TTL_SECONDS)
+    if not cache.add(scope_key, job['id'], timeout=JOB_TTL_SECONDS):
+        # Un autre processus vient de réserver ce périmètre : on suit sa tâche.
+        winner = get_job(cache.get(scope_key) or '')
+        if winner:
+            cache.delete(_job_key(job['id']))
+            return winner
+        cache.set(scope_key, job['id'], timeout=JOB_TTL_SECONDS)
 
     if getattr(settings, 'ML_PREDICT_ASYNC', True):
         _get_executor().submit(_run_in_thread, job['id'])
