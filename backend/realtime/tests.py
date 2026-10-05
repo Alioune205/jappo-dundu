@@ -24,6 +24,8 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import AccessToken
 
 from core.asgi import application
+from users.models import UserProfile
+from users.tests.factories import make_facility
 
 from .auth import extract_ticket, extract_token
 from .broadcast import broadcast_alert, broadcast_dashboard
@@ -68,6 +70,9 @@ class RealtimeTestCase(TransactionTestCase):
         call_command('setup_roles', stdout=StringIO())
         self.admin = User.objects.create_user('admin', is_staff=True)
         self.hospital = self._user('hospital', 'hospital_staff')
+        self.facility = make_facility('Hopital A')
+        self.other_facility = make_facility('Hopital B', north_km=5)
+        UserProfile.objects.create(user=self.hospital, facility=self.facility)
         self.donor = self._user('donor', 'donor')
 
     @staticmethod
@@ -163,10 +168,38 @@ class AuthorizationTests(RealtimeTestCase):
         communicator = await self.open('/ws/dashboard/', self.donor)
         await self.assert_closed(communicator, CLOSE_FORBIDDEN)
 
-    async def test_dashboard_for_hospital_staff(self):
+    async def test_dashboard_for_hospital_staff_defaults_to_own_facility(self):
         communicator, welcome = await self.open_ok('/ws/dashboard/', self.hospital)
+        self.assertEqual(welcome['groups'], [f'dashboard_hospital_{self.facility.pk}'])
+        await communicator.disconnect()
+
+    async def test_national_dashboard_is_reserved_to_admins(self):
+        communicator, welcome = await self.open_ok('/ws/dashboard/', self.admin)
         self.assertEqual(welcome['groups'], ['dashboard_global'])
         await communicator.disconnect()
+
+        communicator, _ = await self.open_ok('/ws/dashboard/', self.hospital)
+        await communicator.send_json_to({'type': 'subscribe', 'group': 'dashboard_global'})
+        self.assertEqual((await communicator.receive_json_from())['code'], 'forbidden')
+        await communicator.disconnect()
+
+    async def test_staff_cannot_follow_another_hospital(self):
+        communicator = await self.open(
+            '/ws/dashboard/', self.hospital, f'hospital_id={self.other_facility.pk}'
+        )
+        await self.assert_closed(communicator, CLOSE_FORBIDDEN)
+
+        communicator, _ = await self.open_ok('/ws/alerts/', self.hospital)
+        await communicator.send_json_to(
+            {'type': 'subscribe', 'group': f'alerts_hospital_{self.other_facility.pk}'}
+        )
+        self.assertEqual((await communicator.receive_json_from())['code'], 'forbidden')
+        await communicator.disconnect()
+
+    async def test_staff_without_facility_has_no_dashboard(self):
+        orphan = await sync_to_async(self._user)('orphan', 'hospital_staff')
+        communicator = await self.open('/ws/dashboard/', orphan)
+        await self.assert_closed(communicator, CLOSE_FORBIDDEN)
 
     async def test_region_filter_gives_regional_feed_only(self):
         communicator, welcome = await self.open_ok('/ws/alerts/', self.donor, 'region=thies')
@@ -186,8 +219,10 @@ class AuthorizationTests(RealtimeTestCase):
         await self.assert_closed(communicator, CLOSE_FORBIDDEN)
 
     async def test_hospital_scope_for_staff(self):
-        communicator, welcome = await self.open_ok('/ws/alerts/', self.hospital, 'hospital_id=5')
-        self.assertEqual(welcome['groups'], ['alerts_hospital_5'])
+        communicator, welcome = await self.open_ok(
+            '/ws/alerts/', self.hospital, f'hospital_id={self.facility.pk}'
+        )
+        self.assertEqual(welcome['groups'], [f'alerts_hospital_{self.facility.pk}'])
         await communicator.disconnect()
 
 
@@ -246,7 +281,7 @@ class ProtocolTests(RealtimeTestCase):
         await communicator.disconnect()
 
     async def test_subscription_limit(self):
-        communicator, _ = await self.open_ok('/ws/alerts/', self.hospital)
+        communicator, _ = await self.open_ok('/ws/alerts/', self.admin)
         for hospital_id in range(1, MAX_GROUPS_PER_CONNECTION):
             await communicator.send_json_to(
                 {'type': 'subscribe', 'group': f'alerts_hospital_{hospital_id}'}
@@ -281,12 +316,29 @@ class BroadcastTests(RealtimeTestCase):
             await communicator.disconnect()
 
     async def test_dashboard_broadcast(self):
-        dashboard, _ = await self.open_ok('/ws/dashboard/', self.hospital)
+        dashboard, _ = await self.open_ok('/ws/dashboard/', self.admin)
         await sync_to_async(broadcast_dashboard)('prediction', {'critical': 3})
         message = await dashboard.receive_json_from()
         self.assertEqual(message['type'], 'prediction_update')
         self.assertEqual(message['data'], {'critical': 3})
         await dashboard.disconnect()
+
+    async def test_patient_location_alerts_never_reach_donors(self):
+        donor, _ = await self.open_ok('/ws/alerts/', self.donor)
+        staff, _ = await self.open_ok('/ws/alerts/', self.hospital)
+        mission = {'event': 'mission_created', 'pickup': {'address': '12 rue X', 'latitude': 14.68}}
+        await sync_to_async(broadcast_alert)('ambulance', mission, region='dakar')
+        await sync_to_async(broadcast_alert)('bed', {'event': 'capacity_saturated'}, region='dakar')
+        await sync_to_async(broadcast_alert)('blood', {'blood_group': 'O-'}, region='dakar')
+
+        self.assertEqual((await staff.receive_json_from())['type'], 'ambulance_alert')
+        self.assertEqual((await staff.receive_json_from())['type'], 'bed_alert')
+        self.assertEqual((await staff.receive_json_from())['type'], 'blood_alert')
+        # Le donneur ne reçoit que l'alerte sang : rien sur le patient.
+        self.assertEqual((await donor.receive_json_from())['type'], 'blood_alert')
+        self.assertTrue(await donor.receive_nothing(timeout=0.2))
+        for communicator in (donor, staff):
+            await communicator.disconnect()
 
     def test_invalid_broadcast_arguments(self):
         with self.assertRaises(ValueError):

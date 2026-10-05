@@ -6,8 +6,8 @@ Responsable : El Hadji Massogui Diop
 
 | Flux | URL | Accès |
 |---|---|---|
-| Alertes | `wss://<domaine>/ws/alerts/` | tout utilisateur connecté |
-| Tableau de bord | `wss://<domaine>/ws/dashboard/` | `admin`, `hospital_staff` |
+| Alertes | `wss://<domaine>/ws/alerts/` | tout utilisateur connecté (alertes lits et ambulances : professionnels seulement) |
+| Tableau de bord | `wss://<domaine>/ws/dashboard/` | `admin` (flux national), `hospital_staff` (son établissement) |
 
 Authentification :
 - navigateur : l'API WebSocket ne permet pas d'envoyer d'en-tête. Le client
@@ -26,10 +26,19 @@ Authentification :
   que l'API REST).
 
 Périmètre (paramètres de l'URL) :
-- `/ws/alerts/` sans paramètre : flux national, toutes les alertes ;
+- `/ws/alerts/` sans paramètre : flux national ;
 - `/ws/alerts/?region=thies` : alertes de la région uniquement (codes : voir `ml/constants.py`) ;
-- `?hospital_id=5` : flux d'un hôpital, réservé à `admin`, `hospital_staff` et
-  `ambulance_driver` (disponible aussi sur `/ws/dashboard/`).
+- `?hospital_id=5` : flux d'un hôpital, réservé à `admin` (tout hôpital) et à
+  `hospital_staff` / `ambulance_driver` (**leur établissement de rattachement
+  uniquement**, sinon 4403) ; disponible aussi sur `/ws/dashboard/`.
+- `/ws/dashboard/` sans paramètre : flux national pour `admin`, flux de son
+  établissement pour `hospital_staff` (4403 s'il n'en a pas).
+
+Filtrage par rôle : les alertes `bed_alert` et `ambulance_alert` portent
+l'adresse et la position du lieu de prise en charge d'un patient. Elles ne
+sont transmises qu'aux rôles `admin`, `hospital_staff` et `ambulance_driver` ;
+un donneur ne reçoit que les alertes sang et les alertes générales. Le filtre
+est appliqué côté serveur : le message n'atteint jamais l'appareil.
 
 Codes de fermeture :
 

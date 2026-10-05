@@ -156,8 +156,9 @@ def verify_facebook(access_token):
         provider='facebook',
         uid=str(profile['id']),
         email=profile.get('email', ''),
-        # Facebook ne communique que des adresses confirmées.
-        email_verified=bool(profile.get('email')),
+        # L'API Graph ne dit pas si l'adresse a été confirmée : elle n'est jamais
+        # considérée comme vérifiée (pas de rattachement à un compte existant).
+        email_verified=False,
         first_name=profile.get('first_name', ''),
         last_name=profile.get('last_name', ''),
     )

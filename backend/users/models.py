@@ -118,6 +118,12 @@ class UserProfile(models.Model):
         verbose_name="Établissement de rattachement",
         help_text="Obligatoire pour le personnel hospitalier.",
     )
+    email_verified = models.BooleanField(
+        default=False,
+        verbose_name="E-mail vérifié",
+        help_text="Vrai seulement si un fournisseur de confiance a prouvé la possession de l'adresse. "
+        "Une connexion sociale n'est rattachée qu'à une adresse vérifiée.",
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Créé le")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Modifié le")
 

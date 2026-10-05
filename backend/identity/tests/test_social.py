@@ -13,14 +13,17 @@ from unittest import mock
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
+from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
 from security.roles import Role, get_user_roles
-from users.tests.factories import api_client, make_user
+from users.models import UserProfile
+from users.tests.factories import PASSWORD, api_client, make_user
 
 from ..models import SocialAccount
-from ..social import SocialAuthError, SocialIdentity, verify_google
+from ..social import SocialAuthError, SocialIdentity, verify_facebook, verify_google
 
+User = get_user_model()
 URL = '/api/auth/social/{}/'
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
@@ -104,8 +107,13 @@ class SocialLoginTests(TestCase):
         self.assertFalse(response.data['created'])
         self.assertEqual(SocialAccount.objects.count(), 1)
 
+    @staticmethod
+    def verified(user):
+        UserProfile.objects.filter(user=user).update(email_verified=True)
+        return user
+
     def test_verified_email_links_an_existing_donor(self):
-        donor = make_user('fatou', Role.DONOR, phone='+221770000001', email='Fatou@gmail.com')
+        donor = self.verified(make_user('fatou', Role.DONOR, phone='+221770000001', email='Fatou@gmail.com'))
         response = self.login(self.identity())
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data['profile_complete'])
@@ -119,10 +127,42 @@ class SocialLoginTests(TestCase):
         self.assertEqual(linked.email, '')
 
     def test_professional_accounts_are_never_linked(self):
-        make_user('dr.fatou', Role.HOSPITAL_STAFF, email='fatou@gmail.com')
+        self.verified(make_user('dr.fatou', Role.HOSPITAL_STAFF, email='fatou@gmail.com'))
         response = self.login(self.identity())
         self.assertEqual(response.status_code, 403)
         self.assertFalse(SocialAccount.objects.exists())
+
+    def test_unverified_account_email_is_never_linked(self):
+        # Prise de compte anticipée : l'attaquant s'inscrit avec l'adresse de la
+        # victime (jamais vérifiée) ; la victime se connecte ensuite avec Google.
+        response = api_client().post('/api/users/register/', {
+            'username': 'attaquant', 'password': PASSWORD, 'email': 'fatou@gmail.com',
+            'first_name': 'A', 'last_name': 'B', 'phone_number': '+221770009999', 'region': 'dakar',
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+        attacker = User.objects.get(username='attaquant')
+        self.assertFalse(UserProfile.objects.get(user=attacker).email_verified)
+
+        response = self.login(self.identity())
+        self.assertEqual(response.status_code, 201)
+        victim = SocialAccount.objects.get().user
+        self.assertNotEqual(victim, attacker)
+        # L'adresse reste sur le compte existant : pas de doublon d'e-mail.
+        self.assertEqual(victim.email, '')
+
+    def test_first_login_marks_the_provider_email_verified(self):
+        self.login(self.identity())
+        user = SocialAccount.objects.get().user
+        self.assertTrue(UserProfile.objects.get(user=user).email_verified)
+
+    def test_changing_email_drops_the_verification(self):
+        self.login(self.identity())
+        user = SocialAccount.objects.get().user
+        client = api_client()
+        client.force_authenticate(user)
+        response = client.patch('/api/users/me/', {'email': 'autre@example.sn'}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertFalse(UserProfile.objects.get(user=user).email_verified)
 
     def test_disabled_account_cannot_log_in(self):
         self.login(self.identity())
@@ -132,3 +172,17 @@ class SocialLoginTests(TestCase):
     def test_unknown_provider(self):
         response = api_client().post(URL.format('myspace'), {}, format='json')
         self.assertEqual(response.status_code, 404)
+
+
+@override_settings(FACEBOOK_APP_ID='42', FACEBOOK_APP_SECRET='secret')
+class FacebookTokenTests(TestCase):
+    def graph(self, path, params):
+        if path == 'debug_token':
+            return {'data': {'is_valid': True, 'app_id': '42', 'user_id': '7'}}
+        return {'id': '7', 'email': 'fatou@gmail.com', 'first_name': 'Fatou', 'last_name': 'Diop'}
+
+    def test_facebook_email_is_never_treated_as_verified(self):
+        with mock.patch('identity.social._graph', side_effect=self.graph):
+            identity = verify_facebook('token')
+        self.assertEqual(identity.email, 'fatou@gmail.com')
+        self.assertFalse(identity.email_verified)

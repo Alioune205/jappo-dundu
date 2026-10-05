@@ -221,6 +221,10 @@ class AccountSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         profile_data = validated_data.pop('profile', {})
+        new_email = validated_data.get('email')
+        if new_email is not None and new_email.lower() != (instance.email or '').lower():
+            # Adresse saisie, jamais prouvée : elle ne doit pas permettre de rattacher une connexion sociale.
+            profile_data['email_verified'] = False
         try:
             with transaction.atomic():
                 for attr, value in validated_data.items():

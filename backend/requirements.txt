@@ -11,6 +11,9 @@ psycopg2-binary>=2.9,<3
 
 # --- Authentification & Sécurité (El Hadji Massogui Diop) ---
 djangorestframework-simplejwt>=5.5,<6
+# [crypto] installe « cryptography », requis pour vérifier les jetons RS256 de
+# Google et Apple (identity/social.py). Sans lui, ces connexions échouent.
+PyJWT[crypto]>=2.8,<3
 django-cors-headers>=4.3,<5
 python-decouple>=3.8,<4
 

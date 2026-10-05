@@ -43,6 +43,24 @@ MAX_HOSPITAL_ID = 2**31 - 1
 HOSPITAL_SCOPE_ROLES = frozenset(
     {Role.ADMIN, Role.HOSPITAL_STAFF, Role.AMBULANCE_DRIVER}
 )
+# Rôles professionnels : seuls à recevoir les alertes lits et ambulances, qui
+# portent l'adresse et la position GPS du lieu de prise en charge du patient.
+PROFESSIONAL_ROLES = HOSPITAL_SCOPE_ROLES
+
+
+def facility_of(user):
+    """Établissement de rattachement (profil, sinon ambulance conduite) ; None sinon."""
+    from ambulances.models import Ambulance
+    from users.models import UserProfile
+
+    facility_id = (
+        UserProfile.objects.filter(user=user).values_list('facility_id', flat=True).first()
+    )
+    if facility_id is None:
+        facility_id = (
+            Ambulance.objects.filter(driver=user).values_list('facility_id', flat=True).first()
+        )
+    return facility_id
 
 
 class SubscriptionError(Exception):
@@ -90,6 +108,8 @@ class BaseRealtimeConsumer(AsyncJsonWebsocketConsumer):
     scopes = ()
     welcome_message = ''
     event_types = {}
+    # Type d'événement -> rôles autorisés à le recevoir (absent : tout abonné).
+    restricted_events = {}
 
     async def connect(self):
         self.joined_groups = set()
@@ -99,6 +119,7 @@ class BaseRealtimeConsumer(AsyncJsonWebsocketConsumer):
             return
 
         self.roles = await database_sync_to_async(get_user_roles)(user)
+        self.facility_id = await database_sync_to_async(facility_of)(user)
         if self.allowed_roles is not None and self.roles.isdisjoint(
             self.allowed_roles
         ):
@@ -172,6 +193,10 @@ class BaseRealtimeConsumer(AsyncJsonWebsocketConsumer):
     # --- Diffusion (appelés par le channel layer) ---------------------
 
     async def forward_event(self, event):
+        allowed = self.restricted_events.get(event['type'])
+        if allowed is not None and self.roles.isdisjoint(allowed):
+            # Filtré côté serveur : le message n'atteint jamais l'appareil.
+            return
         await self.send_json({
             'type': self.event_types[event['type']],
             'id': event.get('id'),
@@ -188,7 +213,23 @@ class BaseRealtimeConsumer(AsyncJsonWebsocketConsumer):
             groups.append(region_group(self.group_prefix, params['region'][0]))
         if 'hospital' in self.scopes and params.get('hospital_id'):
             groups.append(self._hospital_group(params['hospital_id'][0]))
-        return groups or [global_group(self.group_prefix)]
+        return groups or self._default_groups()
+
+    def _default_groups(self):
+        """Groupes d'une connexion sans périmètre précisé."""
+        return [self._global_group()]
+
+    def _can_follow_global(self):
+        return True
+
+    def _global_group(self):
+        if not self._can_follow_global():
+            raise SubscriptionError(
+                'forbidden',
+                "Votre rôle ne permet pas de suivre le flux national.",
+                close_code=CLOSE_FORBIDDEN,
+            )
+        return global_group(self.group_prefix)
 
     def _hospital_group(self, hospital_id):
         if self.roles.isdisjoint(HOSPITAL_SCOPE_ROLES):
@@ -197,12 +238,20 @@ class BaseRealtimeConsumer(AsyncJsonWebsocketConsumer):
                 "Votre rôle ne permet pas de suivre un hôpital.",
                 close_code=CLOSE_FORBIDDEN,
             )
-        return hospital_group(self.group_prefix, hospital_id)
+        group = hospital_group(self.group_prefix, hospital_id)
+        # Hors administrateurs : uniquement l'établissement de rattachement.
+        if Role.ADMIN not in self.roles and int(hospital_id) != self.facility_id:
+            raise SubscriptionError(
+                'forbidden',
+                "Vous ne pouvez suivre que votre établissement de rattachement.",
+                close_code=CLOSE_FORBIDDEN,
+            )
+        return group
 
     def _validate_group_name(self, name):
         prefix = re.escape(self.group_prefix)
         if name == global_group(self.group_prefix):
-            return name
+            return self._global_group()
         match = re.fullmatch(rf'{prefix}_region_(\w+)', name)
         if match and 'region' in self.scopes:
             return region_group(self.group_prefix, match.group(1))
@@ -271,6 +320,11 @@ class AlertConsumer(BaseRealtimeConsumer):
         'ambulance_alert': 'ambulance_alert',
     }
 
+    restricted_events = {
+        'bed_alert': PROFESSIONAL_ROLES,
+        'ambulance_alert': PROFESSIONAL_ROLES,
+    }
+
     alert_message = BaseRealtimeConsumer.forward_event
     blood_alert = BaseRealtimeConsumer.forward_event
     bed_alert = BaseRealtimeConsumer.forward_event
@@ -280,8 +334,9 @@ class AlertConsumer(BaseRealtimeConsumer):
 class DashboardConsumer(BaseRealtimeConsumer):
     """Flux du tableau de bord, réservé aux admins et au personnel hospitalier.
 
-    ws://host/ws/dashboard/                → flux national (dashboard_global)
-    ws://host/ws/dashboard/?hospital_id=1  → flux d'un hôpital
+    ws://host/ws/dashboard/                → admin : flux national (dashboard_global) ;
+                                             personnel : son établissement
+    ws://host/ws/dashboard/?hospital_id=1  → flux d'un hôpital (le sien, sauf admin)
     """
 
     group_prefix = 'dashboard'
@@ -297,3 +352,18 @@ class DashboardConsumer(BaseRealtimeConsumer):
     dashboard_update = BaseRealtimeConsumer.forward_event
     kpi_update = BaseRealtimeConsumer.forward_event
     prediction_update = BaseRealtimeConsumer.forward_event
+
+    def _can_follow_global(self):
+        # Le flux national agrège tous les établissements : administrateurs seulement.
+        return Role.ADMIN in self.roles
+
+    def _default_groups(self):
+        if self._can_follow_global():
+            return [global_group(self.group_prefix)]
+        if self.facility_id is None:
+            raise SubscriptionError(
+                'forbidden',
+                "Aucun établissement de rattachement : flux indisponible.",
+                close_code=CLOSE_FORBIDDEN,
+            )
+        return [hospital_group(self.group_prefix, self.facility_id)]

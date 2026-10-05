@@ -5,7 +5,9 @@ Responsable du domaine : Pape Alioune Sene (application mobile)
 """
 
 import re
+from contextlib import redirect_stdout
 from datetime import timedelta
+from io import StringIO
 from unittest import mock
 
 from django.core import mail
@@ -17,7 +19,7 @@ from security.roles import Role
 from users.tests.factories import PASSWORD, api_client, make_user
 
 from ..models import PasswordResetCode
-from ..services import MAX_ATTEMPTS, MAX_CODES_PER_HOUR
+from ..services import MAX_ATTEMPTS, MAX_CODES_PER_HOUR, email_enabled, request_reset
 from ..sms import mask_phone, send_sms
 
 REQUEST = '/api/auth/password-reset/'
@@ -128,3 +130,27 @@ class SmsTests(TestCase):
             self.assertTrue(send_sms('+221771234567', 'code 123456'))
         self.assertIn('123456', logs.output[0])
         self.assertNotIn('771234567', logs.output[0])
+
+
+DUMMY_MAILERS = {'default': {'BACKEND': 'django.core.mail.backends.dummy.EmailBackend'}}
+
+
+class ProductionWithoutSmtpTests(TestCase):
+    """Production sans EMAIL_HOST : le code ne doit jamais finir dans les journaux."""
+
+    def setUp(self):
+        self.user = make_user('fatou', Role.DONOR, email='fatou@example.sn')
+
+    @override_settings(DEBUG=False, SMS_BACKEND='console')
+    def test_no_channel_means_no_code_and_nothing_written(self):
+        stdout = StringIO()
+        with override_settings(MAILERS=DUMMY_MAILERS), redirect_stdout(stdout), \
+                self.assertLogs('jappo_dundu.identity', 'WARNING') as logs:
+            self.assertIsNone(request_reset('fatou@example.sn'))
+        self.assertFalse(PasswordResetCode.objects.exists())
+        self.assertNotRegex(stdout.getvalue() + '\n'.join(logs.output), r'\b\d{6}\b')
+
+    def test_email_disabled_only_with_the_dummy_backend(self):
+        with override_settings(MAILERS=DUMMY_MAILERS):
+            self.assertFalse(email_enabled())
+        self.assertTrue(email_enabled())  # locmem des tests

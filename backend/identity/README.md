@@ -42,9 +42,16 @@ fournisseur n'est pas configuré, 400 si le jeton est refusé.
 
 Rattachement des comptes :
 1. même fournisseur et même identifiant → même compte ;
-2. sinon, compte **donneur** ayant la même adresse e-mail **vérifiée** → rattaché ;
+2. sinon, compte **donneur** ayant la même adresse e-mail, **vérifiée des deux
+   côtés** → rattaché : le fournisseur l'atteste (`email_verified` de Google ou
+   Apple) ET le compte l'a prouvée (`UserProfile.email_verified`). Une adresse
+   saisie à l'inscription ou modifiée via `PATCH /api/users/me/` n'est pas
+   vérifiée : sans cette règle, quelqu'un pourrait s'inscrire avec l'adresse
+   d'une autre personne et récupérer sa connexion Google. Facebook ne dit pas
+   si l'adresse est confirmée : jamais de rattachement ;
 3. sinon, nouveau compte donneur (sans mot de passe utilisable ; il pourra en créer
-   un avec « mot de passe oublié » une fois son numéro renseigné).
+   un avec « mot de passe oublié » une fois son numéro renseigné). Si l'adresse
+   est déjà portée par un autre compte, le nouveau compte ne la reprend pas.
 
 Un compte professionnel (admin, personnel, ambulancier) n'est jamais rattaché
 automatiquement (403) : il garde sa connexion par mot de passe.

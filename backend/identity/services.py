@@ -17,10 +17,12 @@ SECRET_KEY) est conservée. Trois codes au plus par compte et par heure.
 Connexion sociale
 -----------------
 ``social_login(identité)`` retrouve le compte lié (fournisseur + identifiant),
-sinon rattache un compte donneur existant ayant la même adresse e-mail
-**vérifiée**, sinon crée un compte donneur. Un compte professionnel (admin,
-personnel, ambulancier) n'est jamais rattaché automatiquement : il garde sa
-connexion par mot de passe.
+sinon rattache un compte donneur existant ayant la même adresse e-mail, à
+condition qu'elle soit **vérifiée des deux côtés** (par le fournisseur et
+sur le compte, ``UserProfile.email_verified``), sinon crée un compte donneur.
+Facebook ne garantit pas que l'adresse est confirmée : jamais de rattachement.
+Un compte professionnel (admin, personnel, ambulancier) n'est jamais rattaché
+automatiquement : il garde sa connexion par mot de passe.
 
 Responsable du domaine : Pape Alioune Sene (application mobile)
 """
@@ -63,6 +65,16 @@ def _digest(user_id, code):
     return hmac.new(key, f"reset:{user_id}:{code}".encode(), hashlib.sha256).hexdigest()
 
 
+def email_enabled():
+    """Faux si les e-mails sont jetés (production sans EMAIL_HOST, voir settings).
+
+    Le backend « dummy » répond qu'il a envoyé le message : sans ce contrôle,
+    le canal e-mail serait compté comme réussi alors que rien n'est parti.
+    """
+    backend = settings.MAILERS.get('default', {}).get('BACKEND', '')
+    return not backend.endswith('dummy.EmailBackend')
+
+
 def find_account(identifier):
     """Compte actif désigné par un numéro, un identifiant ou un e-mail ; None sinon."""
     value = (identifier or '').strip()
@@ -94,7 +106,7 @@ def request_reset(identifier):
     )
     if profile.phone_number and send_sms(profile.phone_number, text):
         channels.append('sms')
-    if user.email:
+    if user.email and email_enabled():
         sent = send_mail(
             "Votre code de réinitialisation Jappo Dundu",
             f"Bonjour,\n\n{text}\n\nSi vous n'avez rien demandé, ignorez ce message : "
@@ -190,7 +202,11 @@ def social_login(identity: SocialIdentity):
             return account.user, False
 
         email = identity.email.strip() if identity.email_verified else ''
-        user = User.objects.filter(email__iexact=email).first() if email else None
+        holder = User.objects.filter(email__iexact=email).select_related('profile').first() if email else None
+        # Rattachement seulement si les DEUX côtés ont prouvé l'adresse : une adresse
+        # saisie à l'inscription sans vérification pourrait appartenir à quelqu'un
+        # d'autre (prise de compte anticipée).
+        user = holder if holder is not None and get_profile(holder).email_verified else None
         if user is not None:
             if not user.is_active:
                 raise SocialAuthError("Ce compte est désactivé.", status=403)
@@ -207,7 +223,10 @@ def social_login(identity: SocialIdentity):
                 role=Role.DONOR,
                 first_name=identity.first_name[:150],
                 last_name=identity.last_name[:150],
-                email=email,
+                # Adresse déjà portée par un autre compte (non vérifié) : le nouveau compte
+                # ne la reprend pas, l'unicité des e-mails est préservée.
+                email='' if holder is not None else email,
+                profile={'email_verified': bool(email) and holder is None},
             )
         SocialAccount.objects.create(user=user, provider=identity.provider, uid=identity.uid, email=identity.email[:254])
     logger.info("Connexion %s : user=%s créé=%s", identity.provider, user.pk, created)

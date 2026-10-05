@@ -382,6 +382,8 @@ ML_SHORTAGE_WARNING_DAYS = config('ML_SHORTAGE_WARNING_DAYS', default=5.0, cast=
 # Prédictions à la demande exécutées hors de la requête HTTP (ml/services/jobs.py).
 # False : exécution dans la requête (tests ; la réponse garde la même forme).
 ML_PREDICT_ASYNC = config('ML_PREDICT_ASYNC', default=True, cast=bool)
+# Au-delà de ce délai (s), une prédiction non terminée est déclarée perdue et relançable.
+ML_JOB_STALE_SECONDS = config('ML_JOB_STALE_SECONDS', default=900, cast=int)
 
 # Durée de vie d'un ticket de connexion WebSocket (realtime/tickets.py).
 REALTIME_TICKET_TTL = config('REALTIME_TICKET_TTL', default=30, cast=int)
@@ -458,8 +460,11 @@ LOGGING = {
 # =============================================================
 # EMAIL
 # =============================================================
-# Sans EMAIL_HOST : e-mails affichés dans la console (développement).
 # Avec EMAIL_HOST : envoi SMTP (production, voir deploy/.env.example).
+# Sans EMAIL_HOST :
+# - DEBUG : e-mails affichés dans la console (développement) ;
+# - hors DEBUG : AUCUN e-mail n'est envoyé ni écrit. La console finirait dans
+#   les journaux Docker avec les codes de réinitialisation qu'elle contient.
 
 _EMAIL_HOST = config('EMAIL_HOST', default='')
 
@@ -480,7 +485,11 @@ if _EMAIL_HOST:
 else:
     MAILERS = {
         'default': {
-            'BACKEND': 'django.core.mail.backends.console.EmailBackend',
+            'BACKEND': (
+                'django.core.mail.backends.console.EmailBackend'
+                if DEBUG
+                else 'django.core.mail.backends.dummy.EmailBackend'
+            ),
         },
     }
 
@@ -502,7 +511,9 @@ SMS_ORANGE_SENDER = config('SMS_ORANGE_SENDER', default='')
 
 # Identifiants OAuth acceptés (audiences des jetons) ; vide = fournisseur désactivé.
 GOOGLE_CLIENT_IDS = config('GOOGLE_CLIENT_IDS', default='', cast=Csv())
-# Identifiant d'application iOS (« host.exp.Exponent » en plus pour tester dans Expo Go).
-APPLE_AUDIENCES = config('APPLE_AUDIENCES', default='sn.jappodundu.donneurs', cast=Csv())
+# Identifiant d'application iOS, ex. « sn.jappodundu.donneurs » (« host.exp.Exponent »
+# en plus pour tester dans Expo Go). Vide par défaut, comme les autres : un fournisseur
+# non configuré est refusé (503).
+APPLE_AUDIENCES = config('APPLE_AUDIENCES', default='', cast=Csv())
 FACEBOOK_APP_ID = config('FACEBOOK_APP_ID', default='')
 FACEBOOK_APP_SECRET = config('FACEBOOK_APP_SECRET', default='')
