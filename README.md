@@ -26,8 +26,8 @@ Ce projet de fin d'études vise à interconnecter les établissements de santé,
 - [x] Initialiser le dépôt GitHub, la structure des dossiers et poser les bases du Backend (Django).
 - [x] Configurer le projet React Native (dans `/mobile`) avec Expo.
 - [x] Développer les 4 écrans (Auth, Profil, Alertes, Historique).
-- [x] Gérer la géolocalisation native et les notifications push (FCM).
-- [x] Mettre en place le stockage local (AsyncStorage) et consommer l'API du backend.
+- [x] Gérer la géolocalisation native et les notifications push (service push d'Expo, relayé vers FCM et APNs).
+- [x] Mettre en place le stockage local (AsyncStorage ; jeton de session dans SecureStore) et consommer l'API du backend.
 
 ### ⚙️ & 🗄️ Ibrahima Khalilou Diallo — Core Backend & BDD
 *Le moteur de l'application et la structuration des données.*
@@ -49,11 +49,11 @@ Guides d'intégration de l'API : `backend/users/README.md`, `backend/sang/README
 
 ### 🤖 El Hadji Massogui Diop — ML, DevOps & Sécurité
 *L'intelligence artificielle, l'infrastructure serveur et la sécurité.*
-- [ ] Configurer la sécurité des routes API (JWT, CORS, gestion des rôles).
-- [ ] Mettre en place l'infrastructure des WebSockets (Django Channels / Redis).
-- [ ] Collecter les données et entraîner le modèle ML de prédiction des pénuries.
-- [ ] Gérer le déploiement sur serveur (API/Base) et l'hébergement du Frontend web.
-- [ ] Vérifier le système global avant présentation (MVP) via les scénarios de test.
+- [x] Configurer la sécurité des routes API (JWT, CORS, gestion des rôles).
+- [x] Mettre en place l'infrastructure des WebSockets (Django Channels / Redis).
+- [x] Entraîner le modèle ML de prédiction des pénuries — **sur données simulées** : la collecte de l'historique réel du CNTS reste à faire (voir `backend/ml/README.md`).
+- [x] Préparer le déploiement (API/Base) et l'hébergement du Frontend web : configuration de production dans `deploy/`.
+- [ ] Vérifier le système global avant présentation (MVP) via les scénarios de test (scénarios et `smoke_test.py` prêts dans `deploy/`).
 
 ---
 
