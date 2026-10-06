@@ -72,13 +72,44 @@ const SectionTitle: React.FC<{
     >
       {title}
     </h2>
-    {intro && (
-      <p className={`mt-4 text-lg leading-relaxed ${invert ? 'text-white/75' : 'text-muted'}`}>{intro}</p>
-    )}
+    {intro && <p className={`mt-4 text-lg leading-relaxed ${invert ? 'text-white/75' : 'text-muted'}`}>{intro}</p>}
   </div>
 )
 
-/** Aperçu du produit (décoratif) : indicateurs, carte et alerte de don. */
+/** Photo de la page (WebP, JPEG de secours). Crédits : public/images/landing/CREDITS.md. */
+const Photo: React.FC<{ name: string; alt: string; eager?: boolean; className?: string }> = ({
+  name,
+  alt,
+  eager = false,
+  className = '',
+}) => (
+  <picture>
+    <source srcSet={`/images/landing/${name}.webp`} type="image/webp" />
+    <img
+      src={`/images/landing/${name}.jpg`}
+      alt={alt}
+      loading={eager ? 'eager' : 'lazy'}
+      decoding="async"
+      className={`h-full w-full object-cover ${className}`}
+    />
+  </picture>
+)
+
+/** Alerte de don telle que le donneur la reçoit (décorative). */
+const AlertCard: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <div
+    aria-hidden="true"
+    className={`w-64 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-raised)] ${className}`}
+  >
+    <div className="flex items-center gap-2 text-2xs font-semibold text-brand">
+      <Bell className="h-3.5 w-3.5" /> Jappo Dundu · maintenant
+    </div>
+    <p className="mt-1 text-sm font-semibold text-fg">Sang O− recherché à 2,4 km</p>
+    <p className="text-xs text-muted">Hôpital Principal · 2 poches</p>
+  </div>
+)
+
+/** Aperçu du produit (décoratif) : indicateurs et carte. */
 const ProductPreview: React.FC = () => (
   <div aria-hidden="true" className="relative mx-auto w-full max-w-md">
     <div className="rounded-[2rem] border border-line bg-surface p-4 shadow-[var(--shadow-raised)]">
@@ -124,13 +155,6 @@ const ProductPreview: React.FC = () => (
         </span>
       </div>
     </div>
-    <div className="absolute -bottom-7 right-2 w-60 rounded-2xl border border-line bg-surface p-3.5 shadow-[var(--shadow-raised)] sm:-right-6">
-      <div className="flex items-center gap-2 text-2xs font-semibold text-brand">
-        <Bell className="h-3.5 w-3.5" /> Jappo Dundu · maintenant
-      </div>
-      <p className="mt-1 text-sm font-semibold text-fg">Sang O− recherché à 2,4 km</p>
-      <p className="text-xs text-muted">Hôpital Principal · 2 poches</p>
-    </div>
   </div>
 )
 
@@ -175,7 +199,10 @@ export const Landing: React.FC = () => {
               </li>
             ))}
           </ul>
-          <Link to={spaceLink.to} className={`${pillPrimary} ml-auto h-10 shrink-0 whitespace-nowrap px-4 text-sm lg:ml-0`}>
+          <Link
+            to={spaceLink.to}
+            className={`${pillPrimary} ml-auto h-10 shrink-0 whitespace-nowrap px-4 text-sm lg:ml-0`}
+          >
             <span className="sm:hidden">{spaceLink.short}</span>
             <span className="hidden sm:inline">{spaceLink.label}</span>
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -216,7 +243,21 @@ export const Landing: React.FC = () => {
                 </a>
               </div>
             </div>
-            <ProductPreview />
+            <div className="relative mx-auto w-full max-w-md">
+              <div className="aspect-[4/5] overflow-hidden rounded-[2.5rem] shadow-[var(--shadow-raised)]">
+                <Photo
+                  eager
+                  name="alert"
+                  alt="Une jeune femme souriante montre son téléphone"
+                  className="object-[50%_20%]"
+                />
+              </div>
+              <AlertCard className="absolute -left-4 bottom-10 sm:-left-12" />
+              <span className="absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-1.5 text-xs font-semibold text-accent-green shadow-[var(--shadow-panel)]">
+                <span className="live-pulse h-1.5 w-1.5 rounded-full bg-accent-green" aria-hidden="true" /> Alerte en
+                temps réel
+              </span>
+            </div>
           </div>
 
           {/* Bandeau défilant */}
@@ -248,21 +289,27 @@ export const Landing: React.FC = () => {
         {/* Modules */}
         <section id="modules" className="scroll-mt-24 py-20">
           <div className="mx-auto max-w-6xl px-5">
-            <SectionTitle
-              label="Trois modules, une seule plateforme"
-              title={
-                <>
-                  Tout ce qu’il faut pour <span className="highlight">gérer une urgence</span>
-                </>
-              }
-              intro="Chaque module fonctionne seul, et ils partagent les mêmes données : un lit libéré ou une ambulance disponible se voit partout, aussitôt."
-            />
+            <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
+              <SectionTitle
+                label="Trois modules, une seule plateforme"
+                title={
+                  <>
+                    Tout ce qu’il faut pour <span className="highlight">gérer une urgence</span>
+                  </>
+                }
+                intro="Chaque module fonctionne seul, et ils partagent les mêmes données : un lit libéré ou une ambulance disponible se voit partout, aussitôt."
+              />
+              <ProductPreview />
+            </div>
             <div className="mt-14 grid gap-6 lg:grid-cols-3">
               {MODULES.map((module) => {
                 const style = MODULE_STYLE[module.key]
                 const Icon = style.icon
                 return (
-                  <article key={module.key} className="rounded-[2rem] border border-line bg-surface p-8 shadow-[var(--shadow-panel)]">
+                  <article
+                    key={module.key}
+                    className="rounded-[2rem] border border-line bg-surface p-8 shadow-[var(--shadow-panel)]"
+                  >
                     <span className={`flex h-14 w-14 items-center justify-center rounded-full ${style.soft}`}>
                       <Icon className={`h-7 w-7 ${style.text}`} aria-hidden="true" />
                     </span>
@@ -295,25 +342,36 @@ export const Landing: React.FC = () => {
               }
               intro="Un accident sur la route : voici comment les trois modules se relaient."
             />
-            <ol className="relative mt-14 grid gap-6 md:grid-cols-4">
-              {SCENARIO.map((step, index) => {
-                const style = MODULE_STYLE[step.module]
-                const Icon = style.icon
-                return (
-                  <li key={step.title} className="rounded-[1.75rem] bg-surface p-7 shadow-[var(--shadow-panel)]">
-                    <div className="flex items-center justify-between">
-                      <span className="font-display text-4xl font-semibold text-brand">{index + 1}</span>
-                      <span className={`flex h-10 w-10 items-center justify-center rounded-full ${style.soft}`}>
-                        <Icon className={`h-5 w-5 ${style.text}`} aria-hidden="true" />
-                      </span>
-                    </div>
-                    <p className="font-label mt-4 text-xs font-semibold text-subtle">T + {step.time}</p>
-                    <h3 className="mt-1 text-lg font-bold text-fg">{step.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-muted">{step.text}</p>
-                  </li>
-                )
-              })}
-            </ol>
+            <div className="mt-14 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+              <div className="relative min-h-80 overflow-hidden rounded-[2rem]">
+                <Photo name="need" alt="Une ambulance en intervention de nuit" className="absolute inset-0" />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-6 pt-20">
+                  <p className="font-label text-[0.65rem] font-semibold text-amber">Chaque minute compte</p>
+                  <p className="font-display mt-1 text-2xl font-semibold text-white">
+                    25 minutes, trois modules, une seule chaîne de secours.
+                  </p>
+                </div>
+              </div>
+              <ol className="grid gap-4 sm:grid-cols-2">
+                {SCENARIO.map((step, index) => {
+                  const style = MODULE_STYLE[step.module]
+                  const Icon = style.icon
+                  return (
+                    <li key={step.title} className="rounded-[1.75rem] bg-surface p-7 shadow-[var(--shadow-panel)]">
+                      <div className="flex items-center justify-between">
+                        <span className="font-display text-4xl font-semibold text-brand">{index + 1}</span>
+                        <span className={`flex h-10 w-10 items-center justify-center rounded-full ${style.soft}`}>
+                          <Icon className={`h-5 w-5 ${style.text}`} aria-hidden="true" />
+                        </span>
+                      </div>
+                      <p className="font-label mt-4 text-xs font-semibold text-subtle">T + {step.time}</p>
+                      <h3 className="mt-1 text-lg font-bold text-fg">{step.title}</h3>
+                      <p className="mt-2 text-sm leading-relaxed text-muted">{step.text}</p>
+                    </li>
+                  )
+                })}
+              </ol>
+            </div>
           </div>
         </section>
 
@@ -376,7 +434,7 @@ export const Landing: React.FC = () => {
 
         {/* Don de sang */}
         <section id="don" className="scroll-mt-24 py-20">
-          <div className="mx-auto grid max-w-6xl gap-12 px-5 lg:grid-cols-2">
+          <div className="mx-auto grid max-w-6xl gap-12 px-5 lg:grid-cols-2 lg:items-center">
             <div>
               <SectionTitle
                 label="Don de sang"
@@ -405,30 +463,35 @@ export const Landing: React.FC = () => {
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
               </a>
             </div>
-            <div className="rounded-[2rem] bg-raised p-8">
-              <p className="font-label text-xs font-semibold text-brand">Groupes recherchés</p>
-              <h3 className="font-display mt-2 text-3xl font-semibold text-fg">Votre groupe est-il attendu ?</h3>
-              <p className="mt-1 text-sm text-muted">Selon le CNTS, au {BLOOD_NEEDS.updated}.</p>
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                {BLOOD_NEEDS.groups.map((g) => {
-                  const critical = g.level === 'critical'
-                  return (
-                    <div key={g.group} className="flex items-center justify-between rounded-2xl bg-surface p-4">
-                      <span className="font-display text-4xl font-semibold text-fg">{g.group}</span>
-                      <span
-                        className={`font-label rounded-full px-2.5 py-1 text-[0.6rem] font-semibold ${
-                          critical ? 'bg-brand text-on-brand' : 'bg-amber-soft text-amber-ink'
-                        }`}
-                      >
-                        {critical ? 'Critique' : 'En baisse'}
-                      </span>
-                    </div>
-                  )
-                })}
+            <div className="flex flex-col gap-6">
+              <div className="rounded-[2rem] bg-raised p-8">
+                <p className="font-label text-xs font-semibold text-brand">Groupes recherchés</p>
+                <h3 className="font-display mt-2 text-3xl font-semibold text-fg">Votre groupe est-il attendu ?</h3>
+                <p className="mt-1 text-sm text-muted">Selon le CNTS, au {BLOOD_NEEDS.updated}.</p>
+                <div className="mt-6 grid grid-cols-2 gap-3">
+                  {BLOOD_NEEDS.groups.map((g) => {
+                    const critical = g.level === 'critical'
+                    return (
+                      <div key={g.group} className="flex items-center justify-between rounded-2xl bg-surface p-4">
+                        <span className="font-display text-4xl font-semibold text-fg">{g.group}</span>
+                        <span
+                          className={`font-label rounded-full px-2.5 py-1 text-[0.6rem] font-semibold ${
+                            critical ? 'bg-brand text-on-brand' : 'bg-amber-soft text-amber-ink'
+                          }`}
+                        >
+                          {critical ? 'Critique' : 'En baisse'}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="mt-6 flex items-center gap-3 rounded-2xl bg-surface p-4">
+                  <Smartphone className="h-6 w-6 shrink-0 text-brand" aria-hidden="true" />
+                  <p className="text-sm text-muted">L’application des donneurs arrive bientôt sur Android et iPhone.</p>
+                </div>
               </div>
-              <div className="mt-6 flex items-center gap-3 rounded-2xl bg-surface p-4">
-                <Smartphone className="h-6 w-6 shrink-0 text-brand" aria-hidden="true" />
-                <p className="text-sm text-muted">L’application des donneurs arrive bientôt sur Android et iPhone.</p>
+              <div className="aspect-[4/3] overflow-hidden rounded-[2rem]">
+                <Photo name="donate" alt="Un bras pendant un don de sang" className="object-[50%_22%]" />
               </div>
             </div>
           </div>
@@ -464,6 +527,21 @@ export const Landing: React.FC = () => {
 
         {/* Appel final */}
         <section className="px-5 py-20">
+          <div className="mx-auto mb-14 grid max-w-6xl items-center gap-10 rounded-[2.5rem] bg-raised p-6 sm:p-10 lg:grid-cols-2">
+            <div className="aspect-[4/3] overflow-hidden rounded-[2rem]">
+              <Photo name="impact" alt="Une mère tient son nouveau-né dans ses bras" className="object-[60%_45%]" />
+            </div>
+            <div>
+              <p className="font-label text-xs font-semibold text-brand">Pourquoi Jappo Dundu</p>
+              <p className="font-display mt-3 text-3xl font-semibold leading-tight text-fg sm:text-4xl">
+                Derrière chaque alerte, <span className="highlight">une vie à sauver.</span>
+              </p>
+              <p className="mt-4 text-lg leading-relaxed text-muted">
+                Une hémorragie après un accouchement, un accident de la route : quand le sang, le lit et l’ambulance
+                arrivent à temps, une famille reste entière.
+              </p>
+            </div>
+          </div>
           <div className="mx-auto max-w-4xl text-center">
             <h2 className="font-display text-4xl font-semibold leading-tight text-fg sm:text-5xl">
               Votre établissement veut <span className="highlight">{'rejoindre le réseau ?'}</span>
@@ -514,7 +592,12 @@ export const Landing: React.FC = () => {
                   </Link>
                 </li>
                 <li>
-                  <a href={SOURCE.url} target="_blank" rel="noopener noreferrer" className="text-fg/80 hover:text-brand">
+                  <a
+                    href={SOURCE.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-fg/80 hover:text-brand"
+                  >
                     Donner son sang (CNTS)
                   </a>
                 </li>
@@ -528,7 +611,16 @@ export const Landing: React.FC = () => {
               <a href={SOURCE.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-fg">
                 cnts.gouv.sn
               </a>
-              {`, consulté le ${SOURCE.consulted}.`}
+              {`, consulté le ${SOURCE.consulted}. Photos : `}
+              <a
+                href="https://unsplash.com/license"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-fg"
+              >
+                Unsplash
+              </a>
+              .
             </p>
           </div>
         </div>
