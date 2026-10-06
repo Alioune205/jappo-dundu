@@ -51,15 +51,20 @@ describe('position', () => {
 })
 
 describe('validateDonor', () => {
-  const valid = { ...EMPTY_DONOR, blood_group: 'O-' as const, sex: 'F' as const, date_of_birth: '07/03/1995' }
+  const valid = { ...EMPTY_DONOR, blood_group: 'O-' as const, sex: 'F' as const, date_of_birth: '07/03/1995', weight_kg: '62' }
 
   it('accepte un profil complet', () => {
     expect(validateDonor(valid, TODAY)).toEqual({})
   })
 
-  it('exige groupe, sexe et une date de naissance valide', () => {
+  it('exige groupe, sexe, date de naissance et poids', () => {
     const errors = validateDonor(EMPTY_DONOR, TODAY)
-    expect(Object.keys(errors).sort()).toEqual(['blood_group', 'date_of_birth', 'sex'])
+    expect(Object.keys(errors).sort()).toEqual(['blood_group', 'date_of_birth', 'sex', 'weight_kg'])
+  })
+
+  it('contrôle le poids ; sous 50 kg le profil reste enregistrable (le serveur explique)', () => {
+    expect(validateDonor({ ...valid, weight_kg: '5' }, TODAY).weight_kg).toBeDefined()
+    expect(validateDonor({ ...valid, weight_kg: '45' }, TODAY)).toEqual({})
   })
 
   it('refuse un donneur mineur, comme le serveur', () => {

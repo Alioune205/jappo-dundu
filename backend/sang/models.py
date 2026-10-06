@@ -14,7 +14,8 @@ from datetime import timedelta
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
-from django.db.models import F, Q
+from django.db.models import Count, F, IntegerField, OuterRef, Q, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from geo.fields import coordinates_constraint, latitude_field, longitude_field
@@ -36,8 +37,31 @@ class DonorQuerySet(models.QuerySet):
         interval_elapsed = Q(last_donation_date__isnull=True)
         for sex, days in eligibility.DONATION_INTERVAL_DAYS.items():
             interval_elapsed |= Q(sex=sex, last_donation_date__lte=today - timedelta(days=days))
-        return self.filter(
+
+        # Plafond annuel : dons enregistrés sur les 365 derniers jours (sous-requête,
+        # sans GROUP BY sur la requête principale, qui peut être triée par distance).
+        donations_this_year = (
+            Donation.objects.filter(
+                donor=OuterRef('pk'),
+                donated_on__gt=today - timedelta(days=eligibility.YEAR_DAYS),
+            )
+            .order_by()
+            .values('donor')
+            .annotate(total=Count('pk'))
+            .values('total')
+        )
+        under_cap = Q()
+        for sex, cap in eligibility.MAX_DONATIONS_PER_YEAR.items():
+            under_cap |= Q(sex=sex, donations_this_year__lt=cap)
+
+        return self.annotate(
+            donations_this_year=Coalesce(
+                Subquery(donations_this_year, output_field=IntegerField()), Value(0)
+            )
+        ).filter(
             interval_elapsed,
+            under_cap,
+            Q(weight_kg__isnull=True) | Q(weight_kg__gte=eligibility.MIN_DONOR_WEIGHT_KG),
             is_available=True,
             user__is_active=True,
             date_of_birth__lte=born_on_or_before,
@@ -68,6 +92,13 @@ class Donor(models.Model):
         help_text="Détermine le délai minimal entre deux dons.",
     )
     date_of_birth = models.DateField(verbose_name="Date de naissance")
+    weight_kg = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(20), MaxValueValidator(300)],
+        verbose_name="Poids (kg)",
+        help_text="Le CNTS exige au moins 50 kg pour donner.",
+    )
     is_available = models.BooleanField(
         default=True,
         verbose_name="Disponible",
@@ -104,11 +135,20 @@ class Donor(models.Model):
     def has_location(self):
         return self.latitude is not None and self.longitude is not None
 
+    def recent_donation_dates(self):
+        """Dates des derniers dons enregistrés, assez pour le plafond annuel."""
+        cap = eligibility.MAX_DONATIONS_PER_YEAR[self.sex]
+        return list(self.donations.order_by('-donated_on').values_list('donated_on', flat=True)[:cap])
+
     def next_eligible_date(self):
-        return eligibility.next_eligible_date(self.sex, self.last_donation_date)
+        return eligibility.next_eligible_date(
+            self.sex, self.last_donation_date, self.recent_donation_dates()
+        )
 
     def ineligibility_reasons(self, today=None):
-        return eligibility.ineligibility_reasons(self, today or timezone.localdate())
+        return eligibility.ineligibility_reasons(
+            self, today or timezone.localdate(), self.recent_donation_dates()
+        )
 
     def record_donation_date(self, donated_on):
         """Met à jour la date du dernier don (jamais vers le passé)."""

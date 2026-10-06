@@ -17,9 +17,11 @@ Responsable : Ibrahima Khalilou Diallo
 
 - **Compatibilité ABO/Rh des globules rouges** : O- donne à tous, AB+ reçoit de
   tous, un receveur Rh- ne reçoit que du Rh- (`GET /api/sang/compatibility/`).
-- **Éligibilité** : de 18 à 65 ans ; 90 jours entre deux dons pour un homme,
-  120 pour une femme ; donneur disponible et compte actif. Ces valeurs sont à
-  valider avec le CNTS (`sang/eligibility.py`).
+- **Éligibilité** (règles du CNTS, cnts.gouv.sn, consulté le 6 octobre 2026) :
+  de 18 à 60 ans ; au moins 50 kg (un poids non renseigné ne bloque pas) ;
+  90 jours entre deux dons pour un homme, 120 pour une femme ; au plus 4 dons
+  par an pour un homme, 3 pour une femme (dons enregistrés sur 365 jours
+  glissants) ; donneur disponible et compte actif (`sang/eligibility.py`).
 - **Appariement** : donneurs éligibles, de groupe compatible, n'ayant pas déjà
   répondu, dans le rayon de la demande, du plus proche au plus éloigné. La
   recherche utilise PostGIS : index GiST et tri KNN.

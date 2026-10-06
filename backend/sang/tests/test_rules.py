@@ -18,8 +18,10 @@ from ..compatibility import (
     compatible_donor_groups,
     compatible_recipient_groups,
 )
-from ..eligibility import age_on, next_eligible_date, years_before
-from ..models import Donor
+from users.tests.factories import make_facility
+
+from ..eligibility import age_on, next_eligible_date, yearly_cap_date, years_before
+from ..models import Donation, Donor
 
 User = get_user_model()
 
@@ -75,6 +77,17 @@ class EligibilityFunctionTests(SimpleTestCase):
         self.assertEqual(next_eligible_date('M', date(2026, 1, 1)), date(2026, 4, 1))
         self.assertEqual(next_eligible_date('F', date(2026, 1, 1)), date(2026, 5, 1))
 
+    def test_yearly_cap(self):
+        """CNTS : 4 dons par an au plus pour un homme, 3 pour une femme."""
+        dates = [date(2025, 4, 1), date(2025, 7, 1), date(2025, 10, 1), date(2026, 1, 1)]
+        self.assertIsNone(yearly_cap_date('M', dates[1:]))
+        # Le 4e don le plus récent (1er avril 2025) libère une place 365 jours après.
+        self.assertEqual(yearly_cap_date('M', dates), date(2026, 4, 1))
+        self.assertEqual(yearly_cap_date('F', dates[1:]), date(2026, 7, 1))
+        # Le plafond peut repousser la date au-delà du simple délai entre deux dons.
+        self.assertEqual(next_eligible_date('F', date(2026, 1, 1), dates[1:]), date(2026, 7, 1))
+        self.assertEqual(next_eligible_date('M', date(2026, 1, 1), dates), date(2026, 4, 1))
+
 
 class EligibilityAgreementTests(TestCase):
     """Le filtre SQL ``Donor.objects.eligible`` applique les mêmes règles."""
@@ -86,9 +99,10 @@ class EligibilityAgreementTests(TestCase):
             date(2008, 3, 1),
             date(2008, 2, 29),
             date(2007, 12, 31),
-            date(1960, 3, 2),
-            date(1960, 3, 1),
-            date(1961, 3, 1),
+            # Âge maximal : 60 ans révolus (CNTS).
+            date(1965, 3, 2),
+            date(1965, 3, 1),
+            date(1966, 3, 1),
             date(1990, 1, 1),
         ]
         last_donations = [
@@ -98,12 +112,17 @@ class EligibilityAgreementTests(TestCase):
             today - timedelta(days=119),
             today - timedelta(days=120),
         ]
+        weights = [None, 49, 50]
+        # Dons enregistrés sur l'année : 0, 3 (plafond d'une femme) ou 4 (d'un homme).
+        recorded = [0, 3, 4]
         combinations = [
-            (birth, sex, last, available)
+            (birth, sex, last, available, weight, count)
             for birth in births
             for sex in ('M', 'F')
             for last in last_donations
             for available in (True, False)
+            for weight in weights
+            for count in recorded
         ]
         users = User.objects.bulk_create(
             [
@@ -121,8 +140,24 @@ class EligibilityAgreementTests(TestCase):
                     date_of_birth=birth,
                     last_donation_date=last,
                     is_available=available,
+                    weight_kg=weight,
                 )
-                for user, (birth, sex, last, available) in zip(users, combinations, strict=True)
+                for user, (birth, sex, last, available, weight, _count) in zip(
+                    users, combinations, strict=True
+                )
+            ]
+        )
+        facility = make_facility('CNTS')
+        # Dons espacés de 100 jours, du plus récent (il y a 150 jours) vers le passé ;
+        # le 4e date d'il y a 450 jours, hors de l'année glissante.
+        offsets = [150, 250, 350, 360, 450]
+        Donation.objects.bulk_create(
+            [
+                Donation(donor=donor, facility=facility, donated_on=today - timedelta(days=offset))
+                for donor, combo in zip(
+                    Donor.objects.order_by('pk'), combinations, strict=True
+                )
+                for offset in offsets[: combo[5]]
             ]
         )
 

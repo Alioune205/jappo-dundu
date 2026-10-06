@@ -30,6 +30,7 @@ function formOf(donor: DonorProfile | undefined): DonorForm {
     sex: donor.sex,
     date_of_birth: toFrInput(donor.date_of_birth),
     last_donation_date: toFrInput(donor.last_donation_date),
+    weight_kg: donor.weight_kg != null ? String(donor.weight_kg) : '',
     is_available: donor.is_available,
   }
 }
@@ -105,6 +106,7 @@ function DonorFormScreen({ donor, editing }: { donor: DonorProfile | undefined; 
         sex: form.sex!,
         date_of_birth: parseFrDate(form.date_of_birth)!,
         last_donation_date: parseFrDate(form.last_donation_date),
+        weight_kg: Number(form.weight_kg.trim()),
         is_available: form.is_available,
         latitude: coords?.latitude ?? null,
         longitude: coords?.longitude ?? null,
@@ -168,6 +170,19 @@ function DonorFormScreen({ donor, editing }: { donor: DonorProfile | undefined; 
             error={errorOf('last_donation_date')}
           />
         </View>
+      </Animated.View>
+
+      <Animated.View entering={enter(3)}>
+        <TextField
+          label="Poids (kg)"
+          value={form.weight_kg}
+          onChangeText={(value) => set({ weight_kg: value.replace(/\D/g, '').slice(0, 3) })}
+          placeholder="ex. 68"
+          keyboardType="number-pad"
+          maxLength={3}
+          hint="Le CNTS demande au moins 50 kg. Le centre vous pèse avant le don."
+          error={errorOf('weight_kg')}
+        />
       </Animated.View>
 
       <Animated.View entering={enter(4)} style={[styles.toggle, { borderColor: colors.line, backgroundColor: colors.surface }]}>

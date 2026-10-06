@@ -156,7 +156,8 @@ export const DONOR_CONDITIONS = [
   'Avoir entre 18 et 60 ans',
   'Peser au moins 50 kg',
   'Être en bonne santé le jour du don',
-  'Hommes : 3 mois entre deux dons ; femmes : 4 mois',
+  'Hommes : 3 mois entre deux dons, 4 dons par an au plus',
+  'Femmes : 4 mois entre deux dons, 3 dons par an au plus',
 ]
 
 export const FAQ = [

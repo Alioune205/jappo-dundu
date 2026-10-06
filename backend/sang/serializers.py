@@ -55,6 +55,7 @@ class DonorSerializer(serializers.ModelSerializer):
             'sex',
             'sex_display',
             'date_of_birth',
+            'weight_kg',
             'is_available',
             'latitude',
             'longitude',

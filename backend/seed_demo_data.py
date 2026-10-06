@@ -280,6 +280,7 @@ def seed():
                     'blood_group': udata['blood_group'],
                     'date_of_birth': udata['date_of_birth'],
                     'sex': udata['sex'],
+                    'weight_kg': 62,
                     'latitude': 14.6720,
                     'longitude': -17.4410,
                     'is_available': True,

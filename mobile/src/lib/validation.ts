@@ -65,7 +65,9 @@ export function validateRegistration(form: RegistrationForm): FieldErrors {
 // =============================================================
 
 export const MIN_DONOR_AGE = 18
-export const MAX_DONOR_AGE = 65
+export const MAX_DONOR_AGE = 60
+/** Poids minimal pour donner (CNTS). */
+export const MIN_DONOR_WEIGHT_KG = 50
 
 export interface DonorForm {
   blood_group: BloodGroup | null
@@ -74,6 +76,8 @@ export interface DonorForm {
   date_of_birth: string
   /** Saisie « JJ/MM/AAAA », facultative. */
   last_donation_date: string
+  /** Poids en kilos (saisie libre, chiffres). */
+  weight_kg: string
   is_available: boolean
 }
 
@@ -82,13 +86,15 @@ export const EMPTY_DONOR: DonorForm = {
   sex: null,
   date_of_birth: '',
   last_donation_date: '',
+  weight_kg: '',
   is_available: true,
 }
 
 /**
  * Mêmes règles que le serveur (sang/serializers.py, sang/eligibility.py) :
- * le donneur corrige avant d'envoyer. Au-delà de 65 ans, le profil reste
- * enregistrable : le serveur le marque inéligible et l'écran Alertes l'explique.
+ * le donneur corrige avant d'envoyer. Au-delà de 60 ans ou sous 50 kg, le
+ * profil reste enregistrable : le serveur le marque inéligible et l'accueil
+ * l'explique (règles du CNTS).
  */
 export function validateDonor(form: DonorForm, today = new Date()): FieldErrors {
   const errors: FieldErrors = {}
@@ -102,6 +108,10 @@ export function validateDonor(form: DonorForm, today = new Date()): FieldErrors 
   } else if (age < MIN_DONOR_AGE) {
     errors.date_of_birth = [`Il faut avoir au moins ${MIN_DONOR_AGE} ans pour donner son sang.`]
   }
+
+  const weight = Number(form.weight_kg.trim())
+  if (!form.weight_kg.trim()) errors.weight_kg = ['Indiquez votre poids : il faut au moins 50 kg pour donner.']
+  else if (!Number.isInteger(weight) || weight < 20 || weight > 300) errors.weight_kg = ['Poids en kilos, entre 20 et 300.']
 
   if (form.last_donation_date.trim()) {
     const last = parseFrDate(form.last_donation_date)

@@ -101,6 +101,21 @@ class DonorProfileTests(TestCase):
         self.assertEqual(response.data['next_eligible_date'], str(last + timedelta(days=90)))
         self.assertEqual(len(response.data['ineligibility_reasons']), 1)
 
+    def test_weight_under_50_kg_makes_donor_ineligible(self):
+        """CNTS : au moins 50 kg ; un poids absent ne bloque pas (anciens profils)."""
+        response = self.client.put(ME_URL, profile_payload(weight_kg=48), format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['weight_kg'], 48)
+        self.assertFalse(response.data['is_eligible'])
+        self.assertEqual(response.data['ineligibility_reasons'], ['Il faut peser au moins 50 kg.'])
+
+        response = self.client.patch(ME_URL, {'weight_kg': 50}, format='json')
+        self.assertTrue(response.data['is_eligible'])
+        response = self.client.patch(ME_URL, {'weight_kg': None}, format='json')
+        self.assertTrue(response.data['is_eligible'])
+        response = self.client.patch(ME_URL, {'weight_kg': 5}, format='json')
+        self.assertEqual(response.status_code, 400)
+
     def test_anonymous(self):
         self.assertEqual(api_client().get(ME_URL).status_code, 401)
 

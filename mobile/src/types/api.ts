@@ -68,6 +68,7 @@ export interface DonorProfile {
   sex: Sex
   sex_display: string
   date_of_birth: string
+  weight_kg: number | null
   is_available: boolean
   latitude: number | null
   longitude: number | null
@@ -83,6 +84,7 @@ export interface DonorInput {
   blood_group: BloodGroup
   sex: Sex
   date_of_birth: string
+  weight_kg: number | null
   is_available: boolean
   last_donation_date: string | null
   latitude: number | null
