@@ -30,6 +30,7 @@ export default function CardScreen() {
 
   const donations = history.data?.donations.length ?? 0
   const lastDonation = donor.last_donation_date ?? history.data?.donations[0]?.donated_on ?? null
+  const declaredOnly = lastDonation !== null && donations === 0
   const code = donorCode(donor.id)
 
   return (
@@ -72,12 +73,12 @@ export default function CardScreen() {
         <View style={styles.footer}>
           <View style={styles.footerCell}>
             <Text style={styles.footerValue}>{String(donations).padStart(2, '0')}</Text>
-            <Text style={styles.caption}>{donations > 1 ? 'Dons' : 'Don'}</Text>
+            <Text style={styles.caption}>{donations > 1 ? 'Dons enregistrés' : 'Don enregistré'}</Text>
           </View>
           <View style={styles.separator} />
           <View style={[styles.footerCell, styles.footerEnd]}>
             <Text style={styles.footerValue}>{lastDonation ? formatDate(lastDonation, { short: true }) : '—'}</Text>
-            <Text style={styles.caption}>Dernier don</Text>
+            <Text style={styles.caption}>{declaredOnly ? 'Dernier don (déclaré)' : 'Dernier don'}</Text>
           </View>
         </View>
       </Animated.View>

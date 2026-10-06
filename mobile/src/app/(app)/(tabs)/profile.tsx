@@ -63,7 +63,20 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={{ backgroundColor: colors.canvas }} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <ScreenHeader title="Profil" />
+      <ScreenHeader
+        title="Profil"
+        right={
+          <Pressable
+            onPress={() => router.navigate('/home')}
+            accessibilityRole="button"
+            accessibilityLabel="Retour à l’accueil"
+            hitSlop={8}
+            style={({ pressed }) => [styles.close, { borderColor: colors.line, backgroundColor: pressed ? colors.raised : 'transparent' }]}
+          >
+            <Icon name="close" size={20} color="muted" />
+          </Pressable>
+        }
+      />
       <View style={styles.body}>
         <Animated.View entering={enter(0)} style={styles.identity}>
           <View style={[styles.avatar, { backgroundColor: colors.raised, borderColor: colors.line }]}>
@@ -88,7 +101,9 @@ export default function ProfileScreen() {
               </Text>
               <Text variant="heading">Groupe {spokenGroup(donor.blood_group)}</Text>
               <Text variant="caption" tone="muted">
-                {[donor.sex_display, age !== null ? `${age} ans` : null].filter(Boolean).join(' · ')}
+                {[donor.sex_display, age !== null ? `${age} ans` : null, donor.weight_kg != null ? `${donor.weight_kg} kg` : 'poids à renseigner']
+                  .filter(Boolean)
+                  .join(' · ')}
               </Text>
             </View>
             <Pressable
@@ -231,6 +246,7 @@ const styles = StyleSheet.create({
   avatar: { width: 56, height: 56, borderRadius: 28, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   initials: { fontFamily: fonts.semibold, fontSize: 19, lineHeight: 24 },
   donor: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
+  close: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   edit: { width: 40, height: 40, borderRadius: radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   section: { marginBottom: space.sm, marginTop: space.sm },
   list: { padding: 0, overflow: 'hidden' },

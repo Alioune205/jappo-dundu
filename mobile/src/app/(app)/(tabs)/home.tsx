@@ -41,7 +41,10 @@ function Home({ donor }: { donor: DonorProfile }) {
   const requests = sortRequests(nearby.data ?? []).slice(0, 5)
 
   const donations = history.data?.donations.length ?? 0
-  const lastDonation = donor.last_donation_date ?? history.data?.donations[0]?.donated_on ?? null
+  const recordedLast = history.data?.donations[0]?.donated_on ?? null
+  const lastDonation = donor.last_donation_date ?? recordedLast
+  // Date saisie par le donneur, sans don enregistré par un centre : on le précise.
+  const declaredOnly = lastDonation !== null && donations === 0
   const initials = user ? `${user.first_name.charAt(0)}${user.last_name.charAt(0)}`.toUpperCase() || user.username.charAt(0).toUpperCase() : '?'
   const progress = recoveryProgress(donor.last_donation_date, donor.next_eligible_date)
 
@@ -75,14 +78,14 @@ function Home({ donor }: { donor: DonorProfile }) {
         </Animated.View>
 
         <Animated.View entering={enter(1)} style={styles.statsRow}>
-          <Stat icon="award" value={String(donations).padStart(2, '0')} label={donations > 1 ? 'dons' : 'don'} />
+          <Stat icon="award" value={String(donations).padStart(2, '0')} label={donations > 1 ? 'dons enregistrés' : 'don enregistré'} />
           <View style={[styles.avatarRing, { borderColor: colors.surface, backgroundColor: colors.brand }]}>
             <Text style={[styles.initials, { color: colors.onBrand }]}>{initials}</Text>
             <View style={[styles.groupBubble, { backgroundColor: colors.surface, borderColor: colors.brandSoft }]}>
               <Text style={[styles.groupText, { color: colors.brand }]}>{formatGroup(donor.blood_group)}</Text>
             </View>
           </View>
-          <Stat icon="calendar" value={lastDonation ? formatDate(lastDonation, { short: true }) : '—'} label="Dernier don" alignEnd />
+          <Stat icon="calendar" value={lastDonation ? formatDate(lastDonation, { short: true }) : '—'} label={declaredOnly ? 'Don déclaré' : 'Dernier don'} alignEnd />
         </Animated.View>
       </View>
 
