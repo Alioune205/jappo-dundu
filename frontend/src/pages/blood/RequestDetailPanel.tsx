@@ -59,7 +59,7 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
     <section className="panel" aria-label={`Demande ${request.id}`}>
       <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
         <div className="min-w-0">
-          <h3 className="flex items-baseline gap-2 text-[0.9375rem] font-semibold text-fg">
+          <h3 className="flex items-baseline gap-2 text-sm font-semibold text-fg">
             <span className="num">#{request.id}</span>
             <span className="num text-critical">{request.blood_group}</span>
           </h3>

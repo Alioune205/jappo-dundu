@@ -8,18 +8,18 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const VARIANTS: Record<NonNullable<ButtonProps['variant']>, string> = {
-  // Action principale : vert national.
-  primary: 'bg-brand text-on-brand border border-transparent shadow-[var(--shadow-panel)] hover:bg-brand-strong',
-  secondary: 'bg-surface text-fg border border-line-strong shadow-[var(--shadow-panel)] hover:border-brand hover:text-brand-strong',
+  // Action principale : presque noire (claire en thème sombre), comme les outils SaaS.
+  primary: 'bg-inverse text-on-inverse border border-transparent shadow-[var(--shadow-panel)] hover:opacity-85',
+  secondary: 'bg-surface text-fg border border-line shadow-[var(--shadow-panel)] hover:bg-raised',
   danger: 'bg-critical text-white border border-transparent shadow-[var(--shadow-panel)] hover:opacity-90',
-  ghost: 'text-muted border border-transparent hover:bg-brand-soft hover:text-brand-strong',
-  outline: 'bg-transparent text-brand-strong border border-brand hover:bg-brand-soft',
+  ghost: 'text-muted border border-transparent hover:bg-raised hover:text-fg',
+  outline: 'bg-transparent text-fg border border-line-strong hover:bg-raised',
 }
 
 const SIZES: Record<NonNullable<ButtonProps['size']>, string> = {
   sm: 'h-8 px-3 text-xs gap-1.5',
-  md: 'h-9 px-4 text-sm gap-2',
-  lg: 'h-11 px-5 text-sm gap-2',
+  md: 'h-9 px-3.5 text-sm gap-2',
+  lg: 'h-10 px-4 text-sm gap-2',
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -36,7 +36,7 @@ export const Button: React.FC<ButtonProps> = ({
   return (
     <button
       type={type}
-      className={`inline-flex shrink-0 cursor-pointer select-none items-center justify-center rounded-md font-semibold whitespace-nowrap transition-[background-color,border-color,color,opacity] duration-100 disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex shrink-0 cursor-pointer select-none items-center justify-center rounded-md font-medium whitespace-nowrap transition-[background-color,border-color,color,opacity] duration-100 disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       disabled={disabled || isLoading}
       aria-busy={isLoading || undefined}
       {...props}

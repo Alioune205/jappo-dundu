@@ -171,9 +171,8 @@ export const MLPredictions: React.FC = () => {
             />
             <StatCard
               title="Modèle actif"
-              value={`v${model.version}`}
-              unit={model.algorithm}
-              description={`${formatNumber(model.training_samples)} échantillons${series != null ? ` · ${series} séries` : ''}`}
+              value={formatDate(model.trained_at)}
+              description={`${model.algorithm} · ${formatNumber(model.training_samples)} échantillons${series != null ? ` · ${series} séries` : ''}`}
             />
           </div>
           <p className="mt-2 text-2xs text-subtle">
@@ -185,7 +184,7 @@ export const MLPredictions: React.FC = () => {
 
       <section className="panel">
         <div className="border-b border-line px-4 py-3">
-          <h3 className="flex items-center gap-2 text-[0.9375rem] font-semibold text-fg">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
             <Brain className="h-4 w-4 text-muted" aria-hidden="true" />
             Lancer une prévision
           </h3>
@@ -251,7 +250,7 @@ export const MLPredictions: React.FC = () => {
       <section className="space-y-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-[0.9375rem] font-semibold text-fg">
+            <h2 className="text-sm font-semibold text-fg">
               Prévisions <span className="num ml-1 font-normal text-muted">{predictions.length}</span>
             </h2>
             <p className="mt-0.5 text-xs text-muted">Stock estimé, intervalle P10–P90 et jours de réserve.</p>

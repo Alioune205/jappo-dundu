@@ -8,7 +8,7 @@ export const Card: React.FC<CardProps> = ({ hover = false, className = '', child
   return (
     <div
       className={`panel p-5 ${
-        hover ? 'cursor-pointer transition-[border-color,box-shadow] hover:border-brand hover:shadow-[var(--shadow-raised)]' : ''
+        hover ? 'cursor-pointer transition-[border-color,box-shadow] hover:border-line-strong' : ''
       } ${className}`}
       {...props}
     >
@@ -32,7 +32,7 @@ export const CardTitle: React.FC<React.HTMLAttributes<HTMLHeadingElement>> = ({
   children,
   ...props
 }) => (
-  <h3 className={`text-base font-semibold text-fg ${className}`} {...props}>
+  <h3 className={`text-sm font-semibold text-fg ${className}`} {...props}>
     {children}
   </h3>
 )

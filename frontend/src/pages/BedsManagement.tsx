@@ -108,7 +108,7 @@ export const BedsManagement: React.FC = () => {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <div className="space-y-3 xl:col-span-2">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-[0.9375rem] font-semibold text-fg">
+            <h2 className="text-sm font-semibold text-fg">
               Services <span className="num ml-1 font-normal text-muted">{filtered.length}</span>
             </h2>
             <span className="text-xs text-muted">

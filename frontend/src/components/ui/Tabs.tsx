@@ -33,14 +33,14 @@ export function Tabs<T extends string = string>({
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             className={`-mb-px flex cursor-pointer select-none items-center gap-1.5 border-b-2 pb-2 pt-1 text-sm font-medium transition-colors ${
-              isActive ? 'border-brand text-brand-strong' : 'border-transparent text-muted hover:text-brand-strong'
+              isActive ? 'border-fg text-fg' : 'border-transparent text-muted hover:text-fg'
             }`}
           >
             {tab.icon}
             <span>{tab.label}</span>
             {tab.count !== undefined && (
               <span
-                className={`num rounded-full px-1.5 text-xs ${isActive ? 'bg-brand-soft text-brand-strong' : 'bg-raised text-subtle'}`}
+                className={`num rounded-full px-1.5 text-xs ${isActive ? 'bg-raised text-fg' : 'bg-raised text-subtle'}`}
               >
                 {tab.count}
               </span>

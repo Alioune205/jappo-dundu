@@ -111,7 +111,7 @@ export const Profile: React.FC = () => {
             {(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}
           </span>
           <div className="min-w-0">
-            <h2 className="truncate text-[0.9375rem] font-semibold text-fg">{user?.full_name || user?.username}</h2>
+            <h2 className="truncate text-sm font-semibold text-fg">{user?.full_name || user?.username}</h2>
             <p className="text-xs text-muted">{user?.email || 'Adresse e-mail non renseignée'}</p>
           </div>
         </div>
@@ -127,7 +127,7 @@ export const Profile: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <section className="panel p-4">
-          <h3 className="text-[0.9375rem] font-semibold text-fg">Coordonnées</h3>
+          <h3 className="text-sm font-semibold text-fg">Coordonnées</h3>
           <p className="mt-0.5 text-xs text-muted">Utilisées pour vous joindre en cas d'urgence.</p>
 
           {profileMsg && (
@@ -165,7 +165,7 @@ export const Profile: React.FC = () => {
         </section>
 
         <section className="panel p-4">
-          <h3 className="text-[0.9375rem] font-semibold text-fg">Mot de passe</h3>
+          <h3 className="text-sm font-semibold text-fg">Mot de passe</h3>
           <p className="mt-0.5 text-xs text-muted">Le changement déconnecte vos autres sessions.</p>
 
           {passwordMsg && (

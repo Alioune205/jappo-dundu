@@ -38,13 +38,6 @@ const BAR: Record<StatTone, string> = {
   neutral: 'bg-brand',
 }
 
-const ACCENT: Record<StatTone, string> = {
-  success: 'bg-ok',
-  danger: 'bg-critical',
-  warning: 'bg-warning',
-  neutral: 'bg-brand',
-}
-
 const PILL: Record<StatTone, string> = {
   success: 'bg-ok/10 text-ok',
   danger: 'bg-critical/10 text-critical',
@@ -79,18 +72,16 @@ export const StatCard: React.FC<StatCardProps> = ({
   return (
     <Root
       {...(onClick ? { type: 'button' as const, onClick } : {})}
-      className={`panel relative flex w-full flex-col overflow-hidden p-5 pt-6 text-left ${
-        onClick ? 'cursor-pointer transition-[border-color,box-shadow] hover:border-brand hover:shadow-[var(--shadow-raised)]' : ''
+      className={`panel relative flex w-full flex-col p-5 text-left ${
+        onClick ? 'cursor-pointer transition-colors hover:border-line-strong' : ''
       } ${className}`}
     >
-      {/* Liseré supérieur : vert national, ou couleur de l'état si l'indicateur alerte. */}
-      <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1 ${ACCENT[badgeTone]}`} />
 
       <div className="flex items-start justify-between gap-3">
         <span className="eyebrow truncate pt-0.5">{title}</span>
         {icon && (
           <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand-strong"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line text-muted"
             aria-hidden="true"
           >
             {icon}
@@ -99,7 +90,7 @@ export const StatCard: React.FC<StatCardProps> = ({
       </div>
 
       <div className="mt-1 flex min-w-0 items-baseline gap-1.5">
-        <span className={`num min-w-0 truncate text-3xl font-bold leading-tight ${valueColor}`} title={String(value)}>
+        <span className={`num min-w-0 truncate text-[1.75rem] font-semibold leading-tight tracking-tight ${valueColor}`} title={String(value)}>
           {value}
         </span>
         {unit && <span className="text-sm text-muted">{unit}</span>}
@@ -128,8 +119,8 @@ export const StatCard: React.FC<StatCardProps> = ({
       )}
 
       {(description || trend) && (
-        <div className="mt-3 flex items-center justify-between gap-2 border-t border-line pt-2 text-xs">
-          {description && <span className="truncate text-muted">{description}</span>}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-line pt-3 text-xs">
+          {description && <span className="text-muted">{description}</span>}
           {trend && (
             <span className={`inline-flex shrink-0 items-center gap-1.5 font-medium ${TEXT[trendTone]}`}>
               <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${DOT[trendTone]}`} />

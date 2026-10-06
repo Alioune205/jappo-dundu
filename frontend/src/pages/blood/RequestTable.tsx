@@ -16,7 +16,7 @@ interface RequestTableProps {
 export const RequestTable: React.FC<RequestTableProps> = ({ requests, isLoading, selectedId, onSelect }) => (
   <section className="overflow-hidden panel xl:col-span-2">
     <div className="flex items-center justify-between border-b border-line px-5 py-3">
-      <h2 className="text-[0.9375rem] font-semibold text-fg">
+      <h2 className="text-sm font-semibold text-fg">
         Demandes <span className="num ml-1 font-normal text-muted">{requests.length}</span>
       </h2>
     </div>

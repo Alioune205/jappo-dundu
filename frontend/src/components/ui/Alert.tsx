@@ -22,9 +22,9 @@ export const Alert: React.FC<AlertProps> = ({
   return (
     <div
       role={urgent ? 'alert' : 'status'}
-      className={`relative flex items-start gap-3 overflow-hidden rounded-lg border border-line py-3 pl-5 pr-3 text-sm text-fg ${TONE_PILL[tone]} ${className}`}
+      className={`relative flex items-start gap-3 overflow-hidden rounded-lg border border-line py-3 pl-4 pr-3 text-sm text-fg ${TONE_PILL[tone]} ${className}`}
     >
-      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${TONE_DOT[tone]}`} />
+      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-0.5 ${TONE_DOT[tone]}`} />
 
       <div className="min-w-0 flex-1 leading-relaxed">
         {title && <p className={`mb-0.5 text-sm font-semibold ${TONE_TEXT[tone]}`}>{title}</p>}

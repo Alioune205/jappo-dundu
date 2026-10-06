@@ -108,7 +108,7 @@ export const AmbulancesManagement: React.FC = () => {
 
       <section className="panel">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
-          <h2 className="text-[0.9375rem] font-semibold text-fg">Carte des véhicules et interventions</h2>
+          <h2 className="text-sm font-semibold text-fg">Carte des véhicules et interventions</h2>
           <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted" aria-label="Légende">
             <li className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-sm bg-ok" /> Libre
