@@ -306,26 +306,8 @@
   animation: live-pulse 1.6s ease-in-out infinite;
 }
 
-/* Bandeau défilant de la page d'accueil (liste dupliquée : boucle sans saut). */
-@keyframes landing-ticker {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-.landing-ticker {
-  animation: landing-ticker 40s linear infinite;
-}
-.landing-ticker:hover {
-  animation-play-state: paused;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .live-pulse,
-  .landing-ticker {
+  .live-pulse {
     animation: none;
   }
 }

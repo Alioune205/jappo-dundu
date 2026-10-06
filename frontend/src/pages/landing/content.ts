@@ -1,9 +1,10 @@
 /**
  * Contenu de la page d'accueil publique.
  *
- * Informations issues du site officiel du Centre National de Transfusion
- * Sanguine (https://cnts.gouv.sn), consulté le 6 octobre 2026. À tenir à jour
- * avec lui : les règles d'aptitude et l'état des stocks évoluent.
+ * Les fonctionnalités décrites sont celles du code (modules sang, lits,
+ * ambulances, prévisions, temps réel, rôles). Les informations sur le don de
+ * sang viennent du Centre National de Transfusion Sanguine (cnts.gouv.sn,
+ * consulté le 6 octobre 2026) : à tenir à jour avec lui.
  */
 
 export const SOURCE = {
@@ -12,153 +13,158 @@ export const SOURCE = {
   consulted: '6 octobre 2026',
 }
 
-export const KEY_FIGURES = [
-  { value: '3', label: 'vies sauvées par un seul don' },
-  { value: '45 min', label: 'de votre temps, de l’accueil à la collation' },
-  { value: '33', label: 'structures de transfusion au Sénégal' },
-  { value: '100 %', label: 'des dons bénévoles, anonymes et gratuits' },
+export type ModuleKey = 'blood' | 'beds' | 'ambulances'
+
+/** Les trois modules, au même niveau. */
+export const MODULES: {
+  key: ModuleKey
+  name: string
+  tagline: string
+  features: string[]
+}[] = [
+  {
+    key: 'blood',
+    name: 'Jappo Sang',
+    tagline: 'Le bon donneur, au bon moment.',
+    features: [
+      'Les hôpitaux publient leurs besoins : groupe, nombre de poches, urgence, rayon de recherche.',
+      'Les donneurs compatibles les plus proches reçoivent une alerte sur leur téléphone.',
+      'Réponse en un geste ; l’hôpital voit qui vient et confirme le don.',
+      'Délais entre deux dons respectés automatiquement.',
+    ],
+  },
+  {
+    key: 'beds',
+    name: 'Jappo Lits',
+    tagline: 'Chaque lit libre, visible en temps réel.',
+    features: [
+      'Capacités par service : réanimation, urgences, maternité, pédiatrie…',
+      'Entrées et sorties en un clic, taux d’occupation à jour.',
+      'Alerte dès qu’un service vital est saturé, ou à nouveau disponible.',
+      'Recherche des établissements les plus proches ayant des lits libres.',
+    ],
+  },
+  {
+    key: 'ambulances',
+    name: 'Jappo Ambulance',
+    tagline: 'L’ambulance la plus proche, sans perdre une minute.',
+    features: [
+      'Création des missions par la régulation, par niveau de priorité.',
+      'Affectation automatique de l’ambulance disponible la plus proche.',
+      'Suivi GPS des véhicules et des missions sur la carte, en direct.',
+      'Destination proposée : les hôpitaux proches qui ont un lit libre.',
+    ],
+  },
 ]
 
-export const TICKER = [
-  { strong: 'O− et B−', text: 'niveau critique : votre don est attendu' },
-  { strong: '1 don', text: 'jusqu’à 3 vies sauvées' },
-  { strong: 'Fann', text: 'lun–ven 8 h–17 h · sam 8 h–13 h' },
-  { strong: '14 régions', text: 'couvertes par le réseau de transfusion' },
-  { strong: '18–60 ans', text: 'et au moins 50 kg pour donner' },
+/** Une urgence de bout en bout : les trois modules travaillent ensemble. */
+export const SCENARIO = [
+  {
+    module: 'ambulances' as ModuleKey,
+    time: '00:00',
+    title: 'L’appel arrive au SAMU',
+    text: 'La régulation crée la mission ; l’ambulance disponible la plus proche est affectée automatiquement.',
+  },
+  {
+    module: 'beds' as ModuleKey,
+    time: '00:04',
+    title: 'Un lit est trouvé avant l’arrivée',
+    text: 'L’équipage voit les hôpitaux proches qui ont un lit libre dans le bon service et s’y dirige.',
+  },
+  {
+    module: 'beds' as ModuleKey,
+    time: '00:18',
+    title: 'L’hôpital se prépare',
+    text: 'L’administrateur des lits suit la mission qui arrive et enregistre l’admission en un clic.',
+  },
+  {
+    module: 'blood' as ModuleKey,
+    time: '00:25',
+    title: 'Il faut du sang O−',
+    text: 'L’hôpital publie une demande urgente : les donneurs compatibles les plus proches sont alertés.',
+  },
 ]
 
-export type StockLevel = 'critical' | 'low'
+/** Les publics de la plateforme (un rôle d'administration par domaine). */
+export const AUDIENCES = [
+  {
+    who: 'Donneurs',
+    where: 'Application mobile',
+    text: 'Recevoir les alertes des hôpitaux proches, répondre en un geste et suivre ses dons.',
+  },
+  {
+    who: 'Hôpitaux',
+    where: 'Interface web',
+    text: 'L’administrateur des lits gère les capacités ; l’administrateur du sang publie les demandes et confirme les dons.',
+  },
+  {
+    who: 'SAMU et ambulanciers',
+    where: 'Interface web et carte',
+    text: 'L’administrateur des ambulances régule les missions de sa région et suit sa flotte en direct.',
+  },
+  {
+    who: 'Supervision nationale',
+    where: 'Tableau de bord',
+    text: 'L’administrateur général voit tout le réseau, gère les établissements et les comptes.',
+  },
+]
+
+export const PILOTING = [
+  {
+    title: 'Temps réel',
+    text: 'Demandes de sang, lits et missions se mettent à jour sur tous les écrans dès qu’ils changent, sans recharger la page.',
+  },
+  {
+    title: 'Prévisions de pénurie',
+    text: 'Un modèle d’apprentissage automatique estime les stocks de sang par région et par groupe pour les jours à venir. En démonstration : il est entraîné sur des données simulées.',
+  },
+  {
+    title: 'Données protégées',
+    text: 'Chaque compte ne voit que son domaine et son établissement. Les donneurs ne reçoivent jamais d’information sur les patients.',
+  },
+]
 
 /** Groupes en tension publiés par le CNTS. */
 export const BLOOD_NEEDS = {
   updated: '30 septembre 2026',
   groups: [
-    { group: 'O−', level: 'critical' as StockLevel, note: 'Donneur universel' },
-    { group: 'B−', level: 'critical' as StockLevel, note: 'Groupe rare' },
-    { group: 'A+', level: 'low' as StockLevel, note: 'Stock en baisse' },
-    { group: 'A−', level: 'low' as StockLevel, note: 'Stock en baisse' },
+    { group: 'O−', level: 'critical' as const },
+    { group: 'B−', level: 'critical' as const },
+    { group: 'A+', level: 'low' as const },
+    { group: 'A−', level: 'low' as const },
   ],
 }
 
-export const ELIGIBILITY = {
-  criteria: [
-    { title: '18 à 60 ans', text: 'L’âge requis pour donner son sang.' },
-    { title: '50 kg minimum', text: 'Un poids suffisant pour un prélèvement sans risque.' },
-    { title: 'Bonne santé', text: 'Un taux d’hémoglobine suffisant, vérifié avant chaque don.' },
-    {
-      title: 'Bon intervalle',
-      text: 'Hommes : tous les 3 mois, 4 fois par an au plus. Femmes : tous les 4 mois, 3 fois par an au plus.',
-    },
-  ],
-  postpone: [
-    'Rhume, fièvre ou maladie en cours',
-    'Chirurgie récente',
-    'Traitement médical lourd',
-    'Retour d’un voyage à risque',
-    'Grossesse ou accouchement récent',
-    'Tatouage ou piercing de moins de 4 mois',
-  ],
-  note:
-    'En cas de doute, un entretien confidentiel avec un professionnel de santé décide de votre aptitude le jour du don.',
-}
-
-export const JOURNEY = [
-  { step: 'Accueil', duration: '5 min', text: 'Accueil et enregistrement par l’équipe.' },
-  { step: 'Entretien', duration: '10 min', text: 'Vérification confidentielle de votre aptitude avec un professionnel de santé.' },
-  { step: 'Prélèvement', duration: '8 à 10 min', text: 'Une légère piqûre, puis le don en toute sécurité.' },
-  { step: 'Collation', duration: '15 min', text: 'Une pause et une collation offertes avant de repartir.' },
-]
-
-export const ADVICE = [
-  { when: 'Avant', items: ['Bien dormir', 'Boire de l’eau', 'Manger léger : inutile d’être à jeun'] },
-  { when: 'Pendant', items: ['Respirer calmement', 'Signaler tout malaise', 'Suivre les consignes du personnel'] },
-  { when: 'Après', items: ['Se reposer', 'Boire et prendre la collation', 'Éviter les efforts physiques'] },
-]
-
-export const PRODUCTS = [
-  { name: 'Globules rouges', keeps: '42 jours à +4 °C', use: 'Anémies sévères, hémorragies, chirurgie' },
-  { name: 'Plasma', keeps: '1 an à −30 °C', use: 'Troubles de la coagulation, grands brûlés' },
-  { name: 'Plaquettes', keeps: '5 jours à +22 °C', use: 'Chimiothérapie, leucémies' },
-  { name: 'Sang total', keeps: '35 jours', use: 'Urgences et préparation des autres produits' },
-]
-
-export const SITES = [
-  {
-    name: 'CNTS — Siège national',
-    city: 'Dakar',
-    address: 'Avenue Cheikh Anta Diop, Fann-Résidence',
-    hours: 'Lun–ven 8 h–17 h · Sam 8 h–13 h',
-    phone: '+221 33 815 17 62',
-    lat: 14.6957,
-    lng: -17.4657,
-  },
-  {
-    name: 'Centre régional de Kaolack',
-    city: 'Kaolack',
-    address: 'Léona, près de l’hôpital El Hadji Ibrahima Niass',
-    hours: 'Horaires à confirmer auprès du CNTS',
-    phone: '+221 33 815 17 62',
-    lat: 14.141561,
-    lng: -16.07623,
-  },
-  {
-    name: 'Centre régional de Matam',
-    city: 'Matam',
-    address: 'Tantadji, près de la Direction régionale de la santé',
-    hours: 'Horaires à confirmer auprès du CNTS',
-    phone: '+221 33 815 17 62',
-    lat: 15.660078,
-    lng: -13.263137,
-  },
+export const DONOR_CONDITIONS = [
+  'Avoir entre 18 et 60 ans',
+  'Peser au moins 50 kg',
+  'Être en bonne santé le jour du don',
+  'Hommes : 3 mois entre deux dons ; femmes : 4 mois',
 ]
 
 export const FAQ = [
   {
-    q: 'Est-ce que donner son sang fait mal ?',
-    a: 'Vous sentez une légère piqûre au moment de l’insertion de l’aiguille, comme pour une prise de sang classique. Le don lui-même n’est pas douloureux.',
+    q: 'Qu’est-ce que Jappo Dundu ?',
+    a: 'Une plateforme qui relie en temps réel les donneurs de sang, les lits hospitaliers et les ambulances au Sénégal. « Jappo Dundu » signifie « Connecter la vie » en wolof.',
   },
   {
-    q: 'Combien de temps dure un don ?',
-    a: 'Le prélèvement dure 8 à 10 minutes. Comptez environ 45 minutes en tout, de l’accueil à la collation.',
+    q: 'Qui peut utiliser la plateforme ?',
+    a: 'Les donneurs, avec l’application mobile ; les hôpitaux, le SAMU et la supervision nationale, avec l’interface web. Chaque professionnel a un rôle qui limite ce qu’il voit à son domaine et à son établissement.',
   },
   {
-    q: 'Faut-il être à jeun ?',
-    a: 'Non. Prenez un repas léger et buvez bien (eau, jus) avant de venir.',
+    q: 'Comment mon hôpital peut-il rejoindre Jappo Dundu ?',
+    a: 'L’administrateur général crée l’établissement, puis les comptes de ses administrateurs (lits, sang ou ambulances).',
   },
   {
-    q: 'À quelle fréquence puis-je donner ?',
-    a: 'Les hommes tous les 3 mois (4 fois par an au plus), les femmes tous les 4 mois (3 fois par an au plus) : le temps pour le corps de reconstituer son sang.',
+    q: 'Ma position est-elle partagée ?',
+    a: 'Elle sert seulement à vous montrer les demandes des hôpitaux proches. Elle n’est jamais transmise aux hôpitaux.',
   },
   {
-    q: 'Que devient mon sang ?',
-    a: 'Il est analysé (groupe sanguin, dépistage du VIH, des hépatites et de la syphilis), puis séparé en globules rouges, plasma et plaquettes, distribués aux hôpitaux.',
+    q: 'Qui peut donner son sang ?',
+    a: 'Les personnes de 18 à 60 ans, de 50 kg au moins, en bonne santé. Un entretien médical confidentiel confirme l’aptitude le jour du don.',
   },
   {
-    q: 'Serai-je prévenu si mes analyses montrent un problème ?',
-    a: 'Oui, un médecin du CNTS vous contacte si une anomalie est détectée.',
-  },
-  {
-    q: 'Quand vais-je recevoir ma carte de donneur ?',
-    a: 'Elle vous est remise après votre deuxième don.',
-  },
-  {
-    q: 'Je suis sous traitement, puis-je donner ?',
-    a: 'Cela dépend du médicament : le médecin en décide lors de l’entretien confidentiel avant le don.',
-  },
-]
-
-/** Ce que Jappo Dundu ajoute au parcours du donneur et des hôpitaux. */
-export const PLATFORM = [
-  {
-    name: 'Jappo Sang',
-    text: 'Les hôpitaux publient leurs besoins ; les donneurs compatibles les plus proches reçoivent une alerte et répondent en un geste.',
-  },
-  {
-    name: 'Jappo Lits',
-    text: 'La disponibilité des lits par service, en temps réel, pour orienter chaque patient vers le bon hôpital.',
-  },
-  {
-    name: 'Jappo Ambulance',
-    text: 'Le SAMU affecte l’ambulance disponible la plus proche et suit les missions sur la carte.',
+    q: 'Jappo Dundu remplace-t-il le CNTS ?',
+    a: 'Non. La plateforme facilite la mise en relation ; le prélèvement et la sécurité transfusionnelle restent assurés par le CNTS et ses centres.',
   },
 ]

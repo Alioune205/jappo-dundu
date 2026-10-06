@@ -7,16 +7,18 @@ const auth = vi.hoisted(() => ({ isAuthenticated: false }))
 vi.mock('@/context/AuthContext', () => ({ useAuth: () => auth }))
 
 describe('Landing', () => {
-  it('présente les informations essentielles du don de sang', () => {
+  it('présente les trois modules au même niveau, et le don de sang', () => {
     auth.isAuthenticated = false
     renderWithProviders(<Landing />)
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/sauver des vies/)
-    // Conditions du CNTS, groupes en tension, sites et contact.
-    expect(screen.getByText('18 à 60 ans')).toBeInTheDocument()
-    expect(screen.getByText('50 kg minimum')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/sang, les lits et les ambulances/)
+    for (const name of ['Jappo Sang', 'Jappo Lits', 'Jappo Ambulance']) {
+      expect(screen.getByRole('heading', { name })).toBeInTheDocument()
+    }
+    // Parcours d'une urgence, publics, don de sang.
+    expect(screen.getByRole('heading', { name: 'L’appel arrive au SAMU' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Supervision nationale' })).toBeInTheDocument()
+    expect(screen.getByText('Avoir entre 18 et 60 ans')).toBeInTheDocument()
     expect(screen.getByText('O−')).toBeInTheDocument()
-    expect(screen.getByText('CNTS — Siège national')).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: /itinéraire/i })).toHaveLength(3)
     // La source et la mention « non officiel » restent visibles.
     expect(screen.getByText(/n’est pas un service officiel du CNTS/)).toBeInTheDocument()
   })
