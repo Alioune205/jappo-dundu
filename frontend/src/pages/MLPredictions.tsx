@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Brain, Play, RefreshCw } from 'lucide-react'
+import { Brain, Cpu, Gauge, Play, RefreshCw, Target, TriangleAlert } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
 import { RealtimeEvent } from '@/lib/realtimeEvents'
@@ -148,7 +148,7 @@ export const MLPredictions: React.FC = () => {
         <section aria-label="Modèle actif">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard
-              title="Couverture P10–P90"
+              title="Couverture P10–P90" accent="blue" icon={<Target className="h-5 w-5" />}
               value={formatPercent(coverage, 1)}
               unit="cible 80 %"
               trend={coverage == null ? undefined : coverage >= 0.78 ? 'Calibré' : 'Sous la cible'}
@@ -156,7 +156,7 @@ export const MLPredictions: React.FC = () => {
               description="Sur la période de test"
             />
             <StatCard
-              title="Erreur moyenne (MAE)"
+              title="Erreur moyenne (MAE)" accent="yellow" icon={<Gauge className="h-5 w-5" />}
               value={formatNumber(model.mae, 2)}
               unit="poches"
               trend={skill == null ? undefined : `${skill >= 0 ? '−' : '+'}${formatPercent(Math.abs(skill))} vs persistance`}
@@ -164,13 +164,13 @@ export const MLPredictions: React.FC = () => {
               description={baselineMae == null ? 'Référence indisponible' : `Persistance : ${formatNumber(baselineMae, 2)}`}
             />
             <StatCard
-              title="Pénuries détectées"
+              title="Pénuries détectées" accent="red" icon={<TriangleAlert className="h-5 w-5" />}
               value={formatPercent(criticalRecall)}
               unit="rappel"
               description="Pénuries réelles signalées à l'avance"
             />
             <StatCard
-              title="Modèle actif"
+              title="Modèle actif" accent="green" icon={<Cpu className="h-5 w-5" />}
               value={formatDate(model.trained_at)}
               description={`${model.algorithm} · ${formatNumber(model.training_samples)} échantillons${series != null ? ` · ${series} séries` : ''}`}
             />

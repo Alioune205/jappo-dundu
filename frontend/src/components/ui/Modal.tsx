@@ -50,11 +50,11 @@ export const Modal: React.FC<ModalProps> = ({
       onClose={onClose}
       className={`fixed inset-0 z-50 m-auto w-full ${widthClasses[maxWidth]} bg-transparent p-4 text-fg focus:outline-none`}
     >
-      <div className="flex max-h-[90vh] flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-raised)]">
+      <div className="flex max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-raised)]">
         {/* Header */}
         <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-4">
           <div>
-            <h2 className="text-base font-semibold text-fg">{title}</h2>
+            <h2 className="text-lg font-bold text-fg">{title}</h2>
             {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
           </div>
           <Button

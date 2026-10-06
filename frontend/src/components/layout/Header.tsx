@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useLocation } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { Bell, LogOut, Sun, Moon } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useRealtime } from '@/context/RealtimeContext'
@@ -36,7 +36,10 @@ const iconButton =
   'relative inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-fg'
 
 export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
+  const displayName = user?.full_name || user?.username || ''
+  const firstName = user?.first_name || displayName.split(' ')[0]
+  const initial = (displayName || 'U').charAt(0).toUpperCase()
   const { pathname } = useLocation()
   const pageLabel = PAGE_LABELS[`/${pathname.split('/')[1] ?? ''}`] ?? ''
   const { status, interruptedSince, alerts, unreadCount, markAllAsRead, clearAlerts } = useRealtime()
@@ -69,18 +72,12 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   }, [showAlertsMenu])
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface/80 px-4 backdrop-blur lg:px-10">
+    <header className="sticky top-0 z-30 flex h-20 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4 lg:px-10">
       <div className="min-w-0">
-        {title ? (
-          <h1 className="truncate text-sm font-semibold text-fg">{title}</h1>
-        ) : (
-          <nav aria-label="Fil d'Ariane" className="flex items-center gap-2 truncate text-sm">
-            <span className="text-muted">Jappo Dundu</span>
-            <span aria-hidden="true" className="text-subtle">/</span>
-            <span className="font-medium text-fg">{pageLabel}</span>
-          </nav>
-        )}
-        {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}
+        <p className="truncate text-xl font-bold text-fg">{title ?? pageLabel}</p>
+        <p className="truncate text-sm text-muted">
+          {subtitle ?? (firstName ? `Bon retour, ${firstName}` : 'Bienvenue')}
+        </p>
       </div>
 
       <div className="flex items-center gap-1">
@@ -171,6 +168,22 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
         >
           <LogOut className="h-4 w-4" />
         </button>
+
+        <Link
+          to="/profile"
+          className="ml-2 flex items-center gap-3 rounded-full py-1 pl-1 transition-colors hover:bg-raised sm:pl-3"
+          title="Mon profil"
+        >
+          <span className="hidden text-right leading-tight md:block">
+            <span className="block text-sm font-semibold text-fg">{user?.facility?.name ?? displayName}</span>
+            <span className="block text-2xs text-brand">
+              {user?.role === 'admin' ? 'Administrateur' : 'Personnel hospitalier'}
+            </span>
+          </span>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-info text-sm font-semibold text-white shadow-[var(--shadow-panel)]">
+            {initial}
+          </span>
+        </Link>
       </div>
     </header>
   )

@@ -147,8 +147,8 @@ export const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Link to="/beds" className="group block rounded-md">
           <StatCard
-            title="Lits disponibles"
-            icon={<BedDouble className="h-4 w-4" />}
+            title="Lits disponibles" accent="blue"
+            icon={<BedDouble className="h-5 w-5" />}
             value={formatNumber(totalAvailableBeds)}
             unit={`/ ${formatNumber(totalBeds)}`}
             trend={`${formatPercent(globalOccupancy)} occupés`}
@@ -165,8 +165,8 @@ export const Dashboard: React.FC = () => {
 
         <Link to="/blood" className="group block rounded-md">
           <StatCard
-            title="Demandes de sang"
-            icon={<Droplets className="h-4 w-4" />}
+            title="Demandes de sang" accent="red"
+            icon={<Droplets className="h-5 w-5" />}
             value={bloodRequests.length}
             unit="ouvertes"
             badge={criticalBloodCount > 0 ? plural(criticalBloodCount, 'vitale') : undefined}
@@ -180,8 +180,8 @@ export const Dashboard: React.FC = () => {
 
         <Link to="/ambulances" className="group block rounded-md">
           <StatCard
-            title="Ambulances disponibles"
-            icon={<AmbulanceIcon className="h-4 w-4" />}
+            title="Ambulances disponibles" accent="green"
+            icon={<AmbulanceIcon className="h-5 w-5" />}
             value={availableAmbulances}
             unit={`/ ${ambulances.length}`}
             trend={plural(activeMissions.length, 'mission') + ' en cours'}
@@ -198,8 +198,8 @@ export const Dashboard: React.FC = () => {
 
         <Link to="/ml" className="group block rounded-md">
           <StatCard
-            title="Risques de pénurie"
-            icon={<BrainCircuit className="h-4 w-4" />}
+            title="Risques de pénurie" accent="yellow"
+            icon={<BrainCircuit className="h-5 w-5" />}
             value={criticalPredictions}
             unit="critiques à 7 j"
             badgeTone={criticalPredictions > 0 ? 'danger' : 'neutral'}

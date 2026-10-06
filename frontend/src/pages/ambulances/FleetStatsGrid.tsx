@@ -1,3 +1,4 @@
+import { Ambulance as AmbulanceIcon, Navigation, Siren, Timer } from 'lucide-react'
 import React from 'react'
 import { StatCard } from '@/components/ui/StatCard'
 import { formatMinutes } from '@/lib/format'
@@ -20,7 +21,7 @@ export const FleetStatsGrid: React.FC<FleetStatsGridProps> = ({ ambulances, miss
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <StatCard
-        title="Ambulances disponibles"
+        title="Ambulances disponibles" accent="green" icon={<AmbulanceIcon className="h-5 w-5" />}
         value={availableCount}
         unit={`/ ${ambulances.length}`}
         progress={{ value: availableCount, max: ambulances.length || 1, tone: availableCount <= 2 ? 'warning' : 'success' }}
@@ -28,16 +29,16 @@ export const FleetStatsGrid: React.FC<FleetStatsGridProps> = ({ ambulances, miss
         badgeTone="warning"
         description="Prêtes au départ"
       />
-      <StatCard title="En intervention" value={onMissionCount} unit="véhicules" description="En route ou sur place" />
+      <StatCard title="En intervention" accent="yellow" icon={<Navigation className="h-5 w-5" />} value={onMissionCount} unit="véhicules" description="En route ou sur place" />
       <StatCard
-        title="Missions actives"
+        title="Missions actives" accent="red" icon={<Siren className="h-5 w-5" />}
         value={activeCount}
         badge={pendingCount > 0 ? `${pendingCount} sans véhicule` : undefined}
         badgeTone="danger"
         description="Non terminées"
       />
       <StatCard
-        title="Délai moyen d'arrivée"
+        title="Délai moyen d'arrivée" accent="blue" icon={<Timer className="h-5 w-5" />}
         value={formatMinutes(averageResponse)}
         trend={responseTrend(averageResponse)}
         trendTone={averageResponse != null && averageResponse > RESPONSE_TARGET_MINUTES ? 'warning' : 'success'}

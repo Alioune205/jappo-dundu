@@ -44,16 +44,30 @@ export const TONE_TEXT: Record<Tone, string> = {
   violet: 'text-info',
 }
 
-/** Pastille teintée (badges, bandeaux) : fond léger et texte à la couleur du sens. */
+/** Étiquette (badges) : pleine pour le critique, teintée pour le reste. */
 export const TONE_PILL: Record<Tone, string> = {
   neutral: 'bg-raised text-fg',
-  brand: 'bg-brand-soft text-brand-strong',
-  danger: 'bg-critical/10 text-critical',
+  brand: 'bg-brand text-white',
+  danger: 'bg-critical text-white',
   warning: 'bg-warning/12 text-warning',
   success: 'bg-ok/10 text-ok',
   info: 'bg-info/10 text-info',
   violet: 'bg-info/10 text-info',
 }
+
+/** Fond teinté (bandeaux d'alerte, encadrés d'information). */
+export const TONE_SOFT: Record<Tone, string> = {
+  neutral: 'bg-surface',
+  brand: 'bg-brand-soft',
+  danger: 'bg-critical/8 border-critical/25',
+  warning: 'bg-warning/10 border-warning/25',
+  success: 'bg-ok/8 border-ok/25',
+  info: 'bg-info/8 border-info/20',
+  violet: 'bg-info/8 border-info/20',
+}
+
+/** Étiquettes pleines : le point de couleur y serait invisible. */
+export const SOLID_TONES: ReadonlySet<Tone> = new Set<Tone>(['brand', 'danger'])
 
 export interface Option<T extends string> {
   value: T

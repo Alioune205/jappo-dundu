@@ -1,15 +1,16 @@
 @import 'tailwindcss';
 
 /*
- * Jappo Dundu — système de design « SaaS épuré ».
+ * Jappo Dundu — système de design « tableau de bord hospitalier ».
  *
  * Principes :
- * - surfaces blanches, gris neutres, beaucoup d'espace ; aucune décoration ;
- * - un seul accent (bleu) pour le focus, les liens, la sélection et les
- *   graphiques ; les actions principales sont presque noires ;
- * - les couleurs de sens restent strictes : rouge = critique, ambre = vigilance,
- *   vert = nominal ;
- * - typographie Inter, chiffres tabulaires ; bordures fines, ombres minimes.
+ * - fond gris-bleu très clair, cartes blanches arrondies à ombre douce ;
+ * - couleur principale : rouge sang (actions, navigation active, identité) ;
+ * - cartes d'indicateurs à liseré gauche coloré (bleu, jaune, vert, rouge),
+ *   icône dans un cercle teinté ;
+ * - les couleurs de sens restent strictes : rouge = critique, jaune/ambre =
+ *   vigilance, vert = nominal, bleu = information ;
+ * - typographie Poppins, chiffres tabulaires.
  *
  * Les couleurs passent par des variables CSS : le changement de thème ne
  * touche que ce fichier, jamais les composants.
@@ -18,70 +19,80 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --canvas: #fafafa;
+  --canvas: #f6f7fb;
   --surface: #ffffff;
-  --raised: #f4f4f5;
-  --line: #e4e4e7;
-  --line-strong: #d4d4d8;
-  --fg: #09090b;
-  --fg-muted: #52525b;
-  --fg-subtle: #a1a1aa;
-  --inverse-bg: #18181b;
+  --raised: #f3f5f9;
+  --line: #eceef4;
+  --line-strong: #dde1ea;
+  --fg: #1e293b;
+  --fg-muted: #64748b;
+  --fg-subtle: #94a3b8;
+  --inverse-bg: #1e293b;
   --inverse-fg: #ffffff;
 
-  /* Accent unique */
-  --brand: #2563eb;
-  --brand-strong: #1d4ed8;
-  --brand-soft: #eff4ff;
+  /* Rouge sang : couleur principale */
+  --brand: #d32f2f;
+  --brand-strong: #b71c1c;
+  --brand-soft: #fdecec;
   --brand-fg: #ffffff;
 
-  /* Barre latérale */
-  --sidebar: #fafafa;
-  --sidebar-raised: #ffffff;
-  --sidebar-fg: #18181b;
-  --sidebar-muted: #71717a;
+  /* Couleurs des cartes d'indicateurs */
+  --accent-blue: #3b82f6;
+  --accent-yellow: #eab308;
+  --accent-green: #16a34a;
+  --accent-red: #dc2626;
+
+  --sidebar: #ffffff;
+  --sidebar-raised: #fdecec;
+  --sidebar-fg: #1e293b;
+  --sidebar-muted: #475569;
 
   --critical: #dc2626;
-  --warning: #d97706;
+  --warning: #ca8a04;
   --ok: #16a34a;
   --info: #2563eb;
 
-  --focus: #2563eb;
-  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.04);
-  --shadow-raised: 0 8px 24px rgb(0 0 0 / 0.08), 0 2px 6px rgb(0 0 0 / 0.04);
+  --focus: #d32f2f;
+  --shadow-panel: 0 1px 3px rgb(15 23 42 / 0.06), 0 1px 2px rgb(15 23 42 / 0.04);
+  --shadow-raised: 0 10px 30px rgb(15 23 42 / 0.1), 0 2px 8px rgb(15 23 42 / 0.05);
   color-scheme: light;
 }
 
 .dark {
-  --canvas: #09090b;
-  --surface: #111113;
-  --raised: #1c1c1f;
-  --line: #27272a;
-  --line-strong: #3f3f46;
-  --fg: #fafafa;
-  --fg-muted: #a1a1aa;
-  --fg-subtle: #71717a;
-  --inverse-bg: #fafafa;
-  --inverse-fg: #09090b;
+  --canvas: #0b1120;
+  --surface: #111827;
+  --raised: #1a2234;
+  --line: #1f2937;
+  --line-strong: #334155;
+  --fg: #f1f5f9;
+  --fg-muted: #94a3b8;
+  --fg-subtle: #64748b;
+  --inverse-bg: #f1f5f9;
+  --inverse-fg: #0b1120;
 
-  --brand: #3b82f6;
-  --brand-strong: #60a5fa;
-  --brand-soft: #172036;
+  --brand: #ef4444;
+  --brand-strong: #f87171;
+  --brand-soft: #2a1618;
   --brand-fg: #ffffff;
 
-  --sidebar: #0c0c0e;
-  --sidebar-raised: #18181b;
-  --sidebar-fg: #fafafa;
-  --sidebar-muted: #a1a1aa;
+  --accent-blue: #60a5fa;
+  --accent-yellow: #facc15;
+  --accent-green: #4ade80;
+  --accent-red: #f87171;
 
-  --critical: #ef4444;
-  --warning: #f59e0b;
-  --ok: #22c55e;
-  --info: #3b82f6;
+  --sidebar: #111827;
+  --sidebar-raised: #2a1618;
+  --sidebar-fg: #f1f5f9;
+  --sidebar-muted: #cbd5e1;
 
-  --focus: #3b82f6;
-  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.3);
-  --shadow-raised: 0 8px 24px rgb(0 0 0 / 0.5);
+  --critical: #f87171;
+  --warning: #facc15;
+  --ok: #4ade80;
+  --info: #60a5fa;
+
+  --focus: #ef4444;
+  --shadow-panel: 0 1px 3px rgb(0 0 0 / 0.35);
+  --shadow-raised: 0 10px 30px rgb(0 0 0 / 0.5);
   color-scheme: dark;
 }
 
@@ -104,18 +115,23 @@
   --color-brand-strong: var(--brand-strong);
   --color-brand-soft: var(--brand-soft);
   --color-on-brand: var(--brand-fg);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-green: var(--accent-green);
+  --color-accent-red: var(--accent-red);
   --color-sidebar: var(--sidebar);
   --color-sidebar-raised: var(--sidebar-raised);
   --color-sidebar-fg: var(--sidebar-fg);
   --color-sidebar-muted: var(--sidebar-muted);
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+  --font-sans: 'Poppins', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 
   --radius-sm: 0.375rem;
   --radius: 0.5rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.75rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1rem;
 
   --shadow-panel: var(--shadow-panel);
   --shadow-raised: var(--shadow-raised);
@@ -154,14 +170,10 @@
     background-color: color-mix(in oklab, var(--brand) 25%, transparent);
   }
 
-  body {
-    font-feature-settings: 'cv11', 'ss01';
-  }
-
   h1,
   h2,
   h3 {
-    letter-spacing: -0.015em;
+    letter-spacing: -0.01em;
   }
 
   * {
@@ -189,9 +201,9 @@
     color: var(--fg-muted);
   }
 
-  /* Panneau : surface blanche, bordure fine, ombre minime. */
+  /* Panneau : carte blanche arrondie, ombre douce. */
   .panel {
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-xl);
     border: 1px solid var(--line);
     background-color: var(--surface);
     box-shadow: var(--shadow-panel);
@@ -203,23 +215,26 @@
     border-collapse: separate;
     border-spacing: 0;
     text-align: left;
+    /* Poppins est large : texte des tableaux un cran en dessous du corps. */
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
   }
   .ops-table thead th {
     position: sticky;
     top: 0;
     z-index: 1;
-    background-color: var(--canvas);
+    background-color: var(--surface);
     border-bottom: 1px solid var(--line);
-    padding: 0.5rem 1rem;
-    font-size: 0.75rem;
-    line-height: 1rem;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
     font-weight: 500;
     color: var(--fg-muted);
     white-space: nowrap;
   }
   .ops-table tbody td {
     border-bottom: 1px solid var(--line);
-    padding: 0.75rem 1rem;
+    padding: 0.875rem 0.75rem;
     vertical-align: middle;
   }
   .ops-table tbody tr:last-child td {
@@ -241,7 +256,7 @@
   /* Champs de saisie. */
   .field-control {
     width: 100%;
-    height: 2.25rem;
+    height: 2.5rem;
     border-radius: var(--radius);
     border: 1px solid var(--line-strong);
     background-color: var(--surface);
