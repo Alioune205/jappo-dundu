@@ -16,7 +16,7 @@ export const BedTable: React.FC<{ capacities: BedCapacity[] } & CapacityActions>
   admitBusy,
   dischargeBusy,
 }) => (
-  <div className="overflow-hidden rounded-md border border-line bg-surface">
+  <div className="overflow-hidden panel">
     <div className="overflow-x-auto">
       <table className="ops-table">
         <thead>

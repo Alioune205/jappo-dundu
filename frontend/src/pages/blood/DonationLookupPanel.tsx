@@ -46,8 +46,8 @@ export const DonationLookupPanel: React.FC = () => {
   })
 
   return (
-    <section className="rounded-md border border-line bg-surface p-4">
-      <h3 className="text-sm font-semibold text-fg">Enregistrer un don</h3>
+    <section className="panel p-4">
+      <h3 className="text-[0.9375rem] font-semibold text-fg">Enregistrer un don</h3>
       <p className="mt-0.5 text-xs text-muted">Retrouver un donneur par son numéro de téléphone.</p>
 
       <form onSubmit={handleLookup} className="mt-3 flex items-end gap-2">

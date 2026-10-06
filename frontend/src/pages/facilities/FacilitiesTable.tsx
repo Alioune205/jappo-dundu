@@ -44,7 +44,7 @@ export const FacilitiesTable: React.FC<FacilitiesTableProps> = ({
     </div>
 
     {isLoading ? (
-      <div className="space-y-2 rounded-md border border-line bg-surface p-4">
+      <div className="space-y-2 panel p-4">
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-8 w-full" />
         ))}
@@ -52,7 +52,7 @@ export const FacilitiesTable: React.FC<FacilitiesTableProps> = ({
     ) : facilities.length === 0 ? (
       <EmptyState title="Aucun établissement" description="Aucun établissement ne correspond à ces filtres." />
     ) : (
-      <div className="overflow-hidden rounded-md border border-line bg-surface">
+      <div className="overflow-hidden panel">
         <div className="overflow-x-auto">
           <table className="ops-table">
             <thead>

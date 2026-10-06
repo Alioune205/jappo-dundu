@@ -20,13 +20,13 @@ import type {
 export type Tone = 'neutral' | 'brand' | 'danger' | 'warning' | 'success' | 'info' | 'violet'
 
 /**
- * Traduction des tons vers les quatre couleurs de sens du système
- * (critique, vigilance, nominal, information). « brand » rejoint le critique
- * et « violet » l'information ; le reste est neutre.
+ * Traduction des tons vers les couleurs du système : quatre couleurs de sens
+ * (critique, vigilance, nominal, information) et « brand », le vert national.
+ * « violet » rejoint l'information ; le reste est neutre.
  */
 export const TONE_DOT: Record<Tone, string> = {
   neutral: 'bg-subtle',
-  brand: 'bg-critical',
+  brand: 'bg-brand',
   danger: 'bg-critical',
   warning: 'bg-warning',
   success: 'bg-ok',
@@ -36,12 +36,23 @@ export const TONE_DOT: Record<Tone, string> = {
 
 export const TONE_TEXT: Record<Tone, string> = {
   neutral: 'text-muted',
-  brand: 'text-critical',
+  brand: 'text-brand-strong',
   danger: 'text-critical',
   warning: 'text-warning',
   success: 'text-ok',
   info: 'text-info',
   violet: 'text-info',
+}
+
+/** Pastille teintée (badges, bandeaux) : fond léger et texte à la couleur du sens. */
+export const TONE_PILL: Record<Tone, string> = {
+  neutral: 'bg-raised text-fg',
+  brand: 'bg-brand-soft text-brand-strong',
+  danger: 'bg-critical/10 text-critical',
+  warning: 'bg-warning/12 text-warning',
+  success: 'bg-ok/10 text-ok',
+  info: 'bg-info/10 text-info',
+  violet: 'bg-info/10 text-info',
 }
 
 export interface Option<T extends string> {

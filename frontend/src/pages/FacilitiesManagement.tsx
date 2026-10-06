@@ -54,7 +54,7 @@ export const FacilitiesManagement: React.FC = () => {
   const activeQuery = activeTab === 'facilities' ? facilitiesQuery : usersQuery
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <PageHeader
         title="Structures et comptes"
         description="Établissements de santé du réseau et comptes du personnel habilité."

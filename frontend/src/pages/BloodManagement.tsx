@@ -55,7 +55,7 @@ export const BloodManagement: React.FC = () => {
   const stats = useMemo(() => computeBloodStats(requests), [requests])
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <PageHeader
         title="Banque de sang"
         description="Demandes de poches, donneurs compatibles à proximité et enregistrement des dons."

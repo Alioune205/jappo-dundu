@@ -1,5 +1,5 @@
 import React from 'react'
-import { TONE_DOT, TONE_TEXT, type Tone } from '@/lib/constants'
+import { TONE_DOT, TONE_PILL, TONE_TEXT, type Tone } from '@/lib/constants'
 
 interface AlertProps {
   tone?: Tone
@@ -9,10 +9,7 @@ interface AlertProps {
   className?: string
 }
 
-/**
- * Bandeau de message : surface neutre, liseré gauche à la couleur du sens.
- * Pas de fond teinté — la couleur reste un signal, pas une décoration.
- */
+/** Bandeau de message : fond teinté et liseré gauche à la couleur du sens. */
 export const Alert: React.FC<AlertProps> = ({
   tone = 'info',
   title,
@@ -20,18 +17,18 @@ export const Alert: React.FC<AlertProps> = ({
   onClose,
   className = '',
 }) => {
-  const urgent = tone === 'danger' || tone === 'brand' || tone === 'warning'
+  const urgent = tone === 'danger' || tone === 'warning'
 
   return (
     <div
       role={urgent ? 'alert' : 'status'}
-      className={`relative flex items-start gap-3 overflow-hidden rounded border border-line bg-surface py-2.5 pl-4 pr-3 text-xs text-fg ${className}`}
+      className={`relative flex items-start gap-3 overflow-hidden rounded-lg border border-line py-3 pl-5 pr-3 text-sm text-fg ${TONE_PILL[tone]} ${className}`}
     >
-      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-0.5 ${TONE_DOT[tone]}`} />
+      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${TONE_DOT[tone]}`} />
 
       <div className="min-w-0 flex-1 leading-relaxed">
-        {title && <p className={`mb-0.5 text-sm font-medium ${TONE_TEXT[tone]}`}>{title}</p>}
-        <div className="text-muted">{children}</div>
+        {title && <p className={`mb-0.5 text-sm font-semibold ${TONE_TEXT[tone]}`}>{title}</p>}
+        <div className="text-fg/80">{children}</div>
       </div>
 
       {onClose && (

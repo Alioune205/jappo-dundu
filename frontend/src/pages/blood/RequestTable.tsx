@@ -14,9 +14,9 @@ interface RequestTableProps {
 
 /** Liste des demandes ; une ligne se sélectionne à la souris ou au clavier (Entrée, Espace). */
 export const RequestTable: React.FC<RequestTableProps> = ({ requests, isLoading, selectedId, onSelect }) => (
-  <section className="overflow-hidden rounded-md border border-line bg-surface xl:col-span-2">
-    <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
-      <h2 className="text-sm font-semibold text-fg">
+  <section className="overflow-hidden panel xl:col-span-2">
+    <div className="flex items-center justify-between border-b border-line px-5 py-3">
+      <h2 className="text-[0.9375rem] font-semibold text-fg">
         Demandes <span className="num ml-1 font-normal text-muted">{requests.length}</span>
       </h2>
     </div>

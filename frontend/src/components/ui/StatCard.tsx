@@ -35,7 +35,21 @@ const BAR: Record<StatTone, string> = {
   success: 'bg-ok',
   danger: 'bg-critical',
   warning: 'bg-warning',
-  neutral: 'bg-fg',
+  neutral: 'bg-brand',
+}
+
+const ACCENT: Record<StatTone, string> = {
+  success: 'bg-ok',
+  danger: 'bg-critical',
+  warning: 'bg-warning',
+  neutral: 'bg-brand',
+}
+
+const PILL: Record<StatTone, string> = {
+  success: 'bg-ok/10 text-ok',
+  danger: 'bg-critical/10 text-critical',
+  warning: 'bg-warning/12 text-warning',
+  neutral: 'bg-raised text-muted',
 }
 
 /**
@@ -65,28 +79,40 @@ export const StatCard: React.FC<StatCardProps> = ({
   return (
     <Root
       {...(onClick ? { type: 'button' as const, onClick } : {})}
-      className={`flex w-full flex-col rounded-md border border-line bg-surface p-4 text-left ${
-        onClick ? 'cursor-pointer transition-colors hover:border-line-strong' : ''
+      className={`panel relative flex w-full flex-col overflow-hidden p-5 pt-6 text-left ${
+        onClick ? 'cursor-pointer transition-[border-color,box-shadow] hover:border-brand hover:shadow-[var(--shadow-raised)]' : ''
       } ${className}`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="eyebrow truncate">{title}</span>
-        {badge ? (
-          <span className={`inline-flex items-center gap-1.5 text-2xs font-medium ${TEXT[badgeTone]}`}>
-            <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${DOT[badgeTone]}`} />
-            {badge}
-          </span>
-        ) : icon ? (
-          <span className="shrink-0 text-subtle" aria-hidden="true">
+      {/* Liseré supérieur : vert national, ou couleur de l'état si l'indicateur alerte. */}
+      <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1 ${ACCENT[badgeTone]}`} />
+
+      <div className="flex items-start justify-between gap-3">
+        <span className="eyebrow truncate pt-0.5">{title}</span>
+        {icon && (
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand-strong"
+            aria-hidden="true"
+          >
             {icon}
           </span>
-        ) : null}
+        )}
       </div>
 
-      <div className="mt-2 flex items-baseline gap-1.5">
-        <span className={`num text-2xl font-medium leading-none ${valueColor}`}>{value}</span>
-        {unit && <span className="text-xs text-muted">{unit}</span>}
+      <div className="mt-1 flex min-w-0 items-baseline gap-1.5">
+        <span className={`num min-w-0 truncate text-3xl font-bold leading-tight ${valueColor}`} title={String(value)}>
+          {value}
+        </span>
+        {unit && <span className="text-sm text-muted">{unit}</span>}
       </div>
+
+      {badge && (
+        <span
+          className={`mt-2 inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-2xs font-semibold ${PILL[badgeTone]}`}
+        >
+          <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${DOT[badgeTone]}`} />
+          {badge}
+        </span>
+      )}
 
       {progress && (
         <div

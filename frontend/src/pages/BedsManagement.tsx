@@ -75,7 +75,7 @@ export const BedsManagement: React.FC = () => {
   const actionError = admitMutation.error ?? dischargeMutation.error
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <PageHeader
         title="Capacité en lits"
         description="Occupation des services, admissions et sorties, orientation vers les lits libres les plus proches."
@@ -108,7 +108,7 @@ export const BedsManagement: React.FC = () => {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
         <div className="space-y-3 xl:col-span-2">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-fg">
+            <h2 className="text-[0.9375rem] font-semibold text-fg">
               Services <span className="num ml-1 font-normal text-muted">{filtered.length}</span>
             </h2>
             <span className="text-xs text-muted">
@@ -123,7 +123,7 @@ export const BedsManagement: React.FC = () => {
           )}
 
           {isLoading ? (
-            <div className="space-y-2 rounded-md border border-line bg-surface p-4">
+            <div className="space-y-2 panel p-4">
               {[0, 1, 2, 3, 4].map((i) => (
                 <Skeleton key={i} className="h-8 w-full" />
               ))}

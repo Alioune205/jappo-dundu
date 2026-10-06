@@ -14,7 +14,7 @@ const STORAGE_KEY = 'jappo-dundu.theme'
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Le sombre est le mode par défaut (poste de régulation 24/7). index.html a
+  // Le clair est le mode par défaut (interface institutionnelle). index.html a
   // déjà appliqué la classe avant le rendu : on part de l'état du document.
   const [theme, setThemeState] = useState<Theme>(() =>
     document.documentElement.classList.contains('dark') ? 'dark' : 'light'

@@ -21,10 +21,10 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, onRetry, fu
     role="alert"
     className={`flex items-center justify-center ${fullScreen ? 'h-full bg-canvas p-4 text-fg' : 'min-h-[40vh] py-8'}`}
   >
-    <div className="w-full max-w-md overflow-hidden rounded-md border border-line bg-surface">
+    <div className="w-full max-w-md overflow-hidden panel">
       <div className="relative px-4 py-3">
         <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-critical" />
-        <h2 className="text-sm font-semibold text-fg">
+        <h2 className="text-[0.9375rem] font-semibold text-fg">
           {fullScreen ? "L'application a rencontré une erreur" : 'Ce module a rencontré une erreur'}
         </h2>
         <p className="mt-1 text-xs text-muted">

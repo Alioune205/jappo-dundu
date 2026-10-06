@@ -8,7 +8,7 @@ import type { Ambulance } from '@/types/api'
 export const FleetTable: React.FC<{ ambulances: Ambulance[]; isLoading: boolean }> = ({ ambulances, isLoading }) => {
   if (isLoading) {
     return (
-      <div className="space-y-2 rounded-md border border-line bg-surface p-4">
+      <div className="space-y-2 panel p-4">
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-8 w-full" />
         ))}
@@ -20,7 +20,7 @@ export const FleetTable: React.FC<{ ambulances: Ambulance[]; isLoading: boolean 
   }
 
   return (
-    <div className="overflow-hidden rounded-md border border-line bg-surface">
+    <div className="overflow-hidden panel">
       <div className="overflow-x-auto">
         <table className="ops-table">
           <thead>

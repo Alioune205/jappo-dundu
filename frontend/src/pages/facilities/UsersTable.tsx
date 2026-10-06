@@ -37,7 +37,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, isLoading, search
     </div>
 
     {isLoading ? (
-      <div className="space-y-2 rounded-md border border-line bg-surface p-4">
+      <div className="space-y-2 panel p-4">
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-8 w-full" />
         ))}
@@ -45,7 +45,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({ users, isLoading, search
     ) : users.length === 0 ? (
       <EmptyState title="Aucun compte" description="Aucun compte ne correspond à cette recherche." />
     ) : (
-      <div className="overflow-hidden rounded-md border border-line bg-surface">
+      <div className="overflow-hidden panel">
         <div className="overflow-x-auto">
           <table className="ops-table">
             <thead>

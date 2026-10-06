@@ -1,6 +1,6 @@
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight } from 'lucide-react'
+import { Ambulance as AmbulanceIcon, ArrowRight, BedDouble, BrainCircuit, Droplets } from 'lucide-react'
 import { Link } from 'react-router'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
@@ -134,7 +134,7 @@ export const Dashboard: React.FC = () => {
   const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <PageHeader
         title={user?.facility ? user.facility.name : 'Supervision nationale'}
         description={
@@ -144,10 +144,11 @@ export const Dashboard: React.FC = () => {
         }
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Link to="/beds" className="group block rounded-md">
           <StatCard
             title="Lits disponibles"
+            icon={<BedDouble className="h-[18px] w-[18px]" />}
             value={formatNumber(totalAvailableBeds)}
             unit={`/ ${formatNumber(totalBeds)}`}
             trend={`${formatPercent(globalOccupancy)} occupés`}
@@ -158,13 +159,14 @@ export const Dashboard: React.FC = () => {
               tone: occupancyTone,
             }}
             description="Réseau hospitalier"
-            className="h-full group-hover:border-line-strong"
+            className="h-full group-hover:border-brand group-hover:shadow-[var(--shadow-raised)]"
           />
         </Link>
 
         <Link to="/blood" className="group block rounded-md">
           <StatCard
             title="Demandes de sang"
+            icon={<Droplets className="h-[18px] w-[18px]" />}
             value={bloodRequests.length}
             unit="ouvertes"
             badge={criticalBloodCount > 0 ? plural(criticalBloodCount, 'vitale') : undefined}
@@ -172,13 +174,14 @@ export const Dashboard: React.FC = () => {
             trend={criticalBloodCount > 0 ? 'Urgence vitale en cours' : 'Aucune urgence vitale'}
             trendTone={criticalBloodCount > 0 ? 'danger' : 'success'}
             description="CNTS et régions"
-            className="h-full group-hover:border-line-strong"
+            className="h-full group-hover:border-brand group-hover:shadow-[var(--shadow-raised)]"
           />
         </Link>
 
         <Link to="/ambulances" className="group block rounded-md">
           <StatCard
             title="Ambulances disponibles"
+            icon={<AmbulanceIcon className="h-[18px] w-[18px]" />}
             value={availableAmbulances}
             unit={`/ ${ambulances.length}`}
             trend={plural(activeMissions.length, 'mission') + ' en cours'}
@@ -189,27 +192,28 @@ export const Dashboard: React.FC = () => {
               tone: availableAmbulances <= 2 ? 'warning' : 'success',
             }}
             description="Flotte SAMU"
-            className="h-full group-hover:border-line-strong"
+            className="h-full group-hover:border-brand group-hover:shadow-[var(--shadow-raised)]"
           />
         </Link>
 
         <Link to="/ml" className="group block rounded-md">
           <StatCard
             title="Risques de pénurie"
+            icon={<BrainCircuit className="h-[18px] w-[18px]" />}
             value={criticalPredictions}
             unit="critiques à 7 j"
             badgeTone={criticalPredictions > 0 ? 'danger' : 'neutral'}
             trend={criticalPredictions > 0 ? 'Action requise' : 'Aucun risque critique'}
             trendTone={criticalPredictions > 0 ? 'danger' : 'success'}
             description="Modèle quantile CQR"
-            className="h-full group-hover:border-line-strong"
+            className="h-full group-hover:border-brand group-hover:shadow-[var(--shadow-raised)]"
           />
         </Link>
       </div>
 
-      <section className="rounded-md border border-line bg-surface">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2.5">
-          <h2 className="text-sm font-semibold text-fg">Carte opérationnelle</h2>
+      <section className="panel">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
+          <h2 className="text-[0.9375rem] font-semibold text-fg">Carte opérationnelle</h2>
           <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted" aria-label="Légende">
             <li className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-sm bg-info" /> Hôpitaux
@@ -230,10 +234,10 @@ export const Dashboard: React.FC = () => {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <section className="rounded-md border border-line bg-surface">
-          <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
-            <h3 className="text-sm font-semibold text-fg">Occupation par spécialité</h3>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <section className="panel">
+          <div className="flex items-center justify-between border-b border-line px-5 py-3">
+            <h3 className="text-[0.9375rem] font-semibold text-fg">Occupation par spécialité</h3>
             <Link to="/beds" className="flex items-center gap-1 text-xs text-muted hover:text-fg">
               Lits <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -253,7 +257,7 @@ export const Dashboard: React.FC = () => {
                     tick={{ fill: colors.muted }}
                     tickLine={false}
                     axisLine={{ stroke: colors.line }}
-                    fontSize={10}
+                    fontSize={11}
                     interval={0}
                     angle={-18}
                     textAnchor="end"
@@ -262,8 +266,8 @@ export const Dashboard: React.FC = () => {
                     tick={{ fill: colors.muted }}
                     tickLine={false}
                     axisLine={false}
-                    fontSize={10}
-                    fontFamily="IBM Plex Mono, monospace"
+                    fontSize={11}
+                    fontFamily="Source Sans 3, sans-serif"
                     domain={[0, 100]}
                     unit="%"
                   />
@@ -272,16 +276,16 @@ export const Dashboard: React.FC = () => {
                     contentStyle={{
                       backgroundColor: colors.surface,
                       borderColor: colors.lineStrong,
-                      borderRadius: 4,
+                      borderRadius: 8,
                       fontSize: 12,
                       color: colors.fg,
-                      boxShadow: 'none',
+                      boxShadow: 'var(--shadow-raised)',
                     }}
                     labelStyle={{ color: colors.fg }}
                     itemStyle={{ color: colors.muted }}
                     formatter={(val) => [`${val ?? 0} %`, 'Occupation']}
                   />
-                  <Bar dataKey="rate" radius={[2, 2, 0, 0]} maxBarSize={36}>
+                  <Bar dataKey="rate" radius={[6, 6, 0, 0]} maxBarSize={36}>
                     {bedsChartData.map((entry) => (
                       <Cell key={entry.category} fill={rateColor(entry.rate)} />
                     ))}
@@ -292,9 +296,9 @@ export const Dashboard: React.FC = () => {
           </div>
         </section>
 
-        <section className="flex flex-col rounded-md border border-line bg-surface">
-          <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
-            <h3 className="text-sm font-semibold text-fg">
+        <section className="flex flex-col panel">
+          <div className="flex items-center justify-between border-b border-line px-5 py-3">
+            <h3 className="text-[0.9375rem] font-semibold text-fg">
               Demandes de sang ouvertes
               <span className="num ml-1.5 font-normal text-muted">{bloodRequests.length}</span>
             </h3>

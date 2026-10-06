@@ -44,9 +44,9 @@ export const NearestBedsPanel: React.FC = () => {
   }
 
   return (
-    <aside className="h-fit rounded-md border border-line bg-surface xl:sticky xl:top-0">
+    <aside className="h-fit panel xl:sticky xl:top-0">
       <div className="border-b border-line px-4 py-3">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
+        <h3 className="flex items-center gap-2 text-[0.9375rem] font-semibold text-fg">
           <Compass className="h-4 w-4 text-muted" aria-hidden="true" />
           Orientation
         </h3>

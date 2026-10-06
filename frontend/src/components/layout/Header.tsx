@@ -20,8 +20,18 @@ const dakarClock = new Intl.DateTimeFormat('fr-SN', {
   timeZone: 'Africa/Dakar',
 })
 
+const dakarDate = new Intl.DateTimeFormat('fr-SN', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'Africa/Dakar',
+})
+
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+
 const iconButton =
-  'relative inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded text-muted transition-colors hover:bg-raised hover:text-fg'
+  'relative inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-brand-soft hover:text-brand-strong'
 
 export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const { logout } = useAuth()
@@ -55,18 +65,24 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   }, [showAlertsMenu])
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4 shadow-[var(--shadow-panel)] lg:px-8">
       <div className="min-w-0">
-        {title && <h1 className="truncate text-sm font-semibold text-fg">{title}</h1>}
-        {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}
+        {title ? (
+          <h1 className="truncate text-base font-semibold text-fg">{title}</h1>
+        ) : (
+          <p className="truncate text-sm font-semibold text-brand-strong">
+            Plateforme nationale de régulation des urgences médicales
+          </p>
+        )}
+        <p className="truncate text-xs text-muted">{subtitle ?? capitalize(dakarDate.format(new Date()))}</p>
       </div>
 
       <div className="flex items-center gap-1">
         {/* État de la liaison : dit clairement quand les données ne sont plus en direct. */}
         <ConnectionStatus online={online} status={status} interruptedSince={interruptedSince} />
 
-        <div className="mr-3 hidden items-baseline gap-1.5 border-l border-line pl-3 sm:flex">
-          <time className="num text-sm text-fg">{currentTime}</time>
+        <div className="mr-2 hidden items-baseline gap-1.5 rounded-full bg-raised px-3 py-1 sm:flex">
+          <time className="num text-[0.9375rem] font-semibold text-fg">{currentTime}</time>
           <span className="text-2xs text-subtle">Dakar</span>
         </div>
 
@@ -91,15 +107,15 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
           >
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
-              <span className="num absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-critical px-1 text-[10px] leading-none text-white">
+              <span className="num absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-flag-red px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-surface">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
           </button>
 
           {showAlertsMenu && (
-            <div className="absolute right-0 z-50 mt-1 w-80 overflow-hidden rounded-md border border-line-strong bg-surface sm:w-96">
-              <div className="flex items-center justify-between border-b border-line px-3 py-2">
+            <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-lg border border-line bg-surface shadow-[var(--shadow-raised)] sm:w-96">
+              <div className="flex items-center justify-between border-b border-line bg-brand-soft px-3 py-2.5">
                 <span className="eyebrow">
                   Alertes réseau <span className="num ml-1 text-fg">{alerts.length}</span>
                 </span>
@@ -182,8 +198,8 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ online, status, int
         : { dot: 'bg-subtle', text: 'text-muted', label: 'Connexion…', title: 'Ouverture du flux temps réel.' }
 
   return (
-    <div className="mr-2 flex items-center gap-1.5 text-xs" role="status" title={state.title}>
-      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${state.dot}`} />
+    <div className="mr-2 flex items-center gap-2 rounded-full border border-line px-3 py-1 text-xs font-medium" role="status" title={state.title}>
+      <span aria-hidden="true" className={`h-2 w-2 rounded-full ${state.dot}`} />
       <span className={state.text}>{state.label}</span>
       {online && status === 'interrupted' && (
         <span className="hidden text-2xs text-subtle lg:inline">· relevé toutes les {pollSeconds} s</span>

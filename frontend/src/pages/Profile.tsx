@@ -105,13 +105,13 @@ export const Profile: React.FC = () => {
     <div className="mx-auto max-w-4xl space-y-5">
       <PageHeader title="Mon compte" description="Identité professionnelle, coordonnées et mot de passe." />
 
-      <section className="rounded-md border border-line bg-surface">
+      <section className="panel">
         <div className="flex items-center gap-3 border-b border-line px-4 py-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-line bg-raised text-sm font-medium text-fg">
             {(user?.full_name || user?.username || 'U').charAt(0).toUpperCase()}
           </span>
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-fg">{user?.full_name || user?.username}</h2>
+            <h2 className="truncate text-[0.9375rem] font-semibold text-fg">{user?.full_name || user?.username}</h2>
             <p className="text-xs text-muted">{user?.email || 'Adresse e-mail non renseignée'}</p>
           </div>
         </div>
@@ -126,8 +126,8 @@ export const Profile: React.FC = () => {
       </section>
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-        <section className="rounded-md border border-line bg-surface p-4">
-          <h3 className="text-sm font-semibold text-fg">Coordonnées</h3>
+        <section className="panel p-4">
+          <h3 className="text-[0.9375rem] font-semibold text-fg">Coordonnées</h3>
           <p className="mt-0.5 text-xs text-muted">Utilisées pour vous joindre en cas d'urgence.</p>
 
           {profileMsg && (
@@ -164,8 +164,8 @@ export const Profile: React.FC = () => {
           </form>
         </section>
 
-        <section className="rounded-md border border-line bg-surface p-4">
-          <h3 className="text-sm font-semibold text-fg">Mot de passe</h3>
+        <section className="panel p-4">
+          <h3 className="text-[0.9375rem] font-semibold text-fg">Mot de passe</h3>
           <p className="mt-0.5 text-xs text-muted">Le changement déconnecte vos autres sessions.</p>
 
           {passwordMsg && (

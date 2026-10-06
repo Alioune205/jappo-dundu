@@ -76,7 +76,7 @@ export const AmbulancesManagement: React.FC = () => {
   const activeMissions = missions.filter(isActiveMission)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <PageHeader
         title="Flotte SAMU"
         description="Missions d'urgence, affectation de l'ambulance la plus proche et suivi de la flotte."
@@ -106,9 +106,9 @@ export const AmbulancesManagement: React.FC = () => {
 
       <FleetStatsGrid ambulances={ambulances} missions={missions} stats={stats} />
 
-      <section className="rounded-md border border-line bg-surface">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2.5">
-          <h2 className="text-sm font-semibold text-fg">Carte des véhicules et interventions</h2>
+      <section className="panel">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
+          <h2 className="text-[0.9375rem] font-semibold text-fg">Carte des véhicules et interventions</h2>
           <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted" aria-label="Légende">
             <li className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-sm bg-ok" /> Libre

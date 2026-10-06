@@ -50,11 +50,12 @@ export const Modal: React.FC<ModalProps> = ({
       onClose={onClose}
       className={`fixed inset-0 z-50 m-auto w-full ${widthClasses[maxWidth]} bg-transparent p-4 text-fg focus:outline-none`}
     >
-      <div className="flex max-h-[90vh] flex-col overflow-hidden rounded-md border border-line-strong bg-surface">
+      <div className="flex max-h-[90vh] flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-raised)]">
+        <div aria-hidden="true" className="tricolor h-1 shrink-0" />
         {/* Header */}
-        <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-3">
+        <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-4">
           <div>
-            <h2 className="text-sm font-semibold text-fg">{title}</h2>
+            <h2 className="font-display text-lg font-semibold text-fg">{title}</h2>
             {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
           </div>
           <Button
@@ -77,13 +78,13 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="space-y-4 overflow-y-auto px-4 py-4 text-sm">
+        <div className="space-y-4 overflow-y-auto px-5 py-5 text-sm">
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-end gap-2 border-t border-line px-4 py-3">
+          <div className="flex items-center justify-end gap-2 border-t border-line bg-raised px-5 py-3">
             {footer}
           </div>
         )}

@@ -12,9 +12,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     const inputId = id || props.name || generatedId
 
     return (
-      <div className="w-full space-y-1">
+      <div className="w-full space-y-1.5">
         {label && (
-          <label htmlFor={inputId} className="block text-xs font-medium text-muted">
+          <label htmlFor={inputId} className="block text-[0.9375rem] font-semibold text-fg">
             {label}
           </label>
         )}
@@ -46,9 +46,9 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     const selectId = id || props.name || generatedId
 
     return (
-      <div className="w-full space-y-1">
+      <div className="w-full space-y-1.5">
         {label && (
-          <label htmlFor={selectId} className="block text-xs font-medium text-muted">
+          <label htmlFor={selectId} className="block text-[0.9375rem] font-semibold text-fg">
             {label}
           </label>
         )}
@@ -87,9 +87,9 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     const textareaId = id || props.name || generatedId
 
     return (
-      <div className="w-full space-y-1">
+      <div className="w-full space-y-1.5">
         {label && (
-          <label htmlFor={textareaId} className="block text-xs font-medium text-muted">
+          <label htmlFor={textareaId} className="block text-[0.9375rem] font-semibold text-fg">
             {label}
           </label>
         )}

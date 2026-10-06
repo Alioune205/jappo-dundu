@@ -119,7 +119,7 @@ export const MLPredictions: React.FC = () => {
   const series = metric('series')
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <PageHeader
         title="Prévisions de pénurie"
         description="Projection des stocks de sang par banque et par groupe, avec intervalle P10–P90 et jours de réserve."
@@ -183,9 +183,9 @@ export const MLPredictions: React.FC = () => {
         </section>
       )}
 
-      <section className="rounded-md border border-line bg-surface">
+      <section className="panel">
         <div className="border-b border-line px-4 py-3">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
+          <h3 className="flex items-center gap-2 text-[0.9375rem] font-semibold text-fg">
             <Brain className="h-4 w-4 text-muted" aria-hidden="true" />
             Lancer une prévision
           </h3>
@@ -251,7 +251,7 @@ export const MLPredictions: React.FC = () => {
       <section className="space-y-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-fg">
+            <h2 className="text-[0.9375rem] font-semibold text-fg">
               Prévisions <span className="num ml-1 font-normal text-muted">{predictions.length}</span>
             </h2>
             <p className="mt-0.5 text-xs text-muted">Stock estimé, intervalle P10–P90 et jours de réserve.</p>
@@ -285,7 +285,7 @@ export const MLPredictions: React.FC = () => {
         </div>
 
         {isLoading ? (
-          <div className="space-y-2 rounded-md border border-line bg-surface p-4">
+          <div className="space-y-2 panel p-4">
             {[0, 1, 2, 3, 4].map((i) => (
               <Skeleton key={i} className="h-8 w-full" />
             ))}
@@ -296,7 +296,7 @@ export const MLPredictions: React.FC = () => {
             description="Aucune prévision pour ces critères. Lancez un calcul ci-dessus."
           />
         ) : (
-          <div className="overflow-hidden rounded-md border border-line bg-surface">
+          <div className="overflow-hidden panel">
             <div className="overflow-x-auto">
               <table className="ops-table">
                 <thead>

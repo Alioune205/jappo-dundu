@@ -23,7 +23,7 @@ export const BedCards: React.FC<{ capacities: BedCapacity[] } & CapacityActions>
       return (
         <article
           key={cap.id}
-          className={`relative overflow-hidden rounded-md border border-line bg-surface ${
+          className={`relative overflow-hidden panel ${
             level === 'saturated' ? 'border-l-2 border-l-critical' : level === 'high' ? 'border-l-2 border-l-warning' : ''
           }`}
         >
