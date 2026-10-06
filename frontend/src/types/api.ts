@@ -363,6 +363,21 @@ export interface Prediction {
   model_version: string
 }
 
+export interface BloodStockRecord {
+  id: number
+  center_name: string
+  region: RegionCode
+  region_display: string
+  blood_group: BloodGroup
+  blood_group_display: string
+  date: string
+  units_available: number
+  units_donated: number
+  units_used: number
+  units_expired: number
+  source: 'synthetic' | 'import' | 'manual'
+}
+
 export interface PredictionSummaryRow {
   region: RegionCode
   region_display: string

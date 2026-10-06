@@ -29,6 +29,7 @@ export const QK = {
   // Prévisions
   predictionsSummary: ['predictions-summary'],
   mlPredictionsList: ['ml-predictions-list'],
+  bloodStocks: ['blood-stocks'],
   mlModelInfo: ['ml-model-info'],
   mlPredictJob: ['ml-predict-job'],
   // Structures et comptes

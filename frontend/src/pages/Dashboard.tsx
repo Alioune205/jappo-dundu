@@ -33,7 +33,17 @@ import {
   Cell,
 } from 'recharts'
 import { QK } from '@/lib/queryKeys'
+import { AmbulanceManagerDashboard } from './dashboard/AmbulanceManagerDashboard'
 import { BedManagerDashboard } from './dashboard/BedManagerDashboard'
+import { BloodManagerDashboard } from './dashboard/BloodManagerDashboard'
+import type { Role } from '@/types/api'
+
+/** Rôles qui ont une vue dédiée, centrée sur leur établissement. */
+const DOMAIN_DASHBOARDS: Partial<Record<Role, React.FC<{ facility: FacilitySummary }>>> = {
+  bed_manager: BedManagerDashboard,
+  blood_manager: BloodManagerDashboard,
+  ambulance_manager: AmbulanceManagerDashboard,
+}
 
 /** Colonnes de la grille d'indicateurs selon le nombre de cartes visibles. */
 const STAT_COLUMNS: Record<number, string> = {
@@ -45,10 +55,13 @@ const STAT_COLUMNS: Record<number, string> = {
 
 export const Dashboard: React.FC = () => {
   const { user, roles } = useAuth()
-  // L'administrateur des lits d'un hôpital a sa propre vue, centrée sur son établissement.
-  if (user?.facility && roles.includes('bed_manager') && !canManage(roles, 'blood') && !canManage(roles, 'ambulances')) {
-    return <BedManagerDashboard facility={user.facility} />
-  }
+  // Un administrateur d'un seul domaine, rattaché à un établissement, a sa propre
+  // vue ; l'administrateur général et les comptes multi-domaines gardent la vue réseau.
+  const dedicated = roles.filter((role) => role in DOMAIN_DASHBOARDS)
+  const DomainDashboard = dedicated.length === 1 && !roles.includes('admin') && !roles.includes('hospital_staff')
+    ? DOMAIN_DASHBOARDS[dedicated[0]]
+    : undefined
+  if (user?.facility && DomainDashboard) return <DomainDashboard facility={user.facility} />
   return <NetworkDashboard />
 }
 
