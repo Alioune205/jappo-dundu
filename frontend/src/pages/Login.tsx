@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useAuth } from '@/context/AuthContext'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
@@ -120,6 +120,11 @@ export const Login: React.FC = () => {
 
         <p className="mt-8 text-center text-xs text-subtle">
           Accès réservé au personnel habilité. Les connexions sont journalisées.
+        </p>
+        <p className="mt-3 text-center text-sm">
+          <Link to="/bienvenue" className="font-medium text-brand hover:text-brand-strong">
+            ← Vous souhaitez donner votre sang ? Découvrir Jappo Dundu
+          </Link>
         </p>
       </div>
     </div>

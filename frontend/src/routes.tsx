@@ -11,9 +11,20 @@ import {
   Profile,
   Login,
   NotFound,
+  Landing,
 } from '@/pages/lazy'
 
 export const routes = [
+  {
+    // Page d'accueil publique : informations sur le don de sang.
+    path: '/bienvenue',
+    errorElement: <RouteError />,
+    element: (
+      <SuspenseWrapper>
+        <Landing />
+      </SuspenseWrapper>
+    ),
+  },
   {
     path: '/login',
     errorElement: <RouteError />,

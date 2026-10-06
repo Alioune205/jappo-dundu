@@ -25,7 +25,8 @@ export const RequireAuth: React.FC = () => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    // Visiteur non connecté : la page d'accueil publique (lien vers la connexion).
+    return <Navigate to="/bienvenue" replace />
   }
 
   return <Outlet />
