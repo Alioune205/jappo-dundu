@@ -15,6 +15,7 @@ export const BedTable: React.FC<{ capacities: BedCapacity[] } & CapacityActions>
   isDischarging,
   admitBusy,
   dischargeBusy,
+  canEdit,
 }) => (
   <div className="overflow-hidden panel">
     <div className="overflow-x-auto">
@@ -51,40 +52,44 @@ export const BedTable: React.FC<{ capacities: BedCapacity[] } & CapacityActions>
                   <span className="text-fg">{cap.occupied_beds}</span> / {cap.total_beds}
                 </td>
                 <td>
-                  <div className="flex items-center justify-end gap-1">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={cap.available_beds === 0 || (admitBusy && !isAdmitting(cap.id))}
-                      isLoading={isAdmitting(cap.id)}
-                      onClick={() => onAdmit(cap.id)}
-                      icon={<Plus className="h-3 w-3" />}
-                      title="Admission (+1 lit occupé)"
-                    >
-                      Entrée
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={cap.occupied_beds === 0 || (dischargeBusy && !isDischarging(cap.id))}
-                      isLoading={isDischarging(cap.id)}
-                      onClick={() => onDischarge(cap.id)}
-                      icon={<Minus className="h-3 w-3" />}
-                      title="Sortie (−1 lit occupé)"
-                    >
-                      Sortie
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-7 px-0"
-                      onClick={() => onEdit(cap)}
-                      aria-label={`Ajuster la capacité — ${cap.category_display}, ${cap.facility?.name ?? ''}`}
-                      title="Ajuster la capacité"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                  {canEdit(cap) ? (
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={cap.available_beds === 0 || (admitBusy && !isAdmitting(cap.id))}
+                        isLoading={isAdmitting(cap.id)}
+                        onClick={() => onAdmit(cap.id)}
+                        icon={<Plus className="h-3 w-3" />}
+                        title="Admission (+1 lit occupé)"
+                      >
+                        Entrée
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={cap.occupied_beds === 0 || (dischargeBusy && !isDischarging(cap.id))}
+                        isLoading={isDischarging(cap.id)}
+                        onClick={() => onDischarge(cap.id)}
+                        icon={<Minus className="h-3 w-3" />}
+                        title="Sortie (−1 lit occupé)"
+                      >
+                        Sortie
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-7 px-0"
+                        onClick={() => onEdit(cap)}
+                        aria-label={`Ajuster la capacité — ${cap.category_display}, ${cap.facility?.name ?? ''}`}
+                        title="Ajuster la capacité"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <span className="block text-right text-2xs text-subtle">Lecture seule</span>
+                  )}
                 </td>
               </tr>
             )

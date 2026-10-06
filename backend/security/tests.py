@@ -160,7 +160,14 @@ class SetupRolesCommandTests(TestCase):
         call_command('setup_roles', stdout=StringIO())
         self.assertEqual(
             set(Group.objects.values_list('name', flat=True)),
-            {'hospital_staff', 'ambulance_driver', 'donor'},
+            {
+                'bed_manager',
+                'blood_manager',
+                'ambulance_manager',
+                'hospital_staff',
+                'ambulance_driver',
+                'donor',
+            },
         )
 
 

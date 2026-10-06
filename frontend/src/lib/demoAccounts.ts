@@ -18,10 +18,10 @@ export const DEMO_ACCOUNTS: DemoAccounts | null = SHOW_DEMO_ACCOUNTS
   ? {
       password: 'Password123!',
       accounts: [
-        { username: 'admin', label: 'Administration' },
-        { username: 'dr.diop', label: 'Hôpital — lits' },
-        { username: 'cnts.dakar', label: 'CNTS — sang' },
-        { username: 'samu.driver', label: 'SAMU — équipage' },
+        { username: 'admin', label: 'Administrateur général' },
+        { username: 'dr.diop', label: 'Admin. des lits' },
+        { username: 'cnts.dakar', label: 'Admin. du sang (CNTS)' },
+        { username: 'samu.regulation', label: 'Admin. des ambulances' },
       ],
     }
   : null

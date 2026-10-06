@@ -7,7 +7,7 @@ import { BedsManagement } from './BedsManagement'
 const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn() }))
 vi.mock('@/lib/api', () => ({ api }))
 vi.mock('@/context/RealtimeContext', () => ({ useRealtime: () => ({ subscribe: () => () => {} }) }))
-vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: null }) }))
+vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: null, roles: ['admin'], isAdmin: true }) }))
 
 const CAPACITIES = [
   capacity({ id: 1, category: 'emergency', category_display: 'Urgences', total_beds: 10, occupied_beds: 6 }),

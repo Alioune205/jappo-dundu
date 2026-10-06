@@ -21,6 +21,7 @@ Missions (/api/ambulances/missions/) :
 Auteur : Ibrahima Khalilou Diallo
 """
 
+from django.db.models import Q
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied
@@ -33,8 +34,9 @@ from lits.models import BedCapacity
 from lits.serializers import NearbyBedFacilitySerializer
 from lits.services import find_facilities_with_beds
 from ml.constants import REGION_CODES
-from security.permissions import IsAdmin, IsAdminOrHospitalStaff, role_permission
-from security.roles import Role, user_has_role
+from security.permissions import ManagesAmbulances, role_permission
+from security.roles import DOMAIN_ROLES, Domain, Role, manages, user_has_role
+from users.permissions import user_facility
 from users.filters import boolean_param, choice_param, int_param
 
 from . import services
@@ -50,10 +52,22 @@ from .serializers import (
 )
 
 CanViewFleet = role_permission(
-    Role.ADMIN,
-    Role.HOSPITAL_STAFF,
+    *DOMAIN_ROLES[Domain.AMBULANCES],
     Role.AMBULANCE_DRIVER,
     message="Accès réservé à la régulation et aux ambulanciers.",
+)
+# Missions : en plus, l'administrateur des lits consulte celles dirigées vers
+# son établissement (préparer l'accueil du patient).
+CanViewMissions = role_permission(
+    *DOMAIN_ROLES[Domain.AMBULANCES],
+    Role.AMBULANCE_DRIVER,
+    Role.BED_MANAGER,
+    message="Accès réservé à la régulation, aux ambulanciers et aux hôpitaux de destination.",
+)
+CanEditFleet = role_permission(
+    Role.ADMIN,
+    Role.AMBULANCE_MANAGER,
+    message="Gestion de la flotte réservée à l'administrateur des ambulances.",
 )
 
 # Étapes qu'un conducteur peut déclarer lui-même.
@@ -67,7 +81,26 @@ DRIVER_STATUSES = frozenset(
 
 
 def is_dispatcher(user):
+    return manages(user, Domain.AMBULANCES)
+
+
+def national_dispatcher(user):
+    """Régulation nationale : administrateur général, ou rôle historique (comme avant)."""
     return user_has_role(user, Role.ADMIN, Role.HOSPITAL_STAFF)
+
+
+def service_of(user):
+    """Service d'ambulances d'un administrateur des ambulances limité à son périmètre.
+
+    None : périmètre national (ou utilisateur sans rôle de régulation).
+    Un administrateur des ambulances sans établissement est refusé.
+    """
+    if national_dispatcher(user) or not user_has_role(user, Role.AMBULANCE_MANAGER):
+        return None
+    facility = user_facility(user)
+    if facility is None:
+        raise PermissionDenied("Votre compte n'est rattaché à aucun service d'ambulances.")
+    return facility
 
 
 class IsAmbulanceDriverOrAdmin(BasePermission):
@@ -102,15 +135,19 @@ class AmbulanceViewSet(
 
     def get_permissions(self):
         if self.action in ('create', 'partial_update'):
-            return [IsAdmin()]
+            return [CanEditFleet()]
         if self.action == 'nearest':
-            return [IsAdminOrHospitalStaff()]
+            return [ManagesAmbulances()]
         if self.action in ('position', 'availability', 'mine'):
             return [IsAmbulanceDriverOrAdmin()]
         return [CanViewFleet()]
 
     def get_queryset(self):
         queryset = Ambulance.objects.select_related('facility', 'driver')
+        service = service_of(self.request.user) if self.action not in ('position', 'availability', 'mine') else None
+        if service is not None:
+            # Administrateur des ambulances : uniquement les véhicules de son service.
+            queryset = queryset.filter(facility=service)
         if self.action != 'list':
             return queryset
         params = self.request.query_params
@@ -126,6 +163,24 @@ class AmbulanceViewSet(
             **{key: value for key, value in filters.items() if value is not None}
         ).order_by('plate_number')
 
+    def _check_service(self, serializer):
+        service = service_of(self.request.user)
+        facility = serializer.validated_data.get('facility')
+        if service is not None and facility is not None and facility.pk != service.pk:
+            raise PermissionDenied("Vous ne gérez que les véhicules de votre service.")
+        return service
+
+    def perform_create(self, serializer):
+        service = self._check_service(serializer)
+        if service is not None and 'facility' not in serializer.validated_data:
+            serializer.save(facility=service)
+        else:
+            serializer.save()
+
+    def perform_update(self, serializer):
+        self._check_service(serializer)
+        serializer.save()
+
     @action(detail=False, methods=['get'])
     def nearest(self, request):
         """GET /api/ambulances/vehicles/nearest/ ?latitude=&longitude= &radius_km=50
@@ -137,6 +192,7 @@ class AmbulanceViewSet(
             radius_m=query['radius_m'],
             limit=query['limit'],
             ambulance_type=choice_param(params, 'ambulance_type', Ambulance.AmbulanceType.values),
+            facility=service_of(request.user),
         )
         return Response(NearbyAmbulanceSerializer(ambulances, many=True).data)
 
@@ -191,16 +247,14 @@ class MissionViewSet(
 
     def get_permissions(self):
         if self.action in self.DISPATCH_ACTIONS:
-            return [IsAdminOrHospitalStaff()]
-        return [CanViewFleet()]
+            return [ManagesAmbulances()]
+        return [CanViewMissions()]
 
     def get_queryset(self):
         queryset = Mission.objects.select_related(
             'ambulance__facility', 'ambulance__driver', 'destination', 'created_by'
         )
-        if not is_dispatcher(self.request.user):
-            # Un conducteur ne voit que les missions de son ambulance.
-            queryset = queryset.filter(ambulance__driver=self.request.user)
+        queryset = queryset.filter(self._visible_missions(self.request.user))
         if self.action != 'list':
             return queryset
         params = self.request.query_params
@@ -220,12 +274,31 @@ class MissionViewSet(
             queryset = queryset.filter(status__in=Mission.FINAL_STATUSES)
         return queryset.order_by('-created_at')
 
+    @staticmethod
+    def _visible_missions(user):
+        """Missions visibles, selon les rôles cumulés de l'utilisateur."""
+        if national_dispatcher(user):
+            return Q()
+        visible = Q(pk__in=[])
+        facility = user_facility(user)
+        if facility is not None and user_has_role(user, Role.AMBULANCE_MANAGER):
+            visible |= Q(region=facility.region)
+        if facility is not None and user_has_role(user, Role.BED_MANAGER):
+            visible |= Q(destination_id=facility.pk)
+        if user_has_role(user, Role.AMBULANCE_DRIVER):
+            # Un conducteur ne voit que les missions de son ambulance.
+            visible |= Q(ambulance__driver=user)
+        return visible
+
     def _reloaded(self, mission):
         return self.get_queryset().get(pk=mission.pk)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        service = service_of(request.user)
+        if service is not None and serializer.validated_data.get('region') != service.region:
+            raise PermissionDenied("Vous ne régulez que les missions de votre région.")
         mission = services.create_mission(created_by=request.user, **serializer.validated_data)
         return Response(
             self.get_serializer(self._reloaded(mission)).data, status=status.HTTP_201_CREATED
@@ -246,7 +319,11 @@ class MissionViewSet(
         mission = self.get_object()
         serializer = AssignSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        mission = services.assign(mission, **serializer.validated_data)
+        service = service_of(request.user)
+        chosen = serializer.validated_data.get('ambulance')
+        if service is not None and chosen is not None and chosen.facility_id != service.pk:
+            raise PermissionDenied("Vous n'affectez que les véhicules de votre service.")
+        mission = services.assign(mission, facility=service, **serializer.validated_data)
         return Response(self.get_serializer(self._reloaded(mission)).data)
 
     @action(detail=True, methods=['post'], url_path='status')
@@ -308,6 +385,10 @@ class MissionViewSet(
         days = int_param(params, 'days', default=30, maximum=365)
         missions = Mission.objects.all()
         ambulances = Ambulance.objects.all()
+        service = service_of(request.user)
+        if service is not None:
+            missions = missions.filter(region=service.region)
+            ambulances = ambulances.filter(facility=service)
         region = choice_param(params, 'region', REGION_CODES)
         if region:
             missions = missions.filter(region=region)

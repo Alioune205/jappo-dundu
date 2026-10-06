@@ -162,14 +162,17 @@ export const RISK_LEVELS: (Option<RiskLevel> & { tone: Tone; color: string })[] 
 ]
 
 export const ROLES: (Option<Role> & { tone: Tone })[] = [
-  { value: 'admin', label: 'Administrateur', tone: 'brand' },
-  { value: 'hospital_staff', label: 'Personnel hospitalier', tone: 'info' },
+  { value: 'admin', label: 'Administrateur général', tone: 'brand' },
+  { value: 'bed_manager', label: 'Administrateur des lits', tone: 'info' },
+  { value: 'blood_manager', label: 'Administrateur du sang', tone: 'danger' },
+  { value: 'ambulance_manager', label: 'Administrateur des ambulances', tone: 'warning' },
+  { value: 'hospital_staff', label: 'Personnel hospitalier (historique)', tone: 'neutral' },
   { value: 'ambulance_driver', label: 'Ambulancier', tone: 'warning' },
   { value: 'donor', label: 'Donneur', tone: 'success' },
 ]
 
 /** Rôles ayant accès à l'interface web (les autres utilisent l'application mobile). */
-export const WEB_ROLES: Role[] = ['admin', 'hospital_staff']
+export const WEB_ROLES: Role[] = ['admin', 'bed_manager', 'blood_manager', 'ambulance_manager', 'hospital_staff']
 
 export function labelOf<T extends string>(options: readonly Option<T>[], value: T | null | undefined): string {
   if (value == null) return '—'

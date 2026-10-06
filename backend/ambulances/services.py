@@ -121,14 +121,19 @@ def notify_ambulance(ambulance, event):
 # =============================================================
 
 
-def find_nearest_available(point, *, radius_m, limit, ambulance_type=None):
-    """Ambulances disponibles les plus proches (chacune porte ``distance_m``)."""
+def find_nearest_available(point, *, radius_m, limit, ambulance_type=None, facility=None):
+    """Ambulances disponibles les plus proches (chacune porte ``distance_m``).
+
+    ``facility`` : limite la recherche aux véhicules de ce service.
+    """
     queryset = Ambulance.objects.filter(
         status=AmbulanceStatus.AVAILABLE,
         facility__is_active=True,
     ).select_related('facility', 'driver')
     if ambulance_type:
         queryset = queryset.filter(ambulance_type=ambulance_type)
+    if facility is not None:
+        queryset = queryset.filter(facility=facility)
     return nearest(queryset, point, radius_m=radius_m, limit=limit)
 
 
@@ -192,8 +197,13 @@ def _claim(ambulance):
 
 
 @transaction.atomic
-def assign(mission, *, ambulance=None, ambulance_type=None, radius_km=DEFAULT_DISPATCH_RADIUS_KM):
-    """Affecte une ambulance : celle indiquée, ou la plus proche disponible."""
+def assign(
+    mission, *, ambulance=None, ambulance_type=None, radius_km=DEFAULT_DISPATCH_RADIUS_KM, facility=None
+):
+    """Affecte une ambulance : celle indiquée, ou la plus proche disponible.
+
+    ``facility`` : recherche automatique limitée aux véhicules de ce service.
+    """
     mission = _locked_mission(mission)
     if mission.status != MissionStatus.PENDING:
         raise Conflict("Seule une mission en attente peut recevoir une ambulance.")
@@ -208,6 +218,7 @@ def assign(mission, *, ambulance=None, ambulance_type=None, radius_km=DEFAULT_DI
             radius_m=radius_km * 1000,
             limit=DISPATCH_CANDIDATES,
             ambulance_type=ambulance_type,
+            facility=facility,
         )
         chosen = next((candidate for candidate in candidates if _claim(candidate)), None)
         if chosen is None:

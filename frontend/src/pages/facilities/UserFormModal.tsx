@@ -17,7 +17,7 @@ const EMPTY_USER: AdminUserInput = {
   email: '',
   phone_number: '',
   region: 'dakar',
-  role: 'hospital_staff',
+  role: 'bed_manager',
   facility_id: null,
   is_active: true,
 }
@@ -103,7 +103,8 @@ const UserForm: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           onChange={(e) => set({ phone_number: e.target.value })}
         />
         <Select label="Rôle" value={form.role} onChange={(e) => set({ role: e.target.value as Role })}>
-          {ROLES.map((r) => (
+          {/* Le rôle historique n'est plus proposé à la création ; il reste lisible sur les comptes existants. */}
+          {ROLES.filter((r) => r.value !== 'hospital_staff' || form.role === 'hospital_staff').map((r) => (
             <option key={r.value} value={r.value}>
               {r.label}
             </option>

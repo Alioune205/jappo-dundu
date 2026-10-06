@@ -27,7 +27,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
 from ml.constants import REGION_CODES
-from security.roles import Role, get_user_roles
+from security.roles import DOMAIN_ROLES, Domain, Role, get_user_roles
 
 logger = logging.getLogger('jappo_dundu.realtime')
 
@@ -39,13 +39,20 @@ MAX_MESSAGE_CHARS = 4096
 MAX_GROUPS_PER_CONNECTION = 20
 MAX_HOSPITAL_ID = 2**31 - 1
 
-# Rôles autorisés à suivre le périmètre d'un hôpital précis.
-HOSPITAL_SCOPE_ROLES = frozenset(
-    {Role.ADMIN, Role.HOSPITAL_STAFF, Role.AMBULANCE_DRIVER}
+# Rôles autorisés à suivre le périmètre d'un établissement précis.
+HOSPITAL_SCOPE_ROLES = (
+    DOMAIN_ROLES[Domain.BEDS]
+    | DOMAIN_ROLES[Domain.BLOOD]
+    | DOMAIN_ROLES[Domain.AMBULANCES]
+    | {Role.AMBULANCE_DRIVER}
 )
-# Rôles professionnels : seuls à recevoir les alertes lits et ambulances, qui
-# portent l'adresse et la position GPS du lieu de prise en charge du patient.
-PROFESSIONAL_ROLES = HOSPITAL_SCOPE_ROLES
+# Alertes réservées aux professionnels concernés. Les alertes lits et
+# ambulances portent l'adresse et la position GPS du lieu de prise en charge
+# du patient : jamais transmises aux donneurs.
+BED_ALERT_ROLES = DOMAIN_ROLES[Domain.BEDS] | DOMAIN_ROLES[Domain.AMBULANCES] | {Role.AMBULANCE_DRIVER}
+AMBULANCE_ALERT_ROLES = DOMAIN_ROLES[Domain.AMBULANCES] | {Role.AMBULANCE_DRIVER}
+# Alertes sang : donneurs (application mobile) et administrateurs du sang.
+BLOOD_ALERT_ROLES = DOMAIN_ROLES[Domain.BLOOD] | {Role.DONOR}
 
 
 def facility_of(user):
@@ -321,8 +328,9 @@ class AlertConsumer(BaseRealtimeConsumer):
     }
 
     restricted_events = {
-        'bed_alert': PROFESSIONAL_ROLES,
-        'ambulance_alert': PROFESSIONAL_ROLES,
+        'bed_alert': BED_ALERT_ROLES,
+        'ambulance_alert': AMBULANCE_ALERT_ROLES,
+        'blood_alert': BLOOD_ALERT_ROLES,
     }
 
     alert_message = BaseRealtimeConsumer.forward_event
@@ -340,7 +348,9 @@ class DashboardConsumer(BaseRealtimeConsumer):
     """
 
     group_prefix = 'dashboard'
-    allowed_roles = frozenset({Role.ADMIN, Role.HOSPITAL_STAFF})
+    allowed_roles = (
+        DOMAIN_ROLES[Domain.BEDS] | DOMAIN_ROLES[Domain.BLOOD] | DOMAIN_ROLES[Domain.AMBULANCES]
+    )
     scopes = ('hospital',)
     welcome_message = "Connecté au tableau de bord Jappo Dundu"
     event_types = {

@@ -12,13 +12,13 @@ import {
 import { useAuth } from '@/context/AuthContext'
 import { useRealtime } from '@/context/RealtimeContext'
 import { BrandMark, BrandName } from './BrandMark'
+import { canOpen, primaryRoleLabel } from '@/lib/access'
 
 interface NavItem {
   to: string
   label: string
   icon: React.ElementType
   badge?: number
-  adminOnly?: boolean
 }
 
 interface NavSection {
@@ -31,7 +31,7 @@ interface NavSection {
  * d'icônes pour laisser la place aux tableaux.
  */
 export const Sidebar: React.FC = () => {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, roles } = useAuth()
   const { unreadCount } = useRealtime()
 
   const navSections: NavSection[] = [
@@ -51,7 +51,7 @@ export const Sidebar: React.FC = () => {
       title: 'Pilotage',
       items: [
         { to: '/ml', label: 'Prévisions de pénurie', icon: BrainCircuit },
-        { to: '/facilities', label: 'Structures', icon: Building2, adminOnly: true },
+        { to: '/facilities', label: 'Structures', icon: Building2 },
       ],
     },
     {
@@ -66,15 +66,16 @@ export const Sidebar: React.FC = () => {
         <BrandMark className="h-10 w-10 shrink-0" />
         <span className="hidden min-w-0 lg:block">
           <BrandName className="block text-xl leading-tight" />
-          <span className="block truncate text-2xs text-sidebar-muted">
-            {isAdmin ? 'Supervision nationale' : 'Espace hôpital'}
+          <span className="block text-2xs leading-snug text-sidebar-muted">
+            {isAdmin ? 'Supervision nationale' : primaryRoleLabel(roles)}
           </span>
         </span>
       </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-2.5 py-6 lg:px-4" aria-label="Navigation principale">
         {navSections.map((section) => {
-          const visibleItems = section.items.filter((item) => !item.adminOnly || isAdmin)
+          // Chaque rôle ne voit que les modules qu'il peut ouvrir (lib/access.ts).
+          const visibleItems = section.items.filter((item) => canOpen(roles, item.to))
           if (visibleItems.length === 0) return null
 
           return (

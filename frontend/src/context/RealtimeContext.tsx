@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, useCallb
 import { api } from '@/lib/api'
 import { openRealtimeSocket, type RealtimeMessage } from '@/lib/realtimeSocket'
 import { useAuth } from './AuthContext'
+import { canManage, rolesOf } from '@/lib/access'
 
 export interface RealtimeAlert {
   id: string
@@ -147,9 +148,9 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // profil (nouvel objet `user`) ne doit pas couper les connexions.
   const userId = user?.id
   const facilityId = user?.facility?.id
-  // Le flux tableau de bord est réservé aux administrateurs et au personnel hospitalier.
-  const userRoles: string[] = user ? [user.role ?? '', ...(user.roles ?? [])] : []
-  const canFollowDashboard = userRoles.includes('admin') || userRoles.includes('hospital_staff')
+  // Le flux tableau de bord est réservé aux administrateurs (général ou de domaine).
+  const userRoles = rolesOf(user)
+  const canFollowDashboard = (['beds', 'blood', 'ambulances'] as const).some((d) => canManage(userRoles, d))
 
   useEffect(() => {
     if (!isAuthenticated || userId === undefined) return

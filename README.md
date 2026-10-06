@@ -16,6 +16,19 @@ Ce projet de fin d'études vise à interconnecter les établissements de santé,
 
 ---
 
+## 🔐 Rôles d'administration
+
+| Rôle | Gère | Périmètre |
+|---|---|---|
+| Administrateur général | tout, comptes et établissements | national |
+| Administrateur des lits | capacités, entrées / sorties ; suit les missions vers son hôpital | son hôpital |
+| Administrateur du sang | demandes de sang, dons, prévisions de pénurie | son établissement (CNTS : sa région) |
+| Administrateur des ambulances | véhicules, missions SAMU, affectation | son service, sa région |
+
+Détail des droits et règles de code : `backend/security/README.md`.
+Comptes de démonstration (`python seed_demo_data.py`, mot de passe `Password123!`) :
+`admin`, `dr.diop` (lits), `cnts.dakar` (sang), `samu.regulation` (ambulances).
+
 ## 👥 Équipe & Répartition des Tâches (Dispatching)
 
 > Ce projet est réalisé par 4 étudiants de l'ISEPD (Filière Analyse de Performance Digitale).

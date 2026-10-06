@@ -5,9 +5,10 @@ Source unique de vérité pour les rôles : les permissions DRF, les claims
 JWT et les consumers WebSocket s'appuient tous sur ce module.
 
 Un utilisateur obtient un rôle :
-- ``admin`` s'il est ``is_staff`` ou ``is_superuser`` ;
-- ``hospital_staff``, ``ambulance_driver`` ou ``donor`` s'il appartient au
-  groupe Django du même nom (créés par ``python manage.py setup_roles``) ;
+- ``admin`` (administrateur général) s'il est ``is_staff`` ou ``is_superuser`` ;
+- ``bed_manager``, ``blood_manager``, ``ambulance_manager``, ``hospital_staff``,
+  ``ambulance_driver`` ou ``donor`` s'il appartient au groupe Django du même
+  nom (créés par ``python manage.py setup_roles``) ;
 - n'importe quel rôle via un attribut ``role`` sur le modèle utilisateur,
   si le module ``users`` en ajoute un.
 
@@ -21,6 +22,13 @@ class Role(StrEnum):
     """Rôles reconnus par la plateforme."""
 
     ADMIN = 'admin'
+    # Administrateurs spécialisés, rattachés à un établissement.
+    BED_MANAGER = 'bed_manager'
+    BLOOD_MANAGER = 'blood_manager'
+    AMBULANCE_MANAGER = 'ambulance_manager'
+    # Rôle historique : couvre les trois domaines, comme avant leur séparation.
+    # Conservé pour les comptes existants ; les nouveaux comptes reçoivent un
+    # rôle spécialisé.
     HOSPITAL_STAFF = 'hospital_staff'
     AMBULANCE_DRIVER = 'ambulance_driver'
     DONOR = 'donor'
@@ -30,12 +38,54 @@ class Role(StrEnum):
 ROLE_PRIORITY = (
     Role.ADMIN,
     Role.HOSPITAL_STAFF,
+    Role.AMBULANCE_MANAGER,
+    Role.BLOOD_MANAGER,
+    Role.BED_MANAGER,
     Role.AMBULANCE_DRIVER,
     Role.DONOR,
 )
 
 # Rôles matérialisés par un groupe Django. L'admin est porté par is_staff.
-GROUP_ROLES = (Role.HOSPITAL_STAFF, Role.AMBULANCE_DRIVER, Role.DONOR)
+GROUP_ROLES = (
+    Role.BED_MANAGER,
+    Role.BLOOD_MANAGER,
+    Role.AMBULANCE_MANAGER,
+    Role.HOSPITAL_STAFF,
+    Role.AMBULANCE_DRIVER,
+    Role.DONOR,
+)
+
+
+class Domain(StrEnum):
+    """Domaines d'administration de la plateforme."""
+
+    BEDS = 'beds'
+    BLOOD = 'blood'
+    AMBULANCES = 'ambulances'
+
+
+# Rôles qui ADMINISTRENT chaque domaine (lecture et écriture, dans leur périmètre).
+DOMAIN_ROLES = {
+    Domain.BEDS: frozenset({Role.ADMIN, Role.HOSPITAL_STAFF, Role.BED_MANAGER}),
+    Domain.BLOOD: frozenset({Role.ADMIN, Role.HOSPITAL_STAFF, Role.BLOOD_MANAGER}),
+    Domain.AMBULANCES: frozenset({Role.ADMIN, Role.HOSPITAL_STAFF, Role.AMBULANCE_MANAGER}),
+}
+
+# Rôles rattachés à un établissement (obligatoire à la création du compte).
+FACILITY_ROLES = frozenset(
+    {
+        Role.BED_MANAGER,
+        Role.BLOOD_MANAGER,
+        Role.AMBULANCE_MANAGER,
+        Role.HOSPITAL_STAFF,
+        Role.AMBULANCE_DRIVER,
+    }
+)
+
+# Rôles ayant accès à l'interface web (les autres utilisent l'application mobile).
+WEB_ROLES = frozenset(
+    {Role.ADMIN, Role.BED_MANAGER, Role.BLOOD_MANAGER, Role.AMBULANCE_MANAGER, Role.HOSPITAL_STAFF}
+)
 
 
 def _is_authenticated(user):
@@ -79,3 +129,8 @@ def user_has_role(user, *roles):
 def primary_role(roles):
     """Rôle principal selon ``ROLE_PRIORITY`` (None si aucun rôle)."""
     return next((role for role in ROLE_PRIORITY if role in roles), None)
+
+
+def manages(user, domain):
+    """Indique si l'utilisateur administre ``domain`` (dans son périmètre)."""
+    return user_has_role(user, *DOMAIN_ROLES[Domain(domain)])

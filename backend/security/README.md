@@ -21,37 +21,64 @@ Responsable : El Hadji Massogui Diop
 
 ## Rôles
 
-| Rôle | Attribution |
-|---|---|
-| `admin` | compte `is_staff` |
-| `hospital_staff` | groupe Django `hospital_staff` |
-| `ambulance_driver` | groupe `ambulance_driver` |
-| `donor` | groupe `donor` |
+| Rôle | Libellé | Attribution | Établissement |
+|---|---|---|---|
+| `admin` | Administrateur général | compte `is_staff` | aucun (national) |
+| `bed_manager` | Administrateur des lits | groupe `bed_manager` | hôpital, centre de santé, clinique |
+| `blood_manager` | Administrateur du sang | groupe `blood_manager` | CNTS ou hôpital |
+| `ambulance_manager` | Administrateur des ambulances | groupe `ambulance_manager` | service d'ambulances (ou hôpital) |
+| `hospital_staff` | Personnel hospitalier (historique) | groupe `hospital_staff` | obligatoire |
+| `ambulance_driver` | Ambulancier | groupe `ambulance_driver` | facultatif |
+| `donor` | Donneur | groupe `donor` | aucun |
 
 Les groupes sont créés par `python manage.py setup_roles` (idempotent, lancé à
-chaque déploiement). Si le module `users` ajoute un champ `role` au modèle
-utilisateur, il est pris en compte automatiquement.
+chaque déploiement). Un compte peut cumuler plusieurs rôles (ex. lits + sang
+dans un petit hôpital). `hospital_staff` est le rôle d'avant la séparation des
+domaines : il garde exactement ses droits (lits, sang et régulation nationale)
+mais n'est plus proposé pour les nouveaux comptes.
+
+### Matrice des droits
+
+L = lecture, É = écriture ; « son étab. » = filtré sur `UserProfile.facility`.
+
+| Module | admin | bed_manager | blood_manager | ambulance_manager |
+|---|---|---|---|---|
+| Lits : capacités, entrées / sorties | L+É partout | L partout, É son étab. | 403 | L partout |
+| Sang : demandes, dons, donneurs proches | L+É partout | 403 | L+É son étab. (CNTS : sa région) | 403 |
+| Prévisions ML | L+É | 403 | L+É | 403 |
+| Véhicules | L+É partout | 403 | 403 | L+É son service |
+| Missions SAMU | L+É partout | L (vers son étab.) | 403 | L+É sa région, ses véhicules |
+| Comptes et établissements | L+É | 403 | 403 | 403 |
+| Alertes temps réel | toutes | lits | sang | lits, ambulances |
+
+Règles transverses : le filtrage se fait dans les `get_queryset()` (un objet
+hors périmètre renvoie 404) et dans `has_object_permission` (403) ; jamais
+seulement côté interface.
 
 ## Protéger une vue (modules sang, lits, ambulances, users)
 
 Toute route exige déjà un utilisateur authentifié (réglage par défaut de DRF).
-Pour restreindre à des rôles :
+Pour un domaine, avec cloisonnement par établissement :
 
 ```python
-from security.permissions import IsAdminOrHospitalStaff, role_permission
-from security.roles import Role
+from security.roles import Domain
+from users.permissions import facility_permission, facility_for_write, scope_to_facility
 
-class DemandeSangView(APIView):
-    permission_classes = [IsAdminOrHospitalStaff]
+class DemandeSangViewSet(viewsets.ModelViewSet):
+    permission_classes = [facility_permission(Domain.BLOOD)]
 
-class PositionAmbulanceView(APIView):
-    permission_classes = [role_permission(Role.ADMIN, Role.AMBULANCE_DRIVER)]
+    def get_queryset(self):
+        return scope_to_facility(BloodRequest.objects.all(), self.request.user, Domain.BLOOD)
 ```
 
-Classes disponibles : `IsAdmin`, `IsHospitalStaff`, `IsDonor`,
-`IsAmbulanceDriver`, `IsAdminOrHospitalStaff`, `IsOwnerOrAdmin` (l'objet doit
-avoir un attribut `user` ou `owner`), et `role_permission(...)` pour toute autre
-combinaison. Dans du code métier : `security.roles.user_has_role(user, Role.DONOR)`.
+Sans objet rattaché à un établissement : `ManagesBeds`, `ManagesBlood`,
+`ManagesAmbulances` (rôles du domaine, `security.roles.DOMAIN_ROLES`). Autres
+classes : `IsAdmin`, `IsDonor`, `IsAmbulanceDriver`, `IsOwnerOrAdmin`, et
+`role_permission(...)` pour toute autre combinaison. Dans du code métier :
+`security.roles.manages(user, Domain.BEDS)` ou `user_has_role(user, Role.DONOR)`.
+
+La matrice est reprise côté web dans `frontend/src/lib/access.ts` (affichage
+des modules et des boutons) ; toute modification doit être faite des deux côtés.
 
 ## Supervision
 

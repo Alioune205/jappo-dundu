@@ -16,6 +16,7 @@ export const BedCards: React.FC<{ capacities: BedCapacity[] } & CapacityActions>
   isDischarging,
   admitBusy,
   dischargeBusy,
+  canEdit,
 }) => (
   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
     {capacities.map((cap) => {
@@ -34,6 +35,7 @@ export const BedCards: React.FC<{ capacities: BedCapacity[] } & CapacityActions>
                 {cap.facility?.name} · {cap.facility?.city}
               </p>
             </div>
+            {canEdit(cap) && (
             <Button
               variant="ghost"
               size="sm"
@@ -44,6 +46,7 @@ export const BedCards: React.FC<{ capacities: BedCapacity[] } & CapacityActions>
             >
               <Edit2 className="h-3.5 w-3.5" />
             </Button>
+            )}
           </div>
 
           <div className="flex items-end justify-between gap-4 px-4 py-3">
@@ -62,6 +65,8 @@ export const BedCards: React.FC<{ capacities: BedCapacity[] } & CapacityActions>
           </div>
 
           <div className="flex items-center gap-2 border-t border-line px-4 py-2">
+            {canEdit(cap) ? (
+              <>
             <Button
               variant="secondary"
               size="sm"
@@ -84,6 +89,10 @@ export const BedCards: React.FC<{ capacities: BedCapacity[] } & CapacityActions>
             >
               Sortie
             </Button>
+              </>
+            ) : (
+              <span className="flex-1 text-2xs text-subtle">Lecture seule</span>
+            )}
             <span className="num shrink-0 text-2xs text-subtle" title="Dernière mise à jour">
               {formatDateTime(cap.updated_at)}
             </span>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { primaryRoleLabel } from '@/lib/access'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -8,7 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { formatDateTime } from '@/lib/format'
 
 export const Profile: React.FC = () => {
-  const { user, refreshProfile } = useAuth()
+  const { user, refreshProfile, roles } = useAuth()
 
   // Modification du profil
   const [firstName, setFirstName] = useState(user?.first_name || '')
@@ -88,7 +89,7 @@ export const Profile: React.FC = () => {
 
   const facts: { label: string; value: React.ReactNode }[] = [
     { label: 'Identifiant', value: <span className="num">{user?.username}</span> },
-    { label: 'Rôle', value: user?.role === 'admin' ? 'Administrateur' : 'Personnel hospitalier' },
+    { label: 'Rôle', value: primaryRoleLabel(roles) },
     {
       label: 'Établissement',
       value: user?.facility ? `${user.facility.name} · ${user.facility.city}` : 'Aucun rattachement',

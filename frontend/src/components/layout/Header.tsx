@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router'
 import { Bell, LogOut, Sun, Moon } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { primaryRoleLabel } from '@/lib/access'
 import { useRealtime } from '@/context/RealtimeContext'
 import { useTheme } from '@/context/ThemeContext'
 import { formatTime } from '@/lib/format'
@@ -36,7 +37,7 @@ const iconButton =
   'relative inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-fg'
 
 export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
-  const { logout, user } = useAuth()
+  const { logout, user, roles } = useAuth()
   const displayName = user?.full_name || user?.username || ''
   const firstName = user?.first_name || displayName.split(' ')[0]
   const initial = (displayName || 'U').charAt(0).toUpperCase()
@@ -177,7 +178,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
           <span className="hidden text-right leading-tight md:block">
             <span className="block text-sm font-semibold text-fg">{user?.facility?.name ?? displayName}</span>
             <span className="block text-2xs text-brand">
-              {user?.role === 'admin' ? 'Administrateur' : 'Personnel hospitalier'}
+              {primaryRoleLabel(roles)}
             </span>
           </span>
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-[#05244a] text-sm font-semibold text-white shadow-[var(--shadow-panel)]">

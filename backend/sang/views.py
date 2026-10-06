@@ -36,16 +36,19 @@ from rest_framework.views import APIView
 
 from geo.distance import GeoPoint
 from ml.constants import BLOOD_GROUP_CODES, REGION_CODES
-from security.permissions import IsAdminOrHospitalStaff
-from security.roles import Role
+from security.permissions import ManagesBlood
+from security.roles import Domain, Role
 from users.exceptions import Conflict
 from users.filters import choice_param, int_param
 from users.permissions import (
-    IsFacilityStaffOrAdmin,
     facility_for_write,
+    facility_permission,
     is_admin,
     scope_to_facility,
 )
+
+# Administrateurs du sang, limités à leur périmètre (CNTS : sa région).
+CanManageBlood = facility_permission(Domain.BLOOD)
 from users.services import add_role
 from users.validators import normalize_phone_number
 
@@ -149,7 +152,7 @@ class DonorLookupView(APIView):
     Recherche exacte uniquement : l'annuaire des donneurs n'est pas consultable.
     """
 
-    permission_classes = [IsAdminOrHospitalStaff]
+    permission_classes = [ManagesBlood]
 
     def get(self, request):
         raw = request.query_params.get('phone_number', '')
@@ -206,11 +209,12 @@ class BloodRequestViewSet(
                                 "facility_id" (admin uniquement)}
     PATCH /api/sang/requests/<id>/  (demande ouverte : besoin, urgence, rayon...)
 
-    Le personnel ne voit et ne gère que les demandes de son établissement.
+    Un administrateur du sang ne voit et ne gère que les demandes de son
+    établissement (CNTS : celles de sa région).
     """
 
     serializer_class = BloodRequestSerializer
-    permission_classes = [IsFacilityStaffOrAdmin]
+    permission_classes = [CanManageBlood]
     http_method_names = ['get', 'post', 'patch', 'head', 'options']
     lookup_value_regex = r'\d+'
 
@@ -228,6 +232,7 @@ class BloodRequestViewSet(
         queryset = scope_to_facility(
             BloodRequest.objects.select_related('facility', 'created_by'),
             self.request.user,
+            Domain.BLOOD,
         ).annotate(
             accepted_count=Count(
                 'responses', filter=Q(responses__status=DonorResponse.Status.ACCEPTED)
@@ -261,7 +266,7 @@ class BloodRequestViewSet(
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = dict(serializer.validated_data)
-        facility = facility_for_write(request.user, data.pop('facility', None))
+        facility = facility_for_write(request.user, data.pop('facility', None), domain=Domain.BLOOD)
         blood_request = services.create_request(facility=facility, created_by=request.user, **data)
         return Response(
             self.get_serializer(self._reloaded(blood_request)).data,
@@ -409,13 +414,14 @@ class DonationViewSet(
     """
 
     serializer_class = DonationSerializer
-    permission_classes = [IsFacilityStaffOrAdmin]
+    permission_classes = [CanManageBlood]
     lookup_value_regex = r'\d+'
 
     def get_queryset(self):
         queryset = scope_to_facility(
             Donation.objects.select_related('donor__user', 'facility', 'recorded_by'),
             self.request.user,
+            Domain.BLOOD,
         )
         params = self.request.query_params
         donor = int_param(params, 'donor')
@@ -430,7 +436,7 @@ class DonationViewSet(
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        facility = facility_for_write(request.user, data.get('facility'))
+        facility = facility_for_write(request.user, data.get('facility'), domain=Domain.BLOOD)
         if not facility.is_active:
             raise Conflict("Cet établissement est désactivé.")
         donation = services.record_donation(

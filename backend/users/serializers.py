@@ -18,7 +18,7 @@ from rest_framework import serializers
 
 from geo.serializers import distance_km
 from ml.constants import REGIONS
-from security.roles import Role, primary_role
+from security.roles import FACILITY_ROLES, Role, primary_role
 
 from . import services
 from .models import HealthFacility, UserProfile
@@ -27,8 +27,21 @@ from .validators import normalize_phone_number
 User = get_user_model()
 
 ROLE_CHOICES = [(role.value, role.value) for role in Role]
-# Rôles pouvant être rattachés à un établissement.
-FACILITY_ROLES = frozenset({Role.HOSPITAL_STAFF, Role.AMBULANCE_DRIVER})
+
+_Type = HealthFacility.FacilityType
+# Établissement obligatoire, et types acceptés, pour chaque rôle rattaché.
+FACILITY_TYPES_BY_ROLE = {
+    Role.BED_MANAGER: frozenset({_Type.HOSPITAL, _Type.HEALTH_CENTER, _Type.CLINIC}),
+    Role.BLOOD_MANAGER: frozenset({_Type.BLOOD_BANK, _Type.HOSPITAL, _Type.HEALTH_CENTER, _Type.CLINIC}),
+    Role.AMBULANCE_MANAGER: frozenset({_Type.AMBULANCE_SERVICE, _Type.HOSPITAL}),
+    Role.HOSPITAL_STAFF: frozenset(_Type.values),
+}
+ROLE_LABELS = {
+    Role.BED_MANAGER: "l'administrateur des lits",
+    Role.BLOOD_MANAGER: "l'administrateur du sang",
+    Role.AMBULANCE_MANAGER: "l'administrateur des ambulances",
+    Role.HOSPITAL_STAFF: "le personnel hospitalier",
+}
 
 DUPLICATE_PHONE = "Ce numéro de téléphone est déjà utilisé."
 DUPLICATE_EMAIL = "Cette adresse e-mail est déjà utilisée."
@@ -299,16 +312,23 @@ class UserAdminSerializer(AccountSerializer):
                 raise serializers.ValidationError(
                     {
                         'facility_id': [
-                            "Seuls le personnel hospitalier et les ambulanciers sont "
-                            "rattachés à un établissement."
+                            "Seuls les administrateurs spécialisés, le personnel hospitalier "
+                            "et les ambulanciers sont rattachés à un établissement."
                         ]
                     }
                 )
             profile_data['facility'] = facility = None
-        if role == Role.HOSPITAL_STAFF and facility is None:
-            raise serializers.ValidationError(
-                {'facility_id': ["Obligatoire pour le personnel hospitalier."]}
-            )
+        allowed_types = FACILITY_TYPES_BY_ROLE.get(role)
+        if allowed_types is not None:
+            if facility is None:
+                raise serializers.ValidationError(
+                    {'facility_id': [f"Obligatoire pour {ROLE_LABELS[role]}."]}
+                )
+            if facility.facility_type not in allowed_types:
+                kinds = ', '.join(sorted(_Type(t).label for t in allowed_types))
+                raise serializers.ValidationError(
+                    {'facility_id': [f"Établissement incompatible avec ce rôle (attendu : {kinds})."]}
+                )
         if 'facility' in profile_data and facility is not None and not facility.is_active:
             raise serializers.ValidationError(
                 {'facility_id': ["Cet établissement est désactivé."]}

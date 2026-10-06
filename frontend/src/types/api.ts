@@ -4,7 +4,14 @@
  * sérialiseur doit être répercutée ici.
  */
 
-export type Role = 'admin' | 'hospital_staff' | 'ambulance_driver' | 'donor'
+export type Role =
+  | 'admin'
+  | 'bed_manager'
+  | 'blood_manager'
+  | 'ambulance_manager'
+  | 'hospital_staff'
+  | 'ambulance_driver'
+  | 'donor'
 export type RegionCode =
   | 'dakar'
   | 'thies'

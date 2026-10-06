@@ -23,9 +23,9 @@ from rest_framework.response import Response
 from geo.serializers import parse_nearby_query
 from ml.constants import REGION_CODES, REGION_LABELS
 from security.permissions import role_permission
-from security.roles import Role
+from security.roles import DOMAIN_ROLES, Domain, Role
 from users.filters import boolean_param, choice_param, int_param
-from users.permissions import IsFacilityStaffOrAdmin, facility_for_write
+from users.permissions import facility_for_write, facility_permission
 
 from . import services
 from .models import BedCapacity
@@ -34,12 +34,15 @@ from .serializers import BedCapacitySerializer, NearbyBedFacilitySerializer
 CATEGORY_CODES = tuple(BedCapacity.Category.values)
 CATEGORY_LABELS = dict(BedCapacity.Category.choices)
 
+# Lecture : administrateurs des lits, et régulation / ambulanciers qui orientent
+# les patients vers les lits libres. Écriture : administrateurs des lits seulement.
 CanViewBeds = role_permission(
-    Role.ADMIN,
-    Role.HOSPITAL_STAFF,
+    *DOMAIN_ROLES[Domain.BEDS],
+    Role.AMBULANCE_MANAGER,
     Role.AMBULANCE_DRIVER,
-    message="Accès réservé au personnel de santé et aux ambulanciers.",
+    message="Accès réservé aux administrateurs des lits et à la régulation.",
 )
+CanManageBeds = facility_permission(Domain.BEDS)
 
 
 class BedCapacityViewSet(
@@ -65,7 +68,7 @@ class BedCapacityViewSet(
     def get_permissions(self):
         if self.action in self.READ_ACTIONS:
             return [CanViewBeds()]
-        return [IsFacilityStaffOrAdmin()]
+        return [CanManageBeds()]
 
     def get_queryset(self):
         queryset = BedCapacity.objects.select_related('facility', 'updated_by').filter(
@@ -94,7 +97,7 @@ class BedCapacityViewSet(
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = dict(serializer.validated_data)
-        facility = facility_for_write(request.user, data.pop('facility', None))
+        facility = facility_for_write(request.user, data.pop('facility', None), domain=Domain.BEDS)
         capacity = services.create_capacity(facility=facility, updated_by=request.user, **data)
         return Response(self.get_serializer(capacity).data, status=status.HTTP_201_CREATED)
 

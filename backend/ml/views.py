@@ -19,7 +19,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from security.permissions import IsAdminOrHospitalStaff
+from security.permissions import ManagesBlood
 from security.roles import Role, user_has_role
 
 from .constants import BLOOD_GROUP_CODES, REGION_CODES, REGION_LABELS
@@ -75,7 +75,7 @@ class PredictionListView(generics.ListAPIView):
     """
 
     serializer_class = PredictionResultSerializer
-    permission_classes = [IsAdminOrHospitalStaff]
+    permission_classes = [ManagesBlood]
 
     def get_queryset(self):
         params = self.request.query_params
@@ -106,7 +106,7 @@ class PredictionByRegionView(APIView):
     GET /api/ml/predictions/summary/
     """
 
-    permission_classes = [IsAdminOrHospitalStaff]
+    permission_classes = [ManagesBlood]
 
     def get(self, request):
         summary = (
@@ -145,7 +145,7 @@ class PredictOnDemandView(APIView):
     l'événement temps réel ``prediction_update``.
     """
 
-    permission_classes = [IsAdminOrHospitalStaff]
+    permission_classes = [ManagesBlood]
     throttle_scope = 'ml_predict'
 
     def get_throttles(self):
@@ -183,7 +183,7 @@ class PredictionJobView(APIView):
     Visible par son auteur et par les administrateurs.
     """
 
-    permission_classes = [IsAdminOrHospitalStaff]
+    permission_classes = [ManagesBlood]
 
     def get(self, request, job_id):
         job = jobs.get_job(job_id)
@@ -219,7 +219,7 @@ class ModelInfoView(APIView):
     GET /api/ml/model-info/
     """
 
-    permission_classes = [IsAdminOrHospitalStaff]
+    permission_classes = [ManagesBlood]
 
     def get(self, request):
         active_model = MLModelMetadata.objects.filter(is_active=True).first()
@@ -261,7 +261,7 @@ class BloodStockListView(generics.ListAPIView):
     """
 
     serializer_class = BloodStockRecordSerializer
-    permission_classes = [IsAdminOrHospitalStaff]
+    permission_classes = [ManagesBlood]
 
     def get_queryset(self):
         params = self.request.query_params

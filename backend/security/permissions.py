@@ -20,7 +20,7 @@ Auteur : El Hadji Massogui Diop
 
 from rest_framework.permissions import BasePermission
 
-from .roles import Role, user_has_role
+from .roles import DOMAIN_ROLES, Domain, Role, user_has_role
 
 
 class HasAnyRole(BasePermission):
@@ -96,3 +96,24 @@ class IsOwnerOrAdmin(BasePermission):
             return True
         owner = getattr(obj, 'user', None) or getattr(obj, 'owner', None)
         return owner is not None and owner == request.user
+
+
+class ManagesBeds(HasAnyRole):
+    """Administrateurs du domaine des lits (général, lits, rôle historique)."""
+
+    allowed_roles = DOMAIN_ROLES[Domain.BEDS]
+    message = "Accès réservé aux administrateurs des lits."
+
+
+class ManagesBlood(HasAnyRole):
+    """Administrateurs du domaine du sang (général, sang, rôle historique)."""
+
+    allowed_roles = DOMAIN_ROLES[Domain.BLOOD]
+    message = "Accès réservé aux administrateurs du sang."
+
+
+class ManagesAmbulances(HasAnyRole):
+    """Administrateurs du domaine des ambulances (général, régulation, rôle historique)."""
+
+    allowed_roles = DOMAIN_ROLES[Domain.AMBULANCES]
+    message = "Accès réservé à la régulation des ambulances."

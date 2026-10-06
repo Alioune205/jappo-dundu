@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
 import { api, ApiError, onSessionExpired, refreshTokens } from '@/lib/api'
 import { session } from '@/lib/session'
+import { rolesOf } from '@/lib/access'
 import type { Account, LoginResponse, Role } from '@/types/api'
 
 interface AuthContextType {
@@ -15,6 +16,8 @@ interface AuthContextType {
   hasRole: (...roles: Role[]) => boolean
   isAdmin: boolean
   isHospitalStaff: boolean
+  /** Tous les rôles de l'utilisateur (rôle principal compris). */
+  roles: Role[]
 }
 
 /** Nouvelles tentatives du chargement du profil sur erreur passagère (0,4 s, 0,8 s, 1,6 s). */
@@ -119,6 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isAdmin = hasRole('admin')
   const isHospitalStaff = hasRole('hospital_staff')
+  const roles = useMemo(() => rolesOf(user), [user])
 
   return (
     <AuthContext.Provider
@@ -134,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         hasRole,
         isAdmin,
         isHospitalStaff,
+        roles,
       }}
     >
       {children}

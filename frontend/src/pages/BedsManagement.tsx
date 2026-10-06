@@ -16,9 +16,12 @@ import { BedCards } from './beds/BedCards'
 import { NearestBedsPanel } from './beds/NearestBedsPanel'
 import { CapacityEditModal } from './beds/CapacityEditModal'
 import { QK } from '@/lib/queryKeys'
+import { useAuth } from '@/context/AuthContext'
+import { canManage } from '@/lib/access'
 
 /** Page « Capacité en lits » : chargement, filtres, admissions et sorties. */
 export const BedsManagement: React.FC = () => {
+  const { user, roles, isAdmin } = useAuth()
   const queryClient = useQueryClient()
 
   // Mises à jour poussées par le serveur (regroupées, voir useRealtimeRefresh).
@@ -59,7 +62,14 @@ export const BedsManagement: React.FC = () => {
     onSuccess: refreshBeds,
   })
 
-  const filtered = useMemo(() => filterCapacities(capacities, search), [capacities, search])
+  const ownFacilityId = isAdmin ? undefined : user?.facility?.id
+  const filtered = useMemo(() => {
+    const rows = filterCapacities(capacities, search)
+    // Administrateur d'un établissement : ses services d'abord (tri stable).
+    return ownFacilityId === undefined
+      ? rows
+      : [...rows].sort((a, b) => Number(b.facility?.id === ownFacilityId) - Number(a.facility?.id === ownFacilityId))
+  }, [capacities, search, ownFacilityId])
   const stats = useMemo(() => computeBedStats(capacities), [capacities])
   const vacantCount = filtered.filter((c) => c.available_beds > 0).length
 
@@ -71,6 +81,9 @@ export const BedsManagement: React.FC = () => {
     isDischarging: (id) => dischargeMutation.isPending && dischargeMutation.variables === id,
     admitBusy: admitMutation.isPending,
     dischargeBusy: dischargeMutation.isPending,
+    // Même règle que le backend (users/permissions.py) : admin partout,
+    // administrateur des lits sur son établissement uniquement.
+    canEdit: (cap) => isAdmin || (canManage(roles, 'beds') && cap.facility?.id === user?.facility?.id),
   }
   const actionError = admitMutation.error ?? dischargeMutation.error
 

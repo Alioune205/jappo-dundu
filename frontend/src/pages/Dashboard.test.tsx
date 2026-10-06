@@ -6,7 +6,8 @@ import { Dashboard } from './Dashboard'
 
 const api = vi.hoisted(() => ({ get: vi.fn() }))
 vi.mock('@/lib/api', () => ({ api }))
-vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: null }) }))
+const auth = vi.hoisted(() => ({ roles: ['admin'] as string[] }))
+vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: null, roles: auth.roles }) }))
 // La carte Leaflet n'a pas sa place dans jsdom : on vérifie seulement ce qu'elle reçoit.
 vi.mock('@/components/map/MapView', () => ({
   MapView: (props: { ambulances: unknown[]; missions: unknown[] }) => (
@@ -38,6 +39,8 @@ const RESPONSES: Record<string, unknown> = {
 describe('Dashboard', () => {
   beforeEach(() => {
     subscribe.mockClear()
+    auth.roles = ['admin']
+    api.get.mockClear()
     api.get.mockImplementation(async (path: string) => RESPONSES[path])
     globalThis.ResizeObserver ??= class {
       observe() {}
@@ -60,6 +63,20 @@ describe('Dashboard', () => {
     // 2 risques critiques de pénurie.
     expect(screen.getByText('Action requise')).toBeInTheDocument()
     expect(await screen.findByTestId('map')).toHaveTextContent('3 ambulances, 1 missions')
+  })
+
+  it('un administrateur des lits ne charge ni le sang, ni la flotte, ni les prévisions', async () => {
+    auth.roles = ['bed_manager']
+    renderWithProviders(<Dashboard />)
+    expect(await screen.findByText('/ 20')).toBeInTheDocument()
+    expect(screen.queryByText('Demandes de sang')).not.toBeInTheDocument()
+    expect(screen.queryByText('Ambulances disponibles')).not.toBeInTheDocument()
+    expect(screen.queryByText('Risques de pénurie')).not.toBeInTheDocument()
+    const paths = api.get.mock.calls.map((call) => (call as unknown as [string])[0])
+    expect(paths).toContain('/api/lits/capacities/summary/')
+    expect(paths).not.toContain('/api/sang/requests/')
+    expect(paths).not.toContain('/api/ambulances/vehicles/')
+    expect(paths).not.toContain('/api/ml/predictions/summary/')
   })
 
   it('n’écoute que des événements ciblés, jamais le joker « * »', async () => {

@@ -176,7 +176,7 @@ def seed():
         {
             'username': 'dr.diop',
             'password': 'Password123!',
-            'role': Role.HOSPITAL_STAFF,
+            'role': Role.BED_MANAGER,
             'is_superuser': False,
             'is_staff': False,
             'first_name': "Dr. Cheikh",
@@ -189,7 +189,7 @@ def seed():
         {
             'username': 'cnts.dakar',
             'password': 'Password123!',
-            'role': Role.HOSPITAL_STAFF,
+            'role': Role.BLOOD_MANAGER,
             'is_superuser': False,
             'is_staff': False,
             'first_name': "Responsable",
@@ -197,6 +197,19 @@ def seed():
             'email': "contact@cnts.sn",
             'facility': facilities['cnts'],
             'phone': "+221773334455",
+            'region': "dakar",
+        },
+        {
+            'username': 'samu.regulation',
+            'password': 'Password123!',
+            'role': Role.AMBULANCE_MANAGER,
+            'is_superuser': False,
+            'is_staff': False,
+            'first_name': "Dr. Aïda",
+            'last_name': "Faye",
+            'email': "regulation@samu.sn",
+            'facility': facilities['samu'],
+            'phone': "+221774445566",
             'region': "dakar",
         },
         {
