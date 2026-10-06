@@ -1,5 +1,7 @@
 # Jappo Dundu 🩸🚑🏥
 
+> **Sujet du projet de fin d'études :** Conception et développement d’une plateforme intégrée de coordination des ressources sanitaires : disponibilité des lits hospitaliers, dons de sang et services ambulanciers.
+
 **Jappo Dundu** (« Soigner ensemble » en wolof) est une plateforme numérique intégrée de gestion des urgences médicales au Sénégal.
 Ce projet de fin d'études vise à interconnecter les établissements de santé, les centres de transfusion sanguine, les services d'ambulances et les citoyens donneurs de sang pour réduire les délais d'intervention et optimiser les ressources.
 
