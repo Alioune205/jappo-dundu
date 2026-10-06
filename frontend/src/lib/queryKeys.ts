@@ -19,6 +19,7 @@ export const QK = {
   // Lits
   bedCapacities: ['bed-capacities'],
   bedsSummary: ['beds-summary'],
+  bedsNearest: ['beds-nearest'],
   // SAMU
   ambulancesList: ['ambulances-list'],
   ambulancesFleet: ['ambulances-fleet'],

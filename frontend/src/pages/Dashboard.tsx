@@ -33,6 +33,7 @@ import {
   Cell,
 } from 'recharts'
 import { QK } from '@/lib/queryKeys'
+import { BedManagerDashboard } from './dashboard/BedManagerDashboard'
 
 /** Colonnes de la grille d'indicateurs selon le nombre de cartes visibles. */
 const STAT_COLUMNS: Record<number, string> = {
@@ -43,6 +44,16 @@ const STAT_COLUMNS: Record<number, string> = {
 }
 
 export const Dashboard: React.FC = () => {
+  const { user, roles } = useAuth()
+  // L'administrateur des lits d'un hôpital a sa propre vue, centrée sur son établissement.
+  if (user?.facility && roles.includes('bed_manager') && !canManage(roles, 'blood') && !canManage(roles, 'ambulances')) {
+    return <BedManagerDashboard facility={user.facility} />
+  }
+  return <NetworkDashboard />
+}
+
+/** Vue réseau : administrateur général et rôles multi-domaines. */
+const NetworkDashboard: React.FC = () => {
   const { user, roles } = useAuth()
   const colors = useThemeColors()
 
