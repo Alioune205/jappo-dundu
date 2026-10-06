@@ -13,6 +13,23 @@ export const SOURCE = {
   consulted: '6 octobre 2026',
 }
 
+/** Bandeau défilant : ce que fait la plateforme, en une ligne par module. */
+export const TICKER = [
+  { strong: 'Jappo Sang', text: 'les donneurs compatibles les plus proches alertés en un instant' },
+  { strong: 'Jappo Lits', text: 'chaque lit libre visible en temps réel' },
+  { strong: 'Jappo Ambulance', text: 'l’ambulance disponible la plus proche affectée automatiquement' },
+  { strong: '3 modules', text: 'une seule plateforme, des données partagées' },
+  { strong: 'Connecter · Sauver · Vivre', text: '« Jappo Dundu » : connecter la vie, en wolof' },
+]
+
+/** Repères de la plateforme (faits, pas des statistiques d'usage). */
+export const KEY_FIGURES = [
+  { value: '3', label: 'modules connectés : sang, lits, ambulances' },
+  { value: '4', label: 'rôles d’administration, un par domaine' },
+  { value: '14', label: 'régions du Sénégal dans le référentiel' },
+  { value: '1', label: 'application mobile pour les donneurs' },
+]
+
 export type ModuleKey = 'blood' | 'beds' | 'ambulances'
 
 /** Les trois modules, au même niveau. */

@@ -120,6 +120,10 @@
   --color-accent-yellow: var(--accent-yellow);
   --color-accent-green: var(--accent-green);
   --color-accent-red: var(--accent-red);
+  /* Page d'accueil uniquement (variables définies sous .landing). */
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-amber-ink: var(--amber-ink);
   --color-sidebar: var(--sidebar);
   --color-sidebar-raised: var(--sidebar-raised);
   --color-sidebar-fg: var(--sidebar-fg);
@@ -306,7 +310,88 @@
   animation: live-pulse 1.6s ease-in-out infinite;
 }
 
+/*
+ * Page d'accueil publique : style « papier » (polices Newsreader, Public Sans,
+ * Spline Sans Mono ; fond chaud, rouge sang, accent ambre). Les variables ne
+ * s'appliquent qu'à la page d'accueil : l'application garde son thème.
+ */
+.landing {
+  --canvas: #fcf7ef;
+  --surface: #fffdfa;
+  --raised: #f9eee2;
+  --line: #e9dfd5;
+  --line-strong: #d8cbbf;
+  --fg: #211a17;
+  --fg-muted: #6b6461;
+  --fg-subtle: #a8a3a1;
+  --brand: #b91b22;
+  --brand-strong: #980e1a;
+  --brand-soft: #fff0ef;
+  --brand-fg: #ffffff;
+  --accent-red: #cb1e21;
+  --accent-blue: #3d78b2;
+  --accent-green: #269258;
+  --amber: #f2b95a;
+  --amber-soft: #fce5bb;
+  --amber-ink: #6e4108;
+  --shadow-panel: 0 1px 2px rgb(33 26 23 / 0.05), 0 4px 14px rgb(33 26 23 / 0.04);
+  --shadow-raised: 0 18px 40px -12px rgb(33 26 23 / 0.18);
+  font-family: 'Public Sans', system-ui, -apple-system, sans-serif;
+}
+.dark .landing {
+  --canvas: #1f1413;
+  --surface: #2e1e1d;
+  --raised: #402d2c;
+  --line: #402d2c;
+  --line-strong: #5a4341;
+  --fg: #f6ede4;
+  --fg-muted: #c7c3c1;
+  --fg-subtle: #8a8380;
+  --brand: #e6625d;
+  --brand-strong: #fb9892;
+  --brand-soft: #3d0509;
+  --amber-soft: #6e4108;
+}
+.landing .font-display {
+  font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
+  letter-spacing: -0.02em;
+}
+.landing .font-label {
+  font-family: 'Spline Sans Mono', ui-monospace, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* Mot mis en valeur : italique rouge surligné d'ambre. */
+.landing .highlight {
+  font-style: italic;
+  color: var(--brand);
+  background: linear-gradient(transparent 58%, var(--amber-soft) 58%, var(--amber-soft) 92%, transparent 92%);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  padding: 0 0.08em;
+}
+
+/* Bandeau défilant (liste dupliquée : boucle sans saut). */
+@keyframes landing-ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.landing-ticker {
+  animation: landing-ticker 45s linear infinite;
+}
+.landing-ticker:hover {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .landing-ticker {
+    animation: none;
+  }
+
   .live-pulse {
     animation: none;
   }
