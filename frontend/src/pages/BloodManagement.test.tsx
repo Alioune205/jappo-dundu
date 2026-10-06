@@ -17,7 +17,9 @@ const REQUESTS = [
 function mockApi() {
   api.get.mockImplementation(async (path: string) => {
     if (path === '/api/sang/requests/') return { results: REQUESTS }
-    if (path.endsWith('/matches/')) return [{ donor_id: 41, blood_group: 'O-', distance_km: 2.4 }]
+    // Même forme que le backend (sang/views.py, action « matches »).
+    if (path.endsWith('/matches/'))
+      return { request_id: 1, search_radius_km: 20, count: 1, results: [{ donor_id: 41, blood_group: 'O-', distance_km: 2.4 }] }
     if (path.endsWith('/responses/')) {
       return {
         results: [

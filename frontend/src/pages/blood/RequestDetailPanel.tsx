@@ -26,7 +26,10 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
 
   const { data: matches = [], isLoading: isLoadingMatches } = useQuery<DonorMatch[]>({
     queryKey: [...QK.requestMatches, request.id],
-    queryFn: async () => (await api.get<DonorMatch[]>(`/api/sang/requests/${request.id}/matches/`, { limit: 15 })) || [],
+    // Réponse enveloppée : {request_id, search_radius_km, count, results}.
+    queryFn: async () =>
+      (await api.get<{ results: DonorMatch[] }>(`/api/sang/requests/${request.id}/matches/`, { limit: 15 })).results ||
+      [],
     enabled: request.status === 'open',
   })
 
