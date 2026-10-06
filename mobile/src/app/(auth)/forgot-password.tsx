@@ -85,7 +85,7 @@ export default function ForgotPasswordScreen() {
       )
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
       await signInWithTokens(tokens)
-      router.replace('/alerts')
+      router.replace('/home')
     } catch (err) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
       if (err instanceof ApiError && Object.keys(err.fieldErrors).length) {

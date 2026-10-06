@@ -6,7 +6,7 @@ import { useTheme } from '@/theme'
 export default function AuthLayout() {
   const { isAuthenticated } = useAuth()
   const { colors } = useTheme()
-  if (isAuthenticated) return <Redirect href="/alerts" />
+  if (isAuthenticated) return <Redirect href="/home" />
   return (
     <Stack
       screenOptions={{

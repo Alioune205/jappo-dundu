@@ -6,7 +6,7 @@ import { useOnboarding } from '@/context/OnboardingContext'
 export default function Index() {
   const { isAuthenticated } = useAuth()
   const { done } = useOnboarding()
-  if (isAuthenticated) return <Redirect href="/alerts" />
+  if (isAuthenticated) return <Redirect href="/home" />
   if (!done) return <Redirect href="/onboarding" />
   return <Redirect href="/login" />
 }

@@ -11,7 +11,8 @@ import { isMissingDonor, useDonor } from '@/lib/queries'
 import { space, useTheme } from '@/theme'
 
 /**
- * Espace donneur : Alertes, Historique, Profil.
+ * Espace donneur : Accueil, Ma carte, Alertes, Historique, Centres (et Profil,
+ * ouvert depuis le menu de l'accueil).
  *
  * - sans profil donneur, passage obligé par sa création ;
  * - le téléphone se réenregistre pour les push à chaque ouverture (jeton
@@ -48,8 +49,12 @@ export default function TabsLayout() {
     <>
       <PushBridge />
       <Tabs tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.canvas } }}>
+        <Tabs.Screen name="home" options={{ title: 'Accueil' }} />
+        <Tabs.Screen name="card" options={{ title: 'Ma carte' }} />
         <Tabs.Screen name="alerts" options={{ title: 'Alertes' }} />
         <Tabs.Screen name="history" options={{ title: 'Historique' }} />
+        <Tabs.Screen name="centers" options={{ title: 'Centres' }} />
+        {/* Ouvert depuis le menu de l'accueil : pas de bouton dans la barre (voir TabBar). */}
         <Tabs.Screen name="profile" options={{ title: 'Profil' }} />
       </Tabs>
     </>

@@ -9,7 +9,17 @@
  */
 import { useEffect, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { DonorInput, DonorProfile, MyDonation, MyResponse, NearbyRequest, Paginated, ResponseStatus } from '@/types/api'
+import type {
+  DonorInput,
+  DonorProfile,
+  FacilityType,
+  MyDonation,
+  MyResponse,
+  NearbyFacility,
+  NearbyRequest,
+  Paginated,
+  ResponseStatus,
+} from '@/types/api'
 import { api, ApiError } from './api'
 import { distanceKm, type Coords } from './location'
 
@@ -17,6 +27,7 @@ export const QK = {
   donor: ['donor'] as const,
   nearby: ['nearby'] as const,
   history: ['history'] as const,
+  centers: ['centers'] as const,
 }
 
 /** Le compte n'a pas encore de profil donneur (404 de /donors/me/). */
@@ -132,5 +143,24 @@ export function useHistory() {
       ])
       return { donations, responses }
     },
+  })
+}
+
+/** Rayon de recherche des centres : toute la région, et au-delà pour les zones peu équipées. */
+const CENTERS_RADIUS_KM = 150
+
+/** Établissements autour d'un point, les plus proches d'abord (écran Centres). */
+export function useNearbyCenters(origin: Coords | null, facilityType: FacilityType | null) {
+  return useQuery({
+    queryKey: [...QK.centers, facilityType ?? 'all', origin ? `${origin.latitude.toFixed(2)},${origin.longitude.toFixed(2)}` : 'none'],
+    queryFn: () =>
+      api.get<NearbyFacility[]>('/api/facilities/nearest/', {
+        ...origin,
+        radius_km: CENTERS_RADIUS_KM,
+        limit: 50,
+        ...(facilityType ? { facility_type: facilityType } : {}),
+      }),
+    enabled: origin !== null,
+    staleTime: 5 * 60_000,
   })
 }

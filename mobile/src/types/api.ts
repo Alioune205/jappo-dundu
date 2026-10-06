@@ -49,6 +49,16 @@ export interface FacilitySummary {
   phone_number?: string | null
 }
 
+export type FacilityType = 'hospital' | 'health_center' | 'clinic' | 'blood_bank' | 'ambulance_service'
+
+/** Établissement trouvé autour d'un point (GET /api/facilities/nearest/). */
+export interface NearbyFacility extends FacilitySummary {
+  facility_type: FacilityType
+  facility_type_display: string
+  region_display: string
+  distance_km: number | null
+}
+
 export type Sex = 'M' | 'F'
 
 export interface DonorProfile {

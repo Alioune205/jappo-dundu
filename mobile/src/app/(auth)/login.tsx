@@ -47,7 +47,7 @@ export default function LoginScreen() {
     setError(null)
     try {
       await login(identifier.trim(), password)
-      router.replace('/alerts')
+      router.replace('/home')
     } catch (err) {
       fail(
         err instanceof ApiError && err.status === 401
@@ -63,7 +63,7 @@ export default function LoginScreen() {
 
   const social = async (provider: SocialProvider, payload: Record<string, string>) => {
     const { profileComplete } = await socialLogin(provider, payload)
-    router.replace(profileComplete ? '/alerts' : '/complete-profile')
+    router.replace(profileComplete ? '/home' : '/complete-profile')
   }
 
   return (

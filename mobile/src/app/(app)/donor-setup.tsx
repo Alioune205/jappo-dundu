@@ -110,7 +110,7 @@ function DonorFormScreen({ donor, editing }: { donor: DonorProfile | undefined; 
         longitude: coords?.longitude ?? null,
       })
       if (editing && router.canGoBack()) router.back()
-      else router.replace('/alerts')
+      else router.replace('/home')
     } catch (err) {
       if (err instanceof ApiError && Object.keys(err.fieldErrors).length) setErrors(err.fieldErrors)
       setFormError(err instanceof Error ? err.message : 'Enregistrement impossible.')

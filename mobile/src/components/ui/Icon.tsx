@@ -27,6 +27,13 @@ const PATHS = {
   arrowLeft: 'M19 12H5M11 6l-6 6 6 6',
   calendar: 'M5.5 6.5h13a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1zM4.5 10.5h15M9 4.5v4M15 4.5v4',
   shield: 'M12 3.5l7 3v5c0 4.5-3 7.8-7 9-4-1.2-7-4.5-7-9v-5z',
+  home: 'M4 10.5L12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z',
+  qr: 'M4.5 4.5h5v5h-5zM14.5 4.5h5v5h-5zM4.5 14.5h5v5h-5zM14.5 14.5h2v2h-2zM18 18h1.5v1.5H18zM14.5 18.5h1M18.5 14.5v1',
+  hospital: 'M4.5 20V8.5l7.5-4 7.5 4V20zM12 9.5v6M9 12.5h6M3 20h18',
+  heart: 'M12 19.5s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 7.5 2.5c0 5.4-7.5 10-7.5 10z',
+  award: 'M8.5 14l-1.5 6.5 5-2.5 5 2.5-1.5-6.5',
+  menu: 'M4.5 7h15M4.5 12h15M4.5 17h10',
+  sparkle: 'M12 3.5l1.9 6.6 6.6 1.9-6.6 1.9-1.9 6.6-1.9-6.6-6.6-1.9 6.6-1.9z',
 } as const
 
 export type IconName = keyof typeof PATHS
@@ -49,6 +56,7 @@ export function Icon({ name, size = 22, color = 'fg', strokeWidth = 1.8 }: IconP
       {name === 'user' && <Circle cx={12} cy={8.5} r={3.5} {...common} />}
       {name === 'pin' && <Circle cx={12} cy={10} r={2.3} {...common} />}
       {name === 'location' && <Circle cx={12} cy={12} r={5.5} {...common} />}
+      {name === 'award' && <Circle cx={12} cy={9} r={5} {...common} />}
       {(name === 'eye' || name === 'eyeOff') && <Circle cx={12} cy={12} r={3} {...common} />}
     </Svg>
   )
