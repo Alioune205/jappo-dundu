@@ -63,7 +63,7 @@ export const Sidebar: React.FC = () => {
   return (
     <aside className="flex h-full w-16 shrink-0 select-none flex-col border-r border-line bg-sidebar text-sidebar-fg lg:w-64">
       <div className="flex h-20 shrink-0 items-center gap-3 border-b border-line px-3.5 lg:px-6">
-        <BrandMark className="h-9 w-9 shrink-0" />
+        <BrandMark className="h-10 w-10 shrink-0" />
         <span className="hidden min-w-0 lg:block">
           <BrandName className="block text-xl leading-tight" />
           <span className="block truncate text-2xs text-sidebar-muted">

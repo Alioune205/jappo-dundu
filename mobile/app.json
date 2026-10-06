@@ -8,7 +8,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#0a0c0f",
-    "primaryColor": "#d92d20",
+    "primaryColor": "#e4151e",
     "description": "Donneurs de sang du Sénégal : alertes des hôpitaux proches, réponse en un geste, historique des dons.",
     "ios": {
       "supportsTablet": false,
@@ -21,7 +21,7 @@
     "android": {
       "package": "sn.jappodundu.donneurs",
       "adaptiveIcon": {
-        "backgroundColor": "#D92D20",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
@@ -45,11 +45,11 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-mark.png",
-          "imageWidth": 96,
+          "imageWidth": 140,
           "resizeMode": "contain",
           "backgroundColor": "#F4F5F7",
           "dark": {
-            "image": "./assets/splash-mark.png",
+            "image": "./assets/splash-mark-dark.png",
             "backgroundColor": "#0A0C0F"
           }
         }
@@ -65,7 +65,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#D92D20",
+          "color": "#E4151E",
           "defaultChannel": "blood-alerts"
         }
       ],

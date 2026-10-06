@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { Alert } from '@/components/ui/Alert'
 import { DEMO_ACCOUNTS } from '@/lib/demoAccounts'
-import { BrandMark, BrandName } from '@/components/layout/BrandMark'
+import { BrandLogo } from '@/components/layout/BrandMark'
 
 export const Login: React.FC = () => {
   const [username, setUsername] = useState('')
@@ -51,8 +51,7 @@ export const Login: React.FC = () => {
     <div className="flex min-h-full flex-col items-center justify-center bg-canvas px-4 py-12">
       <div className="w-full max-w-[400px]">
         <div className="mb-8 flex flex-col items-center text-center">
-          <BrandMark className="h-14 w-14" />
-          <BrandName className="mt-3 text-3xl" />
+          <BrandLogo className="h-44 w-auto" />
           <h1 className="mt-6 text-xl font-bold text-fg">Connexion à votre espace</h1>
           <p className="mt-1 text-sm text-muted">Régulation des urgences médicales au Sénégal</p>
         </div>

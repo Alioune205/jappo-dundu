@@ -96,7 +96,7 @@ function AlertOverlay({ active, reduceMotion }: Props) {
   )
   return (
     <Animated.View style={[styles.glass, styles.notification, card]}>
-      <BrandMark size={34} />
+      <BrandMark size={34} onDark />
       <View style={styles.flex}>
         <View style={styles.between}>
           <Text style={styles.app}>Jappo Dundu</Text>

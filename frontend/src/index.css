@@ -24,15 +24,16 @@
   --raised: #f3f5f9;
   --line: #eceef4;
   --line-strong: #dde1ea;
-  --fg: #1e293b;
-  --fg-muted: #64748b;
+  /* Bleu marine du logo */
+  --fg: #0f2547;
+  --fg-muted: #5b6b82;
   --fg-subtle: #94a3b8;
-  --inverse-bg: #1e293b;
+  --inverse-bg: #05244a;
   --inverse-fg: #ffffff;
 
-  /* Rouge sang : couleur principale */
-  --brand: #d32f2f;
-  --brand-strong: #b71c1c;
+  /* Rouge du logo : couleur principale */
+  --brand: #e4151e;
+  --brand-strong: #b8101a;
   --brand-soft: #fdecec;
   --brand-fg: #ffffff;
 
@@ -40,19 +41,19 @@
   --accent-blue: #3b82f6;
   --accent-yellow: #eab308;
   --accent-green: #16a34a;
-  --accent-red: #dc2626;
+  --accent-red: #e4151e;
 
   --sidebar: #ffffff;
   --sidebar-raised: #fdecec;
-  --sidebar-fg: #1e293b;
+  --sidebar-fg: #0f2547;
   --sidebar-muted: #475569;
 
-  --critical: #dc2626;
+  --critical: #e4151e;
   --warning: #ca8a04;
   --ok: #16a34a;
   --info: #2563eb;
 
-  --focus: #d32f2f;
+  --focus: #e4151e;
   --shadow-panel: 0 1px 3px rgb(15 23 42 / 0.06), 0 1px 2px rgb(15 23 42 / 0.04);
   --shadow-raised: 0 10px 30px rgb(15 23 42 / 0.1), 0 2px 8px rgb(15 23 42 / 0.05);
   color-scheme: light;

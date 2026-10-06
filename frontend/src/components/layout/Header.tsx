@@ -180,7 +180,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
               {user?.role === 'admin' ? 'Administrateur' : 'Personnel hospitalier'}
             </span>
           </span>
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-info text-sm font-semibold text-white shadow-[var(--shadow-panel)]">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-[#05244a] text-sm font-semibold text-white shadow-[var(--shadow-panel)]">
             {initial}
           </span>
         </Link>

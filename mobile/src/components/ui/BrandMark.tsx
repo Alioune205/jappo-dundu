@@ -1,17 +1,23 @@
 import React from 'react'
-import Svg, { Path, Rect } from 'react-native-svg'
+import { Image } from 'react-native'
 import { useTheme } from '@/theme'
 
+const LIGHT = require('../../../assets/logo-mark.png')
+// Variante sombre : le bleu marine du logo devient clair pour rester lisible.
+const DARK = require('../../../assets/logo-mark-dark.png')
+
 /**
- * Marque Jappo Dundu : la croix blanche sur carré rouge de l'interface web
- * (même géométrie : viewBox 24, bras 5→19, trait 3).
+ * Symbole Jappo Dundu (cœur, goutte de sang, pouls, main), même fichier que le web.
+ * `onDark` : posé sur une photo ou un fond sombre, quel que soit le thème.
  */
-export function BrandMark({ size = 32 }: { size?: number }) {
-  const { colors } = useTheme()
+export function BrandMark({ size = 32, onDark = false }: { size?: number; onDark?: boolean }) {
+  const { scheme } = useTheme()
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" accessibilityLabel="Jappo Dundu">
-      <Rect width={24} height={24} rx={5.5} fill={colors.brand} />
-      <Path d="M12 6.5v11M6.5 12h11" stroke={colors.onBrand} strokeWidth={2.6} strokeLinecap="round" />
-    </Svg>
+    <Image
+      source={onDark || scheme === 'dark' ? DARK : LIGHT}
+      style={{ width: size, height: size }}
+      resizeMode="contain"
+      accessibilityLabel="Jappo Dundu"
+    />
   )
 }

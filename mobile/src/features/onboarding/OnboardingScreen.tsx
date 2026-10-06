@@ -163,7 +163,7 @@ export function OnboardingScreen() {
       <Animated.View style={[styles.topBar, { paddingTop: insets.top, height: layout.topBar }, topStyle]}>
         <View style={styles.brand}>
           <Animated.View style={markStyle}>
-            <BrandMark size={24} />
+            <BrandMark size={24} onDark />
           </Animated.View>
           <Animated.View style={brandTextStyle}>
             <Text variant="heading" style={styles.onPhoto}>

@@ -49,7 +49,7 @@ async function ensureChannel() {
     description: 'Demandes urgentes des hôpitaux proches compatibles avec votre groupe.',
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 220, 120, 220],
-    lightColor: '#D92D20',
+    lightColor: '#E4151E',
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   })
 }
