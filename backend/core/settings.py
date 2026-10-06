@@ -268,6 +268,8 @@ REST_FRAMEWORK = {
         'user_sustained': config('THROTTLE_USER_SUSTAINED_RATE', default='10000/hour'),
         'login': config('THROTTLE_LOGIN_RATE', default='10/minute'),
         'ml_predict': config('THROTTLE_ML_PREDICT_RATE', default='30/hour'),
+        # Recherche d'un donneur (carte ou téléphone) par un centre de don.
+        'donor_lookup': config('THROTTLE_DONOR_LOOKUP_RATE', default='120/hour'),
         # Récupération de compte : demandes de code et essais, par adresse IP.
         'password_reset': config('THROTTLE_PASSWORD_RESET_RATE', default='5/hour'),
         'password_reset_confirm': config('THROTTLE_PASSWORD_RESET_CONFIRM_RATE', default='20/hour'),

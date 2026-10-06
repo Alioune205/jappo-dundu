@@ -38,5 +38,9 @@ export const DONOR_CONDITIONS = [
   'Femmes : 4 mois entre deux dons, 3 dons par an au plus',
 ]
 
-/** « 42 » → « JD-000042 » : identifiant lisible, imprimé sous le QR code. */
-export const donorCode = (id: number) => `JD-${String(id).padStart(6, '0')}`
+/**
+ * Contenu du QR code de la carte : le code aléatoire du donneur (jamais son
+ * identifiant interne, qui permettrait de parcourir l'annuaire). Le centre de
+ * don le lit avec une douchette dans l'interface web (« Enregistrer un don »).
+ */
+export const cardQrPayload = (cardCode: string) => `JAPPODUNDU:DONNEUR:${cardCode}`

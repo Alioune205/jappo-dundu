@@ -23,6 +23,7 @@ from ml.constants import BLOOD_GROUPS
 from users.models import HealthFacility
 
 from . import eligibility
+from .cards import generate_card_code
 
 MAX_UNITS_PER_REQUEST = 50
 MAX_SEARCH_RADIUS_KM = 200
@@ -92,6 +93,14 @@ class Donor(models.Model):
         help_text="Détermine le délai minimal entre deux dons.",
     )
     date_of_birth = models.DateField(verbose_name="Date de naissance")
+    card_code = models.CharField(
+        max_length=12,
+        unique=True,
+        default=generate_card_code,
+        editable=False,
+        verbose_name="Code de la carte donneur",
+        help_text="Code aléatoire du QR code de la carte donneur.",
+    )
     weight_kg = models.PositiveSmallIntegerField(
         null=True,
         blank=True,

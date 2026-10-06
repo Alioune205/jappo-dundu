@@ -167,6 +167,35 @@ class DonorLookupTests(SangFixturesMixin, TestCase):
             client.get('/api/sang/donors/lookup/', {'phone_number': 'abc'}).status_code, 400
         )
 
+    def test_lookup_by_card_code(self):
+        """Code saisi à la main ou contenu complet du QR code scanné."""
+        donor = make_donor('awa')
+        other = make_donor('binta')
+        self.assertRegex(donor.card_code, r'^JD-[2-9A-Z]{4}-[2-9A-Z]{4}$')
+        self.assertNotEqual(donor.card_code, other.card_code)
+        client = api_client(self.staff)
+        raw = donor.card_code.replace('-', '').lower()
+        for value in (donor.card_code, raw, f'JAPPODUNDU:DONNEUR:{donor.card_code}'):
+            with self.subTest(value=value):
+                response = client.get('/api/sang/donors/lookup/', {'card_code': value})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data['id'], donor.pk)
+        self.assertEqual(
+            client.get('/api/sang/donors/lookup/', {'card_code': 'JD-2222-2222'}).status_code, 404
+        )
+        # L'identifiant interne ne sert à rien : pas de parcours de l'annuaire.
+        self.assertEqual(
+            client.get('/api/sang/donors/lookup/', {'card_code': str(donor.pk)}).status_code, 400
+        )
+
+    def test_card_code_is_in_the_donor_profile_and_read_only(self):
+        donor = make_donor('awa')
+        client = api_client(donor.user)
+        self.assertEqual(client.get(ME_URL).data['card_code'], donor.card_code)
+        client.patch(ME_URL, {'card_code': 'JD-2222-2222'}, format='json')
+        donor.refresh_from_db()
+        self.assertNotEqual(donor.card_code, 'JD-2222-2222')
+
     def test_lookup_is_reserved_to_staff(self):
         donor = make_donor('awa')
         self.assertEqual(api_client(donor.user).get('/api/sang/donors/lookup/').status_code, 403)

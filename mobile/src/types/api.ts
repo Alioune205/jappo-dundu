@@ -63,6 +63,8 @@ export type Sex = 'M' | 'F'
 
 export interface DonorProfile {
   id: number
+  /** Code aléatoire de la carte donneur (« JD-7KQ4-M9PX »), contenu du QR code. */
+  card_code: string
   blood_group: BloodGroup
   blood_group_display: string
   sex: Sex

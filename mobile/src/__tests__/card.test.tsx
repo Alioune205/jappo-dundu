@@ -1,16 +1,15 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react-native'
 import { QrCode } from '@/components/ui/QrCode'
-import { donorCode } from '@/features/donor/content'
+import { cardQrPayload } from '@/features/donor/content'
 
 describe('Carte donneur', () => {
-  it('formate l’identifiant donneur sur six chiffres', () => {
-    expect(donorCode(42)).toBe('JD-000042')
-    expect(donorCode(1234567)).toBe('JD-1234567')
+  it('le QR code porte le code aléatoire de la carte, lu par le centre de don', () => {
+    expect(cardQrPayload('JD-CDKK-B3TT')).toBe('JAPPODUNDU:DONNEUR:JD-CDKK-B3TT')
   })
 
   it('dessine un QR code accessible', async () => {
-    await render(<QrCode value="JAPPODUNDU:DONNEUR:JD-000042:O+" size={120} />)
+    await render(<QrCode value={cardQrPayload('JD-CDKK-B3TT')} size={120} />)
     expect(screen.getByLabelText('QR code du donneur')).toBeTruthy()
   })
 })

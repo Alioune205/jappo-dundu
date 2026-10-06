@@ -8,7 +8,13 @@ import { Input } from '@/components/ui/Input'
 import { formatDate } from '@/lib/format'
 import type { DonorLookup } from '@/types/api'
 
-/** Enregistrement d'un don spontané : recherche du donneur par téléphone, puis validation. */
+/** Code de carte donneur (« JD-7KQ4-M9PX ») : saisi, ou contenu du QR code tapé par une douchette. */
+const isCardCode = (value: string) => /JD-?[0-9A-Z]{4}-?[0-9A-Z]{4}/i.test(value.replace(/\s+/g, ''))
+
+/**
+ * Enregistrement d'un don spontané : recherche du donneur par sa carte (QR code
+ * de l'application, lu par une douchette ou saisi) ou par son téléphone, puis validation.
+ */
 export const DonationLookupPanel: React.FC = () => {
   const { user } = useAuth()
   const [phone, setPhone] = useState('')
@@ -21,10 +27,15 @@ export const DonationLookupPanel: React.FC = () => {
     if (!phone) return
     setLookupError(null)
     setMessage(null)
+    const byCard = isCardCode(phone)
     try {
-      setDonor(await api.get<DonorLookup>('/api/sang/donors/lookup/', { phone_number: phone }))
+      setDonor(
+        await api.get<DonorLookup>('/api/sang/donors/lookup/', byCard ? { card_code: phone } : { phone_number: phone })
+      )
     } catch {
-      setLookupError('Aucun profil donneur trouvé pour ce numéro de téléphone.')
+      setLookupError(
+        byCard ? 'Aucun donneur avec cette carte.' : 'Aucun profil donneur trouvé pour ce numéro de téléphone.'
+      )
       setDonor(null)
     }
   }
@@ -48,13 +59,17 @@ export const DonationLookupPanel: React.FC = () => {
   return (
     <section className="panel p-4">
       <h3 className="text-sm font-semibold text-fg">Enregistrer un don</h3>
-      <p className="mt-0.5 text-xs text-muted">Retrouver un donneur par son numéro de téléphone.</p>
+      <p className="mt-0.5 text-xs text-muted">
+        Scannez la carte du donneur (application mobile), ou saisissez son code ou son téléphone.
+      </p>
 
       <form onSubmit={handleLookup} className="mt-3 flex items-end gap-2">
         <Input
-          label="Téléphone"
-          type="tel"
-          placeholder="77 123 45 67"
+          id="donor-lookup"
+          label="Carte ou téléphone"
+          type="text"
+          autoComplete="off"
+          placeholder="JD-7KQ4-M9PX ou 77 123 45 67"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
         />

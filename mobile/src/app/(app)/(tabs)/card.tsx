@@ -7,7 +7,7 @@ import { Icon } from '@/components/ui/Icon'
 import { QrCode } from '@/components/ui/QrCode'
 import { Text } from '@/components/ui/Text'
 import { useAuth } from '@/context/AuthContext'
-import { donorCode } from '@/features/donor/content'
+import { cardQrPayload } from '@/features/donor/content'
 import { formatDate } from '@/lib/dates'
 import { useDonor, useHistory } from '@/lib/queries'
 import { fonts, motion, radius, space, useTheme } from '@/theme'
@@ -15,7 +15,7 @@ import { fonts, motion, radius, space, useTheme } from '@/theme'
 const enter = (step: number) => FadeInDown.duration(motion.slow).delay(step * motion.stagger).easing(motion.easeOut)
 
 /**
- * Ma carte donneur : QR code (identifiant et groupe) et carte rouge
+ * Ma carte donneur : QR code (code aléatoire de la carte) et carte rouge
  * récapitulative, à montrer au centre de don.
  *
  * Responsable du domaine : Pape Alioune Sene (application mobile)
@@ -31,7 +31,7 @@ export default function CardScreen() {
   const donations = history.data?.donations.length ?? 0
   const lastDonation = donor.last_donation_date ?? history.data?.donations[0]?.donated_on ?? null
   const declaredOnly = lastDonation !== null && donations === 0
-  const code = donorCode(donor.id)
+  const code = donor.card_code
 
   return (
     <ScrollView
@@ -47,7 +47,7 @@ export default function CardScreen() {
       </View>
 
       <Animated.View entering={enter(0)} style={[styles.qrCard, { backgroundColor: '#FFFFFF', borderColor: colors.line }]}>
-        <QrCode value={`JAPPODUNDU:DONNEUR:${code}:${donor.blood_group}`} size={196} />
+        <QrCode value={cardQrPayload(code)} size={196} />
         <Text variant="mono" style={styles.code}>
           {code}
         </Text>
@@ -94,8 +94,8 @@ export default function CardScreen() {
                 : 'Don impossible pour le moment'}
           </Text>
           <Text variant="caption" tone="muted">
-            Montrez cette carte à l’accueil du centre de don : elle porte votre identifiant donneur et votre groupe
-            sanguin. Le groupe est toujours contrôlé par le centre avant le prélèvement.
+            Montrez cette carte à l’accueil du centre de don : il la scanne pour retrouver votre profil et enregistrer
+            votre don. Le groupe sanguin est toujours contrôlé par le centre avant le prélèvement.
           </Text>
         </View>
       </Animated.View>

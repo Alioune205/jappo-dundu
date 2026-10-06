@@ -50,6 +50,7 @@ class DonorSerializer(serializers.ModelSerializer):
         model = Donor
         fields = [
             'id',
+            'card_code',
             'blood_group',
             'blood_group_display',
             'sex',
@@ -67,7 +68,7 @@ class DonorSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['id', 'location_updated_at', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'card_code', 'location_updated_at', 'created_at', 'updated_at']
 
     def get_ineligibility_reasons(self, obj):
         return obj.ineligibility_reasons()

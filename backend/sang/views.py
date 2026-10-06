@@ -31,6 +31,7 @@ from rest_framework import generics, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -53,6 +54,7 @@ from users.services import add_role
 from users.validators import normalize_phone_number
 
 from . import services
+from .cards import normalize_card_code
 from .compatibility import compatible_donor_groups, compatible_recipient_groups
 from .models import BloodRequest, Donation, Donor, DonorResponse
 from .serializers import (
@@ -146,15 +148,30 @@ class MyResponsesView(generics.ListAPIView):
 
 
 class DonorLookupView(APIView):
-    """Retrouve un donneur par son téléphone (enregistrement d'un don).
+    """Retrouve un donneur par sa carte ou son téléphone (enregistrement d'un don).
 
+    GET /api/sang/donors/lookup/?card_code=JD-7KQ4-M9PX   (saisi ou scanné)
     GET /api/sang/donors/lookup/?phone_number=77 123 45 67
-    Recherche exacte uniquement : l'annuaire des donneurs n'est pas consultable.
+    Recherche exacte uniquement, au débit limité : l'annuaire des donneurs
+    n'est pas consultable.
     """
 
     permission_classes = [ManagesBlood]
+    throttle_scope = 'donor_lookup'
+
+    def get_throttles(self):
+        return [*super().get_throttles(), ScopedRateThrottle()]
 
     def get(self, request):
+        if 'card_code' in request.query_params:
+            code = normalize_card_code(request.query_params['card_code'])
+            if code is None:
+                raise ValidationError({'card_code': ["Code de carte invalide (format JD-XXXX-XXXX)."]})
+            donor = Donor.objects.select_related('user').filter(card_code=code).first()
+            if donor is None:
+                raise NotFound("Aucun donneur avec cette carte.")
+            return Response(DonorLookupSerializer(donor).data)
+
         raw = request.query_params.get('phone_number', '')
         try:
             phone_number = normalize_phone_number(raw)
