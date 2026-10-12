@@ -53,17 +53,19 @@ CanManageBlood = facility_permission(Domain.BLOOD)
 from users.services import add_role
 from users.validators import normalize_phone_number
 
-from . import services
+from . import gamification, services
 from .cards import normalize_card_code
 from .compatibility import compatible_donor_groups, compatible_recipient_groups
-from .models import BloodRequest, Donation, Donor, DonorResponse
+from .models import Badge, BloodRequest, Donation, Donor, DonorBadge, DonorResponse
 from .serializers import (
+    BadgeSerializer,
     BloodRequestSerializer,
     DonationSerializer,
     DonorLookupSerializer,
     DonorMatchSerializer,
     DonorResponseSerializer,
     DonorSerializer,
+    GamificationProfileSerializer,
     MyDonationSerializer,
     MyResponseSerializer,
     NearbyBloodRequestSerializer,
@@ -147,6 +149,18 @@ class MyResponsesView(generics.ListAPIView):
         return donor.responses.select_related('blood_request__facility').order_by('-created_at')
 
 
+class DonorGamificationView(APIView):
+    """GET /api/sang/donors/me/gamification/ — profil de gamification du donneur."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        donor = current_donor(request.user)
+        profile_data = gamification.get_donor_gamification_profile(donor)
+        serializer = GamificationProfileSerializer(profile_data)
+        return Response(serializer.data)
+
+
 class DonorLookupView(APIView):
     """Retrouve un donneur par sa carte ou son téléphone (enregistrement d'un don).
 
@@ -203,6 +217,18 @@ class CompatibilityView(APIView):
                 for group in BLOOD_GROUP_CODES
             ]
         )
+
+
+class BadgeListView(generics.ListAPIView):
+    """GET /api/sang/badges/ — catalogue des badges et paliers de fidélité."""
+
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+    serializer_class = BadgeSerializer
+
+    def get_queryset(self):
+        gamification.ensure_default_badges()
+        return Badge.objects.all().order_by('required_donations', 'points_bonus')
 
 
 # =============================================================

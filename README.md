@@ -27,9 +27,11 @@ Ce projet de fin d'études vise à interconnecter les établissements de santé,
 | Administrateur du sang | demandes de sang, dons, prévisions de pénurie | son établissement (CNTS : sa région) |
 | Administrateur des ambulances | véhicules, missions SAMU, affectation | son service, sa région |
 
-Détail des droits et règles de code : `backend/security/README.md`.
+> 📖 **Documentation complète des profils et autorisations** : Consultez le guide dédié [ROLES_ET_ACCES.md](file:///C:/Users/senep/Desktop/Nouveau%20dossier/jappo_dundu/jappo-dundu-repo/ROLES_ET_ACCES.md) pour la matrice complète des droits, les fiches des 8 profils et les identifiants de démonstration.
+
+Détail des règles techniques de sécurité : `backend/security/README.md`.
 Comptes de démonstration (`python seed_demo_data.py`, mot de passe `Password123!`) :
-`admin`, `dr.diop` (lits), `cnts.dakar` (sang), `samu.regulation` (ambulances).
+`admin`, `dr.diop` (lits), `cnts.dakar` (sang), `samu.regulation` (ambulances), `driver.moussa` (ambulancier), `donneur.awa` (donneur).
 
 ## 👥 Équipe & Répartition des Tâches (Dispatching)
 

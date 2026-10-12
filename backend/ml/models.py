@@ -29,6 +29,7 @@ class BloodStockRecord(models.Model):
         SYNTHETIC = 'synthetic', 'Synthétique (simulation)'
         IMPORT = 'import', 'Import de fichier'
         MANUAL = 'manual', 'Saisie manuelle'
+        SIH = 'sih', "Système d'Information Hospitalier (SIH)"
 
     center_name = models.CharField(
         max_length=200,

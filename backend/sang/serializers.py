@@ -19,7 +19,15 @@ from users.models import HealthFacility
 from users.serializers import HealthFacilitySummarySerializer
 
 from . import eligibility
-from .models import MAX_SEARCH_RADIUS_KM, BloodRequest, Donation, Donor, DonorResponse
+from .models import (
+    MAX_SEARCH_RADIUS_KM,
+    Badge,
+    BloodRequest,
+    Donation,
+    Donor,
+    DonorBadge,
+    DonorResponse,
+)
 
 MIN_BIRTH_YEAR = 1900
 
@@ -449,3 +457,54 @@ class MyDonationSerializer(serializers.ModelSerializer):
         model = Donation
         fields = ['id', 'facility', 'donated_on', 'blood_request', 'created_at']
         read_only_fields = fields
+
+
+class BadgeSerializer(serializers.ModelSerializer):
+    """Référentiel d'un badge de valorisation."""
+
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+
+    class Meta:
+        model = Badge
+        fields = [
+            'id',
+            'code',
+            'name',
+            'description',
+            'icon',
+            'points_bonus',
+            'category',
+            'category_display',
+            'required_donations',
+        ]
+        read_only_fields = fields
+
+
+class DonorBadgeSerializer(serializers.ModelSerializer):
+    """Badge obtenu par un donneur."""
+
+    badge = BadgeSerializer(read_only=True)
+
+    class Meta:
+        model = DonorBadge
+        fields = ['id', 'badge', 'awarded_at']
+        read_only_fields = fields
+
+
+class GamificationProfileSerializer(serializers.Serializer):
+    """Profil complet de gamification d'un donneur."""
+
+    donor_id = serializers.IntegerField()
+    blood_group = serializers.CharField()
+    points = serializers.IntegerField()
+    donation_points = serializers.IntegerField()
+    badge_points = serializers.IntegerField()
+    donations_count = serializers.IntegerField()
+    level = serializers.IntegerField()
+    title = serializers.CharField()
+    progress_percent = serializers.IntegerField()
+    next_level_points = serializers.IntegerField(allow_null=True)
+    points_to_next_level = serializers.IntegerField()
+    earned_badges_count = serializers.IntegerField()
+    badges = serializers.ListField(child=serializers.DictField())
+    locked_badges = serializers.ListField(child=serializers.DictField())

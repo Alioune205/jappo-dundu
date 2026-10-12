@@ -43,6 +43,9 @@ def send_sms(phone_number, message):
         if backend == 'orange':
             _send_orange(phone_number, message)
             return True
+        elif backend == 'twilio':
+            _send_twilio(phone_number, message)
+            return True
         if not settings.DEBUG:
             # Un code dans les journaux de production serait lisible par trop de monde.
             logger.error("SMS non envoyé : SMS_BACKEND=console hors mode DEBUG (configurer « orange »).")
@@ -105,3 +108,34 @@ def _send_orange(phone_number, message):
     with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
         if response.status >= 300:
             raise urllib.error.HTTPError(request.full_url, response.status, 'SMS refusé', response.headers, None)
+
+def _send_twilio(phone_number, message):
+    account_sid = settings.TWILIO_ACCOUNT_SID
+    auth_token = settings.TWILIO_AUTH_TOKEN
+    sender = settings.TWILIO_SENDER
+
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+    data = urllib.parse.urlencode({
+        'To': phone_number,
+        'From': sender,
+        'Body': message
+    }).encode()
+
+    credentials = f"{account_sid}:{auth_token}"
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            'Authorization': 'Basic ' + base64.b64encode(credentials.encode()).decode(),
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+        },
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            if response.status >= 300:
+                raise urllib.error.HTTPError(request.full_url, response.status, 'SMS refusé Twilio', response.headers, None)
+    except urllib.error.HTTPError as exc:
+        logger.error(f"Erreur Twilio détaillée: {exc.read().decode('utf-8', errors='ignore')}")
+        raise

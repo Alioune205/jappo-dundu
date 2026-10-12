@@ -19,6 +19,7 @@ from push.services import notify_blood_request as notify_push
 from realtime.broadcast import broadcast_alert, broadcast_dashboard
 
 from .models import DonorResponse
+from identity.sms import send_sms
 
 REQUEST_CREATED = 'blood_request_created'
 REQUEST_UPDATED = 'blood_request_updated'
@@ -61,6 +62,7 @@ def notify_request(blood_request, event):
             # Notification push aux donneurs compatibles à portée (application
             # mobile) : ils sont prévenus même application fermée.
             notify_push(blood_request)
+            notify_blood_request_sms(blood_request)
 
     transaction.on_commit(send)
 
@@ -86,3 +88,25 @@ def notify_response(response):
     transaction.on_commit(
         lambda: broadcast_dashboard('dashboard', payload, hospital_id=hospital_id)
     )
+
+def notify_blood_request_sms(blood_request):
+    """Envoie un SMS d'alerte aux 10 donneurs les plus proches (solution de repli sans internet)."""
+    from sang.services import find_matching_donors
+    from users.models import UserProfile
+
+    donors = find_matching_donors(blood_request, limit=10)
+    if not donors:
+        return
+
+    facility = blood_request.facility
+    body = (
+        f"Jappo Dundu - URGENCE SANG : {facility.name} ({facility.city}) a besoin de "
+        f"poches de {blood_request.blood_group}. Vous etes compatible ! "
+        "Ouvrez l'application pour repondre."
+    )
+
+    user_ids = [donor.user_id for donor in donors]
+    profiles = UserProfile.objects.filter(user_id__in=user_ids).exclude(phone_number='')
+
+    for profile in profiles:
+        send_sms(profile.phone_number, body)

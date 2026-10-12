@@ -361,3 +361,71 @@ class Donation(models.Model):
 
     def __str__(self):
         return f"Don de {self.donor} le {self.donated_on:%d/%m/%Y}"
+
+
+class Badge(models.Model):
+    """Badge de valorisation pour un donneur."""
+
+    class Category(models.TextChoices):
+        MILESTONE = 'milestone', 'Paliers de dons'
+        SOLIDARITY = 'solidarity', 'Solidarité & Urgences'
+        SPECIAL = 'special', 'Spécial'
+
+    code = models.CharField(max_length=50, unique=True, verbose_name="Code unique")
+    name = models.CharField(max_length=100, verbose_name="Nom du badge")
+    description = models.CharField(max_length=255, verbose_name="Description / Objectif")
+    icon = models.CharField(max_length=50, default='award', verbose_name="Identifiant d'icône")
+    points_bonus = models.PositiveIntegerField(default=50, verbose_name="Points bonus")
+    category = models.CharField(
+        max_length=20,
+        choices=Category.choices,
+        default=Category.MILESTONE,
+        verbose_name="Catégorie",
+    )
+    required_donations = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name="Nombre de dons requis",
+        help_text="0 si condition spéciale (ex: urgence, groupe rare).",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Badge"
+        verbose_name_plural = "Badges"
+        ordering = ['required_donations', 'points_bonus']
+
+    def __str__(self):
+        return f"{self.name} (+{self.points_bonus} pts)"
+
+
+class DonorBadge(models.Model):
+    """Badge obtenu par un donneur."""
+
+    donor = models.ForeignKey(
+        Donor,
+        on_delete=models.CASCADE,
+        related_name='earned_badges',
+        verbose_name="Donneur",
+    )
+    badge = models.ForeignKey(
+        Badge,
+        on_delete=models.CASCADE,
+        related_name='awarded_to',
+        verbose_name="Badge",
+    )
+    awarded_at = models.DateTimeField(auto_now_add=True, verbose_name="Obtenu le")
+
+    class Meta:
+        verbose_name = "Badge de donneur"
+        verbose_name_plural = "Badges de donneurs"
+        ordering = ['-awarded_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['donor', 'badge'],
+                name='uniq_donor_badge',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.donor} — {self.badge.name}"
+

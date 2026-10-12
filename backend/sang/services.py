@@ -246,6 +246,14 @@ def confirm_donation(blood_request, response_id, *, recorded_by, donated_on=None
     response.blood_request = blood_request
     notifications.notify_response(response)
     notifications.notify_request(blood_request, event)
+
+    # Gamification : évaluation et attribution des badges mérités
+    try:
+        from . import gamification
+        gamification.evaluate_and_award_badges(response.donor)
+    except Exception as exc:
+        logger.warning("Échec évaluation gamification donneur %s : %s", response.donor_id, exc)
+
     logger.info(
         "Don confirmé : demande=%s donneur=%s (%d/%d)",
         blood_request.pk,
@@ -278,8 +286,9 @@ def mark_no_show(blood_request, response_id):
 
 
 @transaction.atomic
-def record_donation(*, donor, facility, donated_on, recorded_by):
+def record_donation(*, donor, facility, donated_on=None, recorded_by=None):
     """Enregistre un don hors demande (don spontané au centre de transfusion)."""
+    donated_on = donated_on or timezone.localdate()
     donation = Donation.objects.create(
         donor=donor,
         facility=facility,
@@ -287,5 +296,13 @@ def record_donation(*, donor, facility, donated_on, recorded_by):
         recorded_by=recorded_by,
     )
     donor.record_donation_date(donated_on)
+
+    # Gamification : évaluation et attribution des badges mérités
+    try:
+        from . import gamification
+        gamification.evaluate_and_award_badges(donor)
+    except Exception as exc:
+        logger.warning("Échec évaluation gamification donneur %s : %s", donor.pk, exc)
+
     logger.info("Don enregistré : donneur=%s établissement=%s", donor.pk, facility.pk)
     return donation
