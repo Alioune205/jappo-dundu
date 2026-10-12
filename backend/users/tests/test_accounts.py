@@ -135,7 +135,7 @@ class AccountTests(TestCase):
     def setUpTestData(cls):
         cls.facility = make_facility()
         cls.staff = make_user(
-            'fatou', Role.HOSPITAL_STAFF, facility=cls.facility, phone='+221770000010'
+            'fatou', Role.HOSPITAL_STAFF, facility=cls.facility, phone='+221770000010', password=PASSWORD
         )
         cls.other = make_user('moussa', Role.DONOR, phone='+221770000011')
 
@@ -162,7 +162,13 @@ class AccountTests(TestCase):
     def test_patch_account(self):
         response = api_client(self.staff).patch(
             ME_URL,
-            {'first_name': 'Fatou', 'phone_number': "76 555 44 33", 'region': 'thies'},
+            {
+                'first_name': 'Fatou',
+                'phone_number': "76 555 44 33",
+                'region': 'thies',
+                # Remplacer un téléphone existant exige le mot de passe actuel.
+                'current_password': PASSWORD,
+            },
             format='json',
         )
         self.assertEqual(response.status_code, 200, response.data)

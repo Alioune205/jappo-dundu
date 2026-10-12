@@ -46,6 +46,9 @@ ROLE_LABELS = {
 DUPLICATE_PHONE = "Ce numéro de téléphone est déjà utilisé."
 DUPLICATE_EMAIL = "Cette adresse e-mail est déjà utilisée."
 DUPLICATE_USERNAME = "Ce nom d'utilisateur est déjà pris."
+CURRENT_PASSWORD_REQUIRED = (
+    "Saisissez votre mot de passe actuel pour modifier votre téléphone ou votre e-mail."
+)
 
 
 def _django_errors(exc):
@@ -181,6 +184,13 @@ class AccountSerializer(serializers.ModelSerializer):
     role = RoleField(read_only=True)
     roles = serializers.SerializerMethodField()
     facility = HealthFacilitySummarySerializer(source='profile.facility', read_only=True)
+    # Exigé pour remplacer un téléphone ou un e-mail déjà renseigné : ce sont
+    # l'identifiant de connexion et les canaux de réinitialisation du mot de
+    # passe. Sans cela, une session volée quelques minutes suffirait à prendre
+    # le compte définitivement.
+    current_password = serializers.CharField(
+        write_only=True, required=False, trim_whitespace=False, style={'input_type': 'password'}
+    )
 
     class Meta:
         model = User
@@ -199,6 +209,7 @@ class AccountSerializer(serializers.ModelSerializer):
             'facility',
             'date_joined',
             'last_login',
+            'current_password',
         ]
         read_only_fields = ['id', 'username', 'date_joined', 'last_login']
 
@@ -232,6 +243,41 @@ class AccountSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(DUPLICATE_PHONE)
         return value
 
+    def validate(self, attrs):
+        current_password = attrs.pop('current_password', None)
+        instance = self.instance
+        if instance is not None and self._changes_recovery_channel(instance, attrs):
+            if not instance.has_usable_password():
+                raise serializers.ValidationError(
+                    {
+                        'current_password': [
+                            "Définissez d'abord un mot de passe (« Mot de passe oublié ») "
+                            "pour modifier votre téléphone ou votre e-mail."
+                        ]
+                    }
+                )
+            if not current_password or not instance.check_password(current_password):
+                raise serializers.ValidationError({'current_password': [CURRENT_PASSWORD_REQUIRED]})
+        return attrs
+
+    @staticmethod
+    def _changes_recovery_channel(instance, attrs):
+        """Remplace-t-on un téléphone ou un e-mail déjà renseigné ?
+
+        Une première saisie (champ vide) reste libre : c'est le cas d'un compte
+        créé par connexion sociale qui complète son profil.
+        """
+        new_email = attrs.get('email')
+        old_email = instance.email or ''
+        if new_email is not None and old_email and new_email.lower() != old_email.lower():
+            return True
+        profile_data = attrs.get('profile', {})
+        if 'phone_number' in profile_data:
+            old_phone = services.get_profile(instance).phone_number
+            if old_phone and profile_data['phone_number'] != old_phone:
+                return True
+        return False
+
     def update(self, instance, validated_data):
         profile_data = validated_data.pop('profile', {})
         new_email = validated_data.get('email')
@@ -263,6 +309,8 @@ class UserAdminSerializer(AccountSerializer):
         style={'input_type': 'password'},
     )
     role = RoleField(required=False)
+    # L'administrateur modifie le compte d'un tiers : pas de mot de passe actuel.
+    current_password = None
     facility_id = serializers.PrimaryKeyRelatedField(
         source='profile.facility',
         queryset=HealthFacility.objects.all(),
@@ -273,7 +321,7 @@ class UserAdminSerializer(AccountSerializer):
 
     class Meta(AccountSerializer.Meta):
         fields = [
-            *AccountSerializer.Meta.fields,
+            *(f for f in AccountSerializer.Meta.fields if f != 'current_password'),
             'password',
             'facility_id',
             'is_active',
@@ -389,14 +437,23 @@ class UserAdminSerializer(AccountSerializer):
     def update(self, instance, validated_data):
         role = validated_data.pop('role', None)
         password = validated_data.pop('password', None)
+        old_facility_id = services.get_profile(instance).facility_id
+        role_changed = role is not None and role != primary_role(services.roles_of(instance))
         with transaction.atomic():
             if password:
                 instance.set_password(password)
             instance = super().update(instance, validated_data)
             if role is not None:
                 services.set_role(instance, role)
-        if password or not instance.is_active:
+        facility_changed = services.get_profile(instance).facility_id != old_facility_id
+        # Les jetons portent les rôles (claims) et les WebSockets ouverts gardent
+        # le périmètre du moment : un changement de droits ferme les sessions.
+        if password or not instance.is_active or role_changed or facility_changed:
             services.revoke_refresh_tokens(instance)
+        if not instance.is_active or role_changed or facility_changed:
+            from realtime.broadcast import close_user_sessions
+
+            close_user_sessions(instance.pk)
         # Les groupes préchargés sont périmés après un changement de rôle.
         getattr(instance, '_prefetched_objects_cache', {}).pop('groups', None)
         return instance

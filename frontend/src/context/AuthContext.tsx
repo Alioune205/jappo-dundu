@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
 import { api, ApiError, onSessionExpired, refreshTokens } from '@/lib/api'
 import { session } from '@/lib/session'
-import { rolesOf } from '@/lib/access'
+import { canUseWeb, rolesOf } from '@/lib/access'
 import type { Account, LoginResponse, Role } from '@/types/api'
 
 interface AuthContextType {
@@ -12,13 +12,16 @@ interface AuthContextType {
   error: string | null
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
-  refreshProfile: () => Promise<void>
+  refreshProfile: () => Promise<unknown>
   hasRole: (...roles: Role[]) => boolean
   isAdmin: boolean
   isHospitalStaff: boolean
   /** Tous les rôles de l'utilisateur (rôle principal compris). */
   roles: Role[]
 }
+
+export const MOBILE_ONLY_MESSAGE =
+  "Ce compte n'a pas accès à l'interface web : utilisez l'application mobile Jappo Dundu."
 
 /** Nouvelles tentatives du chargement du profil sur erreur passagère (0,4 s, 0,8 s, 1,6 s). */
 const PROFILE_RETRIES = 3
@@ -35,9 +38,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     for (let attempt = 0; ; attempt++) {
       try {
         const account = await api.get<Account>('/api/users/me/')
+        if (!canUseWeb(rolesOf(account))) {
+          // Donneur ou ambulancier : le serveur refuserait chaque module, la
+          // session web n'est pas ouverte (et son refresh token est révoqué).
+          const refresh = session.getRefresh()
+          if (refresh) await api.post('/api/auth/logout/', { refresh }).catch(() => undefined)
+          session.clear()
+          setUser(null)
+          setError(MOBILE_ONLY_MESSAGE)
+          return false
+        }
         setUser(account)
         setError(null)
-        return
+        return true
       } catch (err) {
         const status = err instanceof ApiError ? err.status : 0
         // Seul un refus d'authentification invalide la session. Une erreur
@@ -46,11 +59,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (status === 401 || status === 403) {
           setUser(null)
           session.clear()
-          return
+          return false
         }
         if (attempt >= PROFILE_RETRIES) {
           setError(err instanceof Error ? err.message : 'Profil indisponible.')
-          return
+          return false
         }
         await new Promise((resolve) => setTimeout(resolve, 400 * 2 ** attempt))
       }
@@ -87,6 +100,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await api.post<LoginResponse>('/api/auth/token/', { username, password })
       session.setTokens(data.access, data.refresh)
       setTokenUser(data.user)
+      if (!canUseWeb(rolesOf(data.user))) {
+        await api.post('/api/auth/logout/', { refresh: data.refresh }).catch(() => undefined)
+        session.clear()
+        setTokenUser(null)
+        throw new Error(MOBILE_ONLY_MESSAGE)
+      }
       await fetchProfile()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Identifiants invalides'

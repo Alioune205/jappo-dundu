@@ -34,8 +34,13 @@ Responsable : El Hadji Massogui Diop
 Les groupes sont créés par `python manage.py setup_roles` (idempotent, lancé à
 chaque déploiement). Un compte peut cumuler plusieurs rôles (ex. lits + sang
 dans un petit hôpital). `hospital_staff` est le rôle d'avant la séparation des
-domaines : il garde exactement ses droits (lits, sang et régulation nationale)
-mais n'est plus proposé pour les nouveaux comptes.
+domaines : il garde les lits et le sang de son établissement et la régulation
+des ambulances, limitée comme pour `ambulance_manager` (véhicules de son
+établissement, missions de sa région ; seul `admin` est national). Il n'est
+plus proposé pour les nouveaux comptes.
+
+`is_staff` vaut rôle `admin` national : ne l'attribuer que par
+`set_role(user, Role.ADMIN)`, jamais pour un simple accès à `/admin/`.
 
 ### Matrice des droits
 
@@ -45,7 +50,7 @@ L = lecture, É = écriture ; « son étab. » = filtré sur `UserProfile.facili
 |---|---|---|---|---|
 | Lits : capacités, entrées / sorties | L+É partout | L partout, É son étab. | 403 | L partout |
 | Sang : demandes, dons, donneurs proches | L+É partout | 403 | L+É son étab. (CNTS : sa région) | 403 |
-| Prévisions ML | L+É | 403 | L+É | 403 |
+| Stocks et prévisions ML | L+É partout | 403 | L+É son étab. (CNTS : sa région) | 403 |
 | Véhicules | L+É partout | 403 | 403 | L+É son service |
 | Missions SAMU | L+É partout | L (vers son étab.) | 403 | L+É sa région, ses véhicules |
 | Comptes et établissements | L+É | 403 | 403 | 403 |

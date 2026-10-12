@@ -172,15 +172,14 @@ class DomainRolesTests(TestCase):
 
     # --- Rôle historique et administrateur général ----------------------
 
-    def test_legacy_hospital_staff_keeps_its_rights(self):
+    def test_legacy_hospital_staff_keeps_its_rights_within_its_region(self):
         client = api_client(self.legacy)
         self.assertEqual(client.post(f'{BEDS}{self.cap_a.pk}/admit/').status_code, 200)
         self.assertEqual(ids(client.get(REQUESTS)), {self.req_a.pk})
-        self.assertEqual(
-            ids(client.get(MISSIONS)),
-            {self.mission_dakar_a.pk, self.mission_dakar_b.pk, self.mission_thies.pk},
-        )
-        self.assertEqual(client.post(MISSIONS, self.mission_payload('thies'), format='json').status_code, 201)
+        # Régulation conservée, mais limitée à sa région (plus de périmètre national).
+        self.assertEqual(ids(client.get(MISSIONS)), {self.mission_dakar_a.pk, self.mission_dakar_b.pk})
+        self.assertEqual(client.post(MISSIONS, self.mission_payload('dakar'), format='json').status_code, 201)
+        self.assertEqual(client.post(MISSIONS, self.mission_payload('thies'), format='json').status_code, 403)
 
     def test_general_admin_sees_everything(self):
         client = api_client(self.admin)

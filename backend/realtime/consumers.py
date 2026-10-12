@@ -12,7 +12,9 @@ Protocole (JSON, messages texte) — voir realtime/README.md :
 
 Codes de fermeture applicatifs :
 - 4400 : paramètre de connexion invalide (région inconnue, id non entier) ;
-- 4401 : non authentifié (token absent, invalide ou expiré) ;
+- 4401 : non authentifié (token absent, invalide ou expiré), ou droits du
+  compte modifiés par un administrateur : le client se reconnecte avec un
+  nouveau ticket et reçoit le périmètre à jour ;
 - 4403 : rôle insuffisant pour ce flux ou ce périmètre.
 
 Auteur : El Hadji Massogui Diop
@@ -53,6 +55,14 @@ BED_ALERT_ROLES = DOMAIN_ROLES[Domain.BEDS] | DOMAIN_ROLES[Domain.AMBULANCES] | 
 AMBULANCE_ALERT_ROLES = DOMAIN_ROLES[Domain.AMBULANCES] | {Role.AMBULANCE_DRIVER}
 # Alertes sang : donneurs (application mobile) et administrateurs du sang.
 BLOOD_ALERT_ROLES = DOMAIN_ROLES[Domain.BLOOD] | {Role.DONOR}
+# Alertes portant la position d'un patient : hors administrateur général, elles
+# ne sont remises que dans la région de l'établissement du destinataire.
+REGIONAL_EVENTS = frozenset({'bed_alert', 'ambulance_alert'})
+
+
+def user_group(user_id):
+    """Groupe propre à un compte : sert à fermer ses connexions (droits modifiés)."""
+    return f'user_{int(user_id)}'
 
 
 def facility_of(user):
@@ -68,6 +78,15 @@ def facility_of(user):
             Ambulance.objects.filter(driver=user).values_list('facility_id', flat=True).first()
         )
     return facility_id
+
+
+def facility_region(facility_id):
+    """Région d'un établissement ; None si inconnu."""
+    from users.models import HealthFacility
+
+    if facility_id is None:
+        return None
+    return HealthFacility.objects.filter(pk=facility_id).values_list('region', flat=True).first()
 
 
 class SubscriptionError(Exception):
@@ -127,6 +146,7 @@ class BaseRealtimeConsumer(AsyncJsonWebsocketConsumer):
 
         self.roles = await database_sync_to_async(get_user_roles)(user)
         self.facility_id = await database_sync_to_async(facility_of)(user)
+        self.region = await database_sync_to_async(facility_region)(self.facility_id)
         if self.allowed_roles is not None and self.roles.isdisjoint(
             self.allowed_roles
         ):
@@ -141,6 +161,9 @@ class BaseRealtimeConsumer(AsyncJsonWebsocketConsumer):
 
         for group in groups:
             await self._join(group)
+        # Hors quota d'abonnements et non affiché : canal de contrôle du compte.
+        self.user_group = user_group(user.pk)
+        await self.channel_layer.group_add(self.user_group, self.channel_name)
         await self.accept()
         await self.send_json({
             'type': 'connection_established',
@@ -160,6 +183,8 @@ class BaseRealtimeConsumer(AsyncJsonWebsocketConsumer):
     async def disconnect(self, close_code):
         for group in getattr(self, 'joined_groups', ()):
             await self.channel_layer.group_discard(group, self.channel_name)
+        if getattr(self, 'user_group', None):
+            await self.channel_layer.group_discard(self.user_group, self.channel_name)
         logger.info("WS %s déconnecté — code=%s", self.group_prefix, close_code)
 
     async def receive(self, text_data=None, bytes_data=None, **kwargs):
@@ -199,10 +224,22 @@ class BaseRealtimeConsumer(AsyncJsonWebsocketConsumer):
 
     # --- Diffusion (appelés par le channel layer) ---------------------
 
+    async def session_revoked(self, event):
+        """Droits du compte modifiés ou compte désactivé : fermeture immédiate."""
+        await self.close(code=CLOSE_UNAUTHENTICATED)
+
     async def forward_event(self, event):
         allowed = self.restricted_events.get(event['type'])
         if allowed is not None and self.roles.isdisjoint(allowed):
             # Filtré côté serveur : le message n'atteint jamais l'appareil.
+            return
+        if (
+            event['type'] in REGIONAL_EVENTS
+            and event.get('region')
+            and Role.ADMIN not in self.roles
+            and event['region'] != self.region
+        ):
+            # Position d'un patient hors de la région du destinataire.
             return
         await self.send_json({
             'type': self.event_types[event['type']],

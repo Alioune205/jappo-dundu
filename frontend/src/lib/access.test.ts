@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canManage, canOpen, canView, primaryRoleLabel, rolesOf } from './access'
+import { canManage, canOpen, canUseWeb, canView, primaryRoleLabel, rolesOf } from './access'
 import type { Role } from '@/types/api'
 
 const PAGES = ['/', '/beds', '/blood', '/ambulances', '/ml', '/facilities', '/profile']
@@ -40,5 +40,18 @@ describe('droits par rôle (miroir de security/roles.py)', () => {
     expect(primaryRoleLabel(['admin', 'donor'])).toBe('Administrateur général')
     expect(rolesOf({ role: 'blood_manager', roles: ['blood_manager', 'donor'] })).toEqual(['blood_manager', 'donor'])
     expect(rolesOf(null)).toEqual([])
+  })
+})
+
+describe("accès à l'interface web", () => {
+  it('refuse les comptes uniquement mobiles', () => {
+    expect(canUseWeb(['donor'])).toBe(false)
+    expect(canUseWeb(['ambulance_driver'])).toBe(false)
+    expect(canUseWeb([])).toBe(false)
+  })
+
+  it('accepte les rôles du tableau de bord, même cumulés avec donneur', () => {
+    expect(canUseWeb(['bed_manager', 'donor'])).toBe(true)
+    expect(canUseWeb(['hospital_staff'])).toBe(true)
   })
 })

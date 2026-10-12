@@ -41,6 +41,10 @@ class MLAPITestCase(TrainedModelTestCase):
     def setUpTestData(cls):
         super().setUpTestData()
         call_command('setup_roles', stdout=StringIO())
+        # Les scénarios portent sur des données nationales (toutes les séries,
+        # stocks du CNTS) : périmètre de l'administrateur général. Les autres
+        # rôles sont limités à leur établissement (security/tests_access_audit.py).
+        cls.national = User.objects.create_user('national', is_staff=True)
         cls.hospital = User.objects.create_user('hospital')
         cls.hospital.groups.add(Group.objects.get(name='hospital_staff'))
         cls.donor = User.objects.create_user('donor')
@@ -49,7 +53,7 @@ class MLAPITestCase(TrainedModelTestCase):
     def setUp(self):
         cache.clear()
         self.client = APIClient()
-        self.client.force_authenticate(self.hospital)
+        self.client.force_authenticate(self.national)
 
     def predict(self, **payload):
         with mock.patch('ml.services.notifications.broadcast_dashboard'), \
@@ -72,6 +76,7 @@ class PermissionTests(MLAPITestCase):
         self.assertEqual(self.client.post('/api/ml/predict/').status_code, 403)
 
     def test_hospital_staff_is_allowed(self):
+        self.client.force_authenticate(self.hospital)
         for url in ENDPOINTS:
             self.assertEqual(self.client.get(url).status_code, 200, url)
 
@@ -226,3 +231,102 @@ class ListingTests(MLAPITestCase):
         self.assertEqual(response.data['count'], 8 * 8)  # 8 groupes × 8 jours
         for query in ('days=abc', 'days=0', 'days=366'):
             self.assertEqual(self.client.get(f'/api/ml/stocks/?{query}').status_code, 400)
+
+    def test_stock_create_and_update(self):
+        payload = {
+            'center_name': 'Centre National de Transfusion Sanguine (CNTS)',
+            'region': 'dakar',
+            'blood_group': 'O-',
+            'units_available': 42,
+            'units_donated': 10,
+            'units_used': 3,
+            'units_expired': 0,
+        }
+        response = self.client.post('/api/ml/stocks/', payload, format='json')
+        self.assertIn(response.status_code, (200, 201))
+        self.assertEqual(response.data['blood_group'], 'O-')
+        self.assertEqual(response.data['units_available'], 42)
+
+        # Mise à jour le même jour : doit écraser/mettre à jour (idempotence)
+        payload['units_available'] = 50
+        response2 = self.client.post('/api/ml/stocks/', payload, format='json')
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2.data['units_available'], 50)
+
+    def test_stock_batch_create(self):
+        payload = {
+            'center_name': 'Centre National de Transfusion Sanguine (CNTS)',
+            'region': 'dakar',
+            'items': [
+                {'blood_group': 'A+', 'units_available': 35},
+                {'blood_group': 'B+', 'units_available': 28},
+                {'blood_group': 'AB+', 'units_available': 15},
+                {'blood_group': 'O+', 'units_available': 40},
+            ],
+        }
+        response = self.client.post('/api/ml/stocks/batch/', payload, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 4)
+        self.assertEqual(len(response.data['records']), 4)
+
+    def test_stock_adjustment(self):
+        # 1. Ajustement direct (set)
+        response = self.client.post(
+            '/api/ml/stocks/adjust/',
+            {
+                'center_name': 'Centre National de Transfusion Sanguine (CNTS)',
+                'blood_group': 'B-',
+                'adjustment_type': 'set',
+                'units': 20,
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['record']['units_available'], 20)
+
+        # 2. Utilisation pour transfusion (use)
+        response_use = self.client.post(
+            '/api/ml/stocks/adjust/',
+            {
+                'center_name': 'Centre National de Transfusion Sanguine (CNTS)',
+                'blood_group': 'B-',
+                'adjustment_type': 'use',
+                'units': 5,
+            },
+            format='json',
+        )
+        self.assertEqual(response_use.status_code, 200)
+        self.assertEqual(response_use.data['record']['units_available'], 15)
+        self.assertEqual(response_use.data['record']['units_used'], 5)
+
+        # 3. Réception de don (add_donated)
+        response_add = self.client.post(
+            '/api/ml/stocks/adjust/',
+            {
+                'center_name': 'Centre National de Transfusion Sanguine (CNTS)',
+                'blood_group': 'B-',
+                'adjustment_type': 'add_donated',
+                'units': 8,
+            },
+            format='json',
+        )
+        self.assertEqual(response_add.status_code, 200)
+        self.assertEqual(response_add.data['record']['units_available'], 23)
+        self.assertEqual(response_add.data['record']['units_donated'], 8)
+
+    def test_stock_current_summary(self):
+        response = self.client.get('/api/ml/stocks/current/?center=CNTS')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('total_units_available', response.data)
+        self.assertIn('critical_groups', response.data)
+        self.assertEqual(len(response.data['stocks']), 8)
+
+    def test_stock_forbidden_for_donor(self):
+        self.client.force_authenticate(user=self.donor)
+        response = self.client.post(
+            '/api/ml/stocks/',
+            {'blood_group': 'O+', 'units_available': 10},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 403)
+

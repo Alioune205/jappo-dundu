@@ -2,6 +2,11 @@
 Script d'initialisation des données de démonstration pour Jappo Dundu.
 Crée les rôles, les établissements de santé au Sénégal, les lits,
 les ambulances, les demandes de sang et les comptes d'accès avec différents rôles.
+
+Tous les comptes reçoivent le mot de passe public « Password123! » (réinitialisé
+à chaque exécution) et ``admin`` est superutilisateur : le script refuse donc de
+tourner hors développement (DEBUG=False), sauf instance de démonstration
+assumée :  python seed_demo_data.py --allow-production
 """
 import os
 import sys
@@ -315,4 +320,12 @@ def seed():
     print("\nInitialisation terminée avec succès !")
 
 if __name__ == '__main__':
+    from django.conf import settings
+
+    if not settings.DEBUG and '--allow-production' not in sys.argv[1:]:
+        sys.exit(
+            "Refusé : DEBUG=False. Ce script crée un superutilisateur « admin » au mot de passe "
+            "public et réinitialise les mots de passe des comptes de démonstration.\n"
+            "Instance de démonstration uniquement : relancez avec --allow-production."
+        )
     seed()

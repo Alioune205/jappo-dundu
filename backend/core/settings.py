@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     'sang',
     'lits',
     'ambulances',
+    'sih',
 
     # Apps El Hadji Massogui Diop
     'ml',
@@ -273,6 +274,9 @@ REST_FRAMEWORK = {
         # Récupération de compte : demandes de code et essais, par adresse IP.
         'password_reset': config('THROTTLE_PASSWORD_RESET_RATE', default='5/hour'),
         'password_reset_confirm': config('THROTTLE_PASSWORD_RESET_CONFIRM_RATE', default='20/hour'),
+        # Progiciels SIH : un compteur par clé d'API (et non un compteur commun).
+        'sih_burst': config('THROTTLE_SIH_BURST_RATE', default='20/second'),
+        'sih_sustained': config('THROTTLE_SIH_SUSTAINED_RATE', default='20000/hour'),
     },
     # Nombre de reverse proxies de confiance devant l'application : sans
     # cette valeur, un X-Forwarded-For forgé contourne le throttling.
@@ -505,11 +509,15 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # IDENTITÉ : SMS et connexion sociale (Pape Alioune Sene)
 # =============================================================
 # Codes de réinitialisation : « console » (DEBUG uniquement, code dans le
-# journal du serveur) ou « orange » (API SMS d'Orange Sénégal).
+# journal du serveur), « orange » (API SMS d'Orange Sénégal) ou « twilio »
 SMS_BACKEND = config('SMS_BACKEND', default='console')
 SMS_ORANGE_CLIENT_ID = config('SMS_ORANGE_CLIENT_ID', default='')
 SMS_ORANGE_CLIENT_SECRET = config('SMS_ORANGE_CLIENT_SECRET', default='')
 SMS_ORANGE_SENDER = config('SMS_ORANGE_SENDER', default='')
+
+TWILIO_ACCOUNT_SID = config('TWILIO_ACCOUNT_SID', default='')
+TWILIO_AUTH_TOKEN = config('TWILIO_AUTH_TOKEN', default='')
+TWILIO_SENDER = config('TWILIO_SENDER', default='')
 
 # Identifiants OAuth acceptés (audiences des jetons) ; vide = fournisseur désactivé.
 GOOGLE_CLIENT_IDS = config('GOOGLE_CLIENT_IDS', default='', cast=Csv())

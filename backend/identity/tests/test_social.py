@@ -158,9 +158,13 @@ class SocialLoginTests(TestCase):
     def test_changing_email_drops_the_verification(self):
         self.login(self.identity())
         user = SocialAccount.objects.get().user
+        user.set_password('Dund0u-Secure!')
+        user.save()
         client = api_client()
         client.force_authenticate(user)
-        response = client.patch('/api/users/me/', {'email': 'autre@example.sn'}, format='json')
+        response = client.patch(
+            '/api/users/me/', {'email': 'autre@example.sn', 'current_password': 'Dund0u-Secure!'}, format='json'
+        )
         self.assertEqual(response.status_code, 200, response.data)
         self.assertFalse(UserProfile.objects.get(user=user).email_verified)
 

@@ -37,4 +37,7 @@ urlpatterns = [
     path('api/sang/', include('sang.urls')),
     path('api/lits/', include('lits.urls')),
     path('api/ambulances/', include('ambulances.urls')),
+
+    # === Interopérabilité SIH (Pape Alioune Sene) ===
+    path('api/sih/', include('sih.urls')),
 ]

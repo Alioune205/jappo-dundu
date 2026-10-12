@@ -8,9 +8,12 @@ Un utilisateur obtient un rôle :
 - ``admin`` (administrateur général) s'il est ``is_staff`` ou ``is_superuser`` ;
 - ``bed_manager``, ``blood_manager``, ``ambulance_manager``, ``hospital_staff``,
   ``ambulance_driver`` ou ``donor`` s'il appartient au groupe Django du même
-  nom (créés par ``python manage.py setup_roles``) ;
-- n'importe quel rôle via un attribut ``role`` sur le modèle utilisateur,
-  si le module ``users`` en ajoute un.
+  nom (créés par ``python manage.py setup_roles``).
+
+Aucune autre source n'est reconnue. Attention : ``is_staff`` vaut rôle
+``admin`` national sur toute l'API ; il ne s'attribue que par
+``users.services.set_role(user, Role.ADMIN)`` (ou ``createsuperuser``), jamais
+pour un simple accès ponctuel à l'interface ``/admin/``.
 
 Auteur : El Hadji Massogui Diop
 """
@@ -103,10 +106,6 @@ def get_user_roles(user):
     roles = set()
     if user.is_staff or user.is_superuser:
         roles.add(Role.ADMIN)
-
-    attribute_role = getattr(user, 'role', None)
-    if attribute_role in Role._value2member_map_:
-        roles.add(Role(attribute_role))
 
     group_names = user.groups.filter(
         name__in=[role.value for role in GROUP_ROLES]

@@ -5,6 +5,7 @@
  * afficher un module, un bouton ou une requête que le serveur refuserait.
  */
 import type { Role } from '@/types/api'
+import { WEB_ROLES } from '@/lib/constants'
 
 export type Domain = 'beds' | 'blood' | 'ambulances'
 
@@ -65,6 +66,9 @@ export function canOpen(roles: Role[], path: string): boolean {
   const allowed = PAGE_ROLES[section]
   return allowed === undefined || hasAny(roles, allowed)
 }
+
+/** Le compte a-t-il accès à l'interface web ? (donneurs et ambulanciers : application mobile) */
+export const canUseWeb = (roles: Role[]) => hasAny(roles, WEB_ROLES)
 
 /** Libellé du rôle principal (ex. « Administrateur des lits »). */
 export function primaryRoleLabel(roles: Role[]): string {

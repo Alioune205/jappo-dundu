@@ -2,19 +2,20 @@
 API REST de l'application Ambulances.
 
 Flotte (/api/ambulances/vehicles/) :
-- GET   /                    liste (admin, personnel hospitalier, ambulanciers)
-- POST  /  ; PATCH /<id>/    administration de la flotte (admin)
+- GET   /                    liste (régulation : son service ; ambulancier : son véhicule)
+- POST  /  ; PATCH /<id>/    administration de la flotte (admin, administrateur des ambulances)
 - GET   /nearest/            ambulances disponibles les plus proches (régulation)
 - GET   /mine/               ambulance du conducteur connecté
 - POST  /<id>/position/      position GPS (conducteur de l'ambulance ou admin)
 - POST  /<id>/availability/  en service / hors service (conducteur ou admin)
 
 Missions (/api/ambulances/missions/) :
-- GET   /  ; POST /  ; PATCH /<id>/   régulation (admin, personnel hospitalier) ;
+- GET   /  ; POST /  ; PATCH /<id>/   régulation (admin : national ; administrateur
+                                       des ambulances et personnel hospitalier : leur région) ;
                                        un conducteur voit les missions de son ambulance
 - POST  /<id>/assign/        affecter une ambulance (la plus proche par défaut)
-- POST  /<id>/status/        on_site, transporting, completed (conducteur ou
-                             régulation), cancelled (régulation)
+- POST  /<id>/status/        on_site, transporting, completed (conducteur de
+                             l'ambulance affectée ou régulation), cancelled (régulation)
 - GET   /<id>/destinations/  établissements proches avec lits libres
 - GET   /stats/              indicateurs (délais d'intervention, flotte)
 
@@ -84,18 +85,29 @@ def is_dispatcher(user):
     return manages(user, Domain.AMBULANCES)
 
 
+# Régulateurs limités à leur établissement (véhicules) et à sa région (missions).
+# Le rôle historique ``hospital_staff`` régule comme un administrateur des
+# ambulances, mais n'a plus de périmètre national.
+SCOPED_DISPATCHER_ROLES = (Role.AMBULANCE_MANAGER, Role.HOSPITAL_STAFF)
+
+
 def national_dispatcher(user):
-    """Régulation nationale : administrateur général, ou rôle historique (comme avant)."""
-    return user_has_role(user, Role.ADMIN, Role.HOSPITAL_STAFF)
+    """Régulation nationale : administrateur général uniquement."""
+    return user_has_role(user, Role.ADMIN)
+
+
+def is_driver_only(user):
+    """Ambulancier sans rôle de régulation : limité à son propre véhicule."""
+    return user_has_role(user, Role.AMBULANCE_DRIVER) and not is_dispatcher(user)
 
 
 def service_of(user):
-    """Service d'ambulances d'un administrateur des ambulances limité à son périmètre.
+    """Établissement d'un régulateur limité à son périmètre.
 
     None : périmètre national (ou utilisateur sans rôle de régulation).
-    Un administrateur des ambulances sans établissement est refusé.
+    Un régulateur sans établissement est refusé.
     """
-    if national_dispatcher(user) or not user_has_role(user, Role.AMBULANCE_MANAGER):
+    if national_dispatcher(user) or not user_has_role(user, *SCOPED_DISPATCHER_ROLES):
         return None
     facility = user_facility(user)
     if facility is None:
@@ -144,10 +156,15 @@ class AmbulanceViewSet(
 
     def get_queryset(self):
         queryset = Ambulance.objects.select_related('facility', 'driver')
-        service = service_of(self.request.user) if self.action not in ('position', 'availability', 'mine') else None
+        # position / availability / mine : contrôle par objet (conducteur affecté).
+        driver_actions = self.action in ('position', 'availability', 'mine')
+        service = service_of(self.request.user) if not driver_actions else None
         if service is not None:
-            # Administrateur des ambulances : uniquement les véhicules de son service.
+            # Régulateur limité : uniquement les véhicules de son service.
             queryset = queryset.filter(facility=service)
+        elif not driver_actions and is_driver_only(self.request.user):
+            # Ambulancier : son véhicule seulement (pas l'annuaire de la flotte).
+            queryset = queryset.filter(driver=self.request.user)
         if self.action != 'list':
             return queryset
         params = self.request.query_params
@@ -281,7 +298,7 @@ class MissionViewSet(
             return Q()
         visible = Q(pk__in=[])
         facility = user_facility(user)
-        if facility is not None and user_has_role(user, Role.AMBULANCE_MANAGER):
+        if facility is not None and user_has_role(user, *SCOPED_DISPATCHER_ROLES):
             visible |= Q(region=facility.region)
         if facility is not None and user_has_role(user, Role.BED_MANAGER):
             visible |= Q(destination_id=facility.pk)
@@ -335,8 +352,14 @@ class MissionViewSet(
         serializer = MissionStatusSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         new_status = serializer.validated_data['status']
-        if not is_dispatcher(request.user) and new_status not in DRIVER_STATUSES:
-            raise PermissionDenied("L'annulation d'une mission relève de la régulation.")
+        if not is_dispatcher(request.user):
+            # Hors régulation, seul le conducteur de l'ambulance affectée fait
+            # avancer la mission (un hôpital de destination ne fait que la suivre).
+            ambulance = mission.ambulance
+            if ambulance is None or ambulance.driver_id != request.user.pk:
+                raise PermissionDenied("Seul le conducteur de l'ambulance affectée peut faire avancer la mission.")
+            if new_status not in DRIVER_STATUSES:
+                raise PermissionDenied("L'annulation d'une mission relève de la régulation.")
         mission = services.advance(
             mission,
             new_status,

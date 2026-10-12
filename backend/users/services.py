@@ -65,9 +65,6 @@ def roles_of(user):
     roles = set()
     if user.is_staff or user.is_superuser:
         roles.add(Role.ADMIN)
-    attribute_role = getattr(user, 'role', None)
-    if attribute_role in {role.value for role in Role}:
-        roles.add(Role(attribute_role))
     group_roles = {role.value for role in GROUP_ROLES}
     roles.update(Role(group.name) for group in user.groups.all() if group.name in group_roles)
     return frozenset(roles)

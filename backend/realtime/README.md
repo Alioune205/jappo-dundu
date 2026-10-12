@@ -36,9 +36,15 @@ Périmètre (paramètres de l'URL) :
 
 Filtrage par rôle : les alertes `bed_alert` et `ambulance_alert` portent
 l'adresse et la position du lieu de prise en charge d'un patient. Elles ne
-sont transmises qu'aux rôles `admin`, `hospital_staff` et `ambulance_driver` ;
-un donneur ne reçoit que les alertes sang et les alertes générales. Le filtre
-est appliqué côté serveur : le message n'atteint jamais l'appareil.
+sont transmises qu'aux administrateurs des lits et des ambulances et aux
+ambulanciers, et seulement si l'événement concerne la région de leur
+établissement (`admin` : toutes les régions) ; un donneur ne reçoit que les
+alertes sang et les alertes générales. Le filtre est appliqué côté serveur :
+le message n'atteint jamais l'appareil.
+
+Révocation : quand un administrateur change le rôle ou l'établissement d'un
+compte, ou le désactive, ses connexions ouvertes sont fermées avec le code
+4401 ; le client se reconnecte avec un nouveau ticket et donc ses droits à jour.
 
 Codes de fermeture :
 

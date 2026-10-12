@@ -16,6 +16,7 @@ export const Profile: React.FC = () => {
   const [lastName, setLastName] = useState(user?.last_name || '')
   const [email, setEmail] = useState(user?.email || '')
   const [phone, setPhone] = useState(user?.phone_number || '')
+  const [profilePassword, setProfilePassword] = useState('')
   const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'danger'; text: string } | null>(
     null
   )
@@ -30,6 +31,12 @@ export const Profile: React.FC = () => {
   )
   const [isChangingPassword, setIsChangingPassword] = useState(false)
 
+  // Remplacer un téléphone ou un e-mail déjà renseigné (identifiant de connexion,
+  // canaux de réinitialisation) exige le mot de passe actuel côté serveur.
+  const changesRecoveryChannel =
+    (!!user?.email && email.trim().toLowerCase() !== user.email.toLowerCase()) ||
+    (!!user?.phone_number && phone.trim() !== user.phone_number)
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsUpdatingProfile(true)
@@ -40,7 +47,9 @@ export const Profile: React.FC = () => {
         last_name: lastName,
         email,
         phone_number: phone,
+        ...(changesRecoveryChannel ? { current_password: profilePassword } : {}),
       })
+      setProfilePassword('')
       await refreshProfile()
       setProfileMsg({ type: 'success', text: 'Profil mis à jour avec succès.' })
     } catch (err: unknown) {
@@ -157,6 +166,17 @@ export const Profile: React.FC = () => {
               onChange={(e) => setPhone(e.target.value)}
               placeholder="77 123 45 67"
             />
+            {changesRecoveryChannel && (
+              <Input
+                label="Mot de passe actuel"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={profilePassword}
+                onChange={(e) => setProfilePassword(e.target.value)}
+                helperText="Requis pour modifier votre téléphone ou votre e-mail."
+              />
+            )}
             <div className="flex justify-end pt-1">
               <Button type="submit" variant="primary" isLoading={isUpdatingProfile}>
                 Enregistrer

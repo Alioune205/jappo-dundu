@@ -7,6 +7,10 @@ Auteur : El Hadji Massogui Diop
 from django.urls import path
 
 from .views import (
+    BloodStockAdjustmentView,
+    BloodStockBatchView,
+    BloodStockCurrentSummaryView,
+    BloodStockListCreateView,
     BloodStockListView,
     ModelInfoView,
     PredictionByRegionView,
@@ -45,7 +49,22 @@ urlpatterns = [
     ),
     path(
         'stocks/',
-        BloodStockListView.as_view(),
+        BloodStockListCreateView.as_view(),
         name='stock-list',
+    ),
+    path(
+        'stocks/batch/',
+        BloodStockBatchView.as_view(),
+        name='stock-batch',
+    ),
+    path(
+        'stocks/adjust/',
+        BloodStockAdjustmentView.as_view(),
+        name='stock-adjust',
+    ),
+    path(
+        'stocks/current/',
+        BloodStockCurrentSummaryView.as_view(),
+        name='stock-current',
     ),
 ]

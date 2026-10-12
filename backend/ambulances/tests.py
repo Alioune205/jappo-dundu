@@ -48,7 +48,8 @@ class AmbulanceFixturesMixin:
         cls.base = make_facility("SAMU Test", facility_type='ambulance_service')
         cls.hospital = make_facility("Hôpital A", north_km=6)
         cls.admin = make_user('admin', Role.ADMIN)
-        cls.dispatcher = make_user('regulateur', Role.HOSPITAL_STAFF, facility=cls.hospital)
+        # Régulation limitée à son établissement : rattachée au service des véhicules.
+        cls.dispatcher = make_user('regulateur', Role.HOSPITAL_STAFF, facility=cls.base)
         cls.driver = make_user('chauffeur', Role.AMBULANCE_DRIVER)
         cls.other_driver = make_user('chauffeur2', Role.AMBULANCE_DRIVER)
         cls.donor = make_user('awa', Role.DONOR)
@@ -66,8 +67,11 @@ class AmbulanceFixturesMixin:
 
 class FleetTests(AmbulanceFixturesMixin, TestCase):
     def test_read_access(self):
-        for user in (self.admin, self.dispatcher, self.driver):
+        for user in (self.admin, self.dispatcher):
             self.assertEqual(api_client(user).get(VEHICLES).data['count'], 4)
+        # Un ambulancier ne voit que son véhicule, pas l'annuaire de la flotte.
+        rows = api_client(self.driver).get(VEHICLES).data['results']
+        self.assertEqual([row['id'] for row in rows], [self.near.pk])
         self.assertEqual(api_client(self.donor).get(VEHICLES).status_code, 403)
         self.assertEqual(api_client().get(VEHICLES).status_code, 401)
 

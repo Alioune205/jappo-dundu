@@ -4,11 +4,17 @@ Responsable : Ibrahima Khalilou Diallo
 
 ## Rôles
 
-- **Régulation** (`admin`, `hospital_staff`) : crée les missions, affecte les
-  ambulances, suit les indicateurs.
+- **Régulation** : crée les missions, affecte les ambulances, suit les
+  indicateurs. `admin` régule tout le pays ; `ambulance_manager` et le rôle
+  historique `hospital_staff` régulent les véhicules de leur établissement et
+  les missions de sa région.
 - **Conducteur** (`ambulance_driver`) : envoie sa position, déclare les étapes
-  de sa mission et ne voit que les missions de son ambulance.
-- **Admin** : gère la flotte (création, établissement, type, conducteur).
+  des missions de son ambulance (lui seul, hors régulation) ; la liste des
+  véhicules ne lui renvoie que le sien.
+- **Hôpital de destination** (`bed_manager`) : suit les missions dirigées vers
+  son établissement, sans pouvoir les faire avancer.
+- **Flotte** : gérée par `admin` et `ambulance_manager` (création,
+  établissement, type, conducteur).
 
 ## Cycle de vie d'une mission
 

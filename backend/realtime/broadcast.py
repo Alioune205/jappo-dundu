@@ -36,7 +36,7 @@ from channels.layers import get_channel_layer
 from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
 
-from .consumers import global_group, hospital_group, region_group
+from .consumers import global_group, hospital_group, region_group, user_group
 
 logger = logging.getLogger('jappo_dundu.realtime')
 
@@ -61,7 +61,7 @@ def broadcast_alert(kind, data, *, region=None, hospital_id=None):
         groups.append(region_group('alerts', region))
     if hospital_id is not None:
         groups.append(hospital_group('alerts', hospital_id))
-    return _broadcast(ALERT_KINDS, kind, data, groups)
+    return _broadcast(ALERT_KINDS, kind, data, groups, region=region)
 
 
 def broadcast_dashboard(kind, data, *, hospital_id=None):
@@ -72,7 +72,20 @@ def broadcast_dashboard(kind, data, *, hospital_id=None):
     return _broadcast(DASHBOARD_KINDS, kind, data, groups)
 
 
-def _broadcast(kinds, kind, data, groups):
+def close_user_sessions(user_id):
+    """Ferme les WebSockets ouverts d'un compte (rôle, établissement ou activation modifiés)."""
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return False
+    try:
+        async_to_sync(channel_layer.group_send)(user_group(user_id), {'type': 'session.revoked'})
+    except Exception:  # noqa: BLE001 — la révocation des jetons a déjà eu lieu
+        logger.exception("Fermeture des WebSockets impossible pour user=%s", user_id)
+        return False
+    return True
+
+
+def _broadcast(kinds, kind, data, groups, *, region=None):
     if kind not in kinds:
         raise ValueError(
             f"Type de diffusion inconnu : {kind!r} (attendu : {sorted(kinds)})."
@@ -86,6 +99,8 @@ def _broadcast(kinds, kind, data, groups):
         'sent_at': timezone.now().isoformat(),
         # Normalise dates, Decimal, UUID... en types JSON natifs.
         'data': json.loads(json.dumps(data, cls=DjangoJSONEncoder)),
+        # Région de l'événement : sert au filtrage côté consumer (positions de patients).
+        'region': region,
     }
 
     channel_layer = get_channel_layer()

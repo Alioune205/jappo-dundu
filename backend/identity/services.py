@@ -185,6 +185,15 @@ def _username_for(identity: SocialIdentity):
     return username
 
 
+def _reject_professional(user):
+    """Un compte professionnel (tout rôle autre que donneur) n'ouvre jamais de session sociale."""
+    if user.is_staff or user.is_superuser or get_user_roles(user) - {Role.DONOR}:
+        raise SocialAuthError(
+            "Ce compte professionnel se connecte avec son identifiant et son mot de passe.",
+            status=403,
+        )
+
+
 def social_login(identity: SocialIdentity):
     """Compte correspondant à l'identité externe : (utilisateur, créé ?)."""
     with transaction.atomic():
@@ -197,6 +206,9 @@ def social_login(identity: SocialIdentity):
         if account is not None:
             if not account.user.is_active:
                 raise SocialAuthError("Ce compte est désactivé.", status=403)
+            # Donneur promu ensuite à un rôle professionnel : la liaison sociale
+            # créée quand il était donneur n'ouvre plus le compte.
+            _reject_professional(account.user)
             account.last_login_at = timezone.now()
             account.save(update_fields=['last_login_at'])
             return account.user, False
@@ -210,11 +222,7 @@ def social_login(identity: SocialIdentity):
         if user is not None:
             if not user.is_active:
                 raise SocialAuthError("Ce compte est désactivé.", status=403)
-            if get_user_roles(user) - {Role.DONOR}:
-                raise SocialAuthError(
-                    "Ce compte professionnel se connecte avec son identifiant et son mot de passe.",
-                    status=403,
-                )
+            _reject_professional(user)
         created = user is None
         if created:
             user = create_account(

@@ -79,9 +79,10 @@ class RolesTests(RoleFixturesMixin, TestCase):
         self.regular.groups.add(Group.objects.create(name='comptabilite'))
         self.assertEqual(get_user_roles(self.regular), frozenset())
 
-    def test_role_attribute_on_user_model_is_supported(self):
+    def test_role_attribute_on_user_model_is_ignored(self):
+        # Seuls les groupes et is_staff attribuent un rôle : pas de canal implicite.
         self.regular.role = 'donor'
-        self.assertEqual(get_user_roles(self.regular), {Role.DONOR})
+        self.assertEqual(get_user_roles(self.regular), frozenset())
 
     def test_unknown_role_attribute_is_ignored(self):
         self.regular.role = 'superhero'
