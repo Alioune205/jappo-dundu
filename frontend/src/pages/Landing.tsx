@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import { Link } from 'react-router'
 import {
   Activity,
@@ -33,6 +33,7 @@ import {
   TICKER,
   type ModuleKey,
 } from './landing/content'
+import { useLandingMotion } from './landing/motion'
 
 const NAV = [
   { href: '#modules', label: 'Modules' },
@@ -53,9 +54,12 @@ const AUDIENCE_ICONS = [Smartphone, Building2, Radio, Users]
 const PILOTING_ICONS = [Activity, BrainCircuit, LockKeyhole]
 
 const pillPrimary =
-  'inline-flex items-center gap-2 rounded-full bg-brand font-semibold text-on-brand shadow-[0_10px_24px_-10px_var(--brand)] transition-colors hover:bg-brand-strong'
+  'pill inline-flex items-center gap-2 rounded-full bg-brand font-semibold text-on-brand shadow-[0_10px_24px_-10px_var(--brand)] transition-colors hover:bg-brand-strong'
 const pillOutline =
-  'inline-flex items-center gap-2 rounded-full border border-fg/80 bg-transparent font-semibold text-fg transition-colors hover:bg-fg hover:text-canvas'
+  'pill inline-flex items-center gap-2 rounded-full border border-fg/80 bg-transparent font-semibold text-fg transition-colors hover:bg-fg hover:text-canvas'
+
+/** Rang d'un élément dans sa série : décale son apparition (voir index.css). */
+const stagger = (i: number) => ({ '--i': i }) as React.CSSProperties
 
 /** Titre de section : étiquette mono, titre serif avec un mot mis en valeur. */
 const SectionTitle: React.FC<{
@@ -65,7 +69,7 @@ const SectionTitle: React.FC<{
   center?: boolean
   invert?: boolean
 }> = ({ label, title, intro, center = false, invert = false }) => (
-  <div className={center ? 'mx-auto max-w-2xl text-center' : 'max-w-2xl'}>
+  <div data-reveal className={center ? 'mx-auto max-w-2xl text-center' : 'max-w-2xl'}>
     <p className={`font-label text-xs font-semibold ${invert ? 'text-amber' : 'text-brand'}`}>{label}</p>
     <h2
       className={`font-display mt-3 text-4xl font-semibold leading-[1.1] sm:text-5xl ${invert ? 'text-white' : 'text-fg'}`}
@@ -111,7 +115,7 @@ const AlertCard: React.FC<{ className?: string }> = ({ className = '' }) => (
 
 /** Aperçu du produit (décoratif) : indicateurs et carte. */
 const ProductPreview: React.FC = () => (
-  <div aria-hidden="true" className="relative mx-auto w-full max-w-md">
+  <div aria-hidden="true" data-reveal="scale" className="relative mx-auto w-full max-w-md">
     <div className="rounded-[2rem] border border-line bg-surface p-4 shadow-[var(--shadow-raised)]">
       <div className="mb-3 flex items-center gap-2 px-1">
         <BrandMark className="h-6 w-6" />
@@ -136,6 +140,7 @@ const ProductPreview: React.FC = () => (
       <div className="relative mt-2 h-40 overflow-hidden rounded-2xl bg-raised">
         <svg className="absolute inset-0 h-full w-full" viewBox="0 0 400 160" preserveAspectRatio="none">
           <path
+            className="route-flow"
             d="M50 125 C 130 110, 160 55, 240 62 S 320 35, 350 28"
             fill="none"
             stroke="var(--accent-green)"
@@ -147,10 +152,12 @@ const ProductPreview: React.FC = () => (
         <span className="absolute left-[10%] top-[72%] flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent-green bg-surface">
           <Ambulance className="h-4 w-4 text-accent-green" />
         </span>
-        <span className="absolute left-[84%] top-[8%] flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent-blue bg-surface">
+        {/* Pastille qui suit la route de l'ambulance jusqu'au lit libre. */}
+        <span className="route-runner absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-green shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent-green)_25%,transparent)]" />
+        <span className="route-target absolute left-[84%] top-[8%] flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent-blue bg-surface">
           <BedDouble className="h-4 w-4 text-accent-blue" />
         </span>
-        <span className="absolute left-[48%] top-[30%] flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent-red bg-surface">
+        <span className="ping absolute left-[48%] top-[30%] flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent-red bg-surface text-accent-red">
           <Droplets className="h-4 w-4 text-accent-red" />
         </span>
       </div>
@@ -164,12 +171,14 @@ const ProductPreview: React.FC = () => (
  */
 export const Landing: React.FC = () => {
   const { isAuthenticated } = useAuth()
+  const rootRef = useRef<HTMLDivElement>(null)
+  useLandingMotion(rootRef)
   const spaceLink = isAuthenticated
     ? { to: '/', label: 'Mon espace', short: 'Mon espace' }
     : { to: '/login', label: 'Espace professionnel', short: 'Espace pro' }
 
   return (
-    <div className="landing min-h-full overflow-x-hidden bg-canvas text-fg">
+    <div ref={rootRef} className="landing min-h-full overflow-x-hidden bg-canvas text-fg">
       <a
         href="#contenu"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-surface focus:px-4 focus:py-2"
@@ -181,7 +190,7 @@ export const Landing: React.FC = () => {
       <header className="sticky top-0 z-40 px-4 pt-4">
         <nav
           aria-label="Navigation principale"
-          className="mx-auto flex max-w-6xl items-center gap-3 rounded-full border border-line bg-surface/90 py-2 pl-5 pr-2 shadow-[var(--shadow-panel)] backdrop-blur"
+          className="landing-nav mx-auto flex max-w-6xl items-center gap-3 rounded-full border border-line bg-surface/90 py-2 pl-5 pr-2 shadow-[var(--shadow-panel)] backdrop-blur"
         >
           <a href="#haut" className="flex items-center gap-2">
             <BrandMark className="h-9 w-9" />
@@ -205,7 +214,7 @@ export const Landing: React.FC = () => {
           >
             <span className="sm:hidden">{spaceLink.short}</span>
             <span className="hidden sm:inline">{spaceLink.label}</span>
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            <ArrowRight className="pill-arrow h-4 w-4" aria-hidden="true" />
           </Link>
         </nav>
       </header>
@@ -215,36 +224,40 @@ export const Landing: React.FC = () => {
         <section id="haut" className="relative">
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute -right-40 -top-40 h-[34rem] w-[34rem] rounded-full bg-amber-soft"
+            className="hero-blob pointer-events-none absolute -right-40 -top-40 h-[34rem] w-[34rem] rounded-full bg-amber-soft"
           />
           <div className="relative mx-auto grid max-w-6xl items-center gap-16 px-5 pb-20 pt-14 lg:grid-cols-[1.1fr_0.9fr] lg:pt-20">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-surface py-1 pl-1 pr-4 text-sm text-muted">
+              <p
+                data-hero
+                style={stagger(0)}
+                className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-surface py-1 pl-1 pr-4 text-sm text-muted"
+              >
                 <span className="font-label shrink-0 rounded-full bg-brand px-2.5 py-1 text-[0.65rem] font-semibold text-on-brand">
                   Temps réel
                 </span>
                 Sang, lits et ambulances sur une même plateforme
               </p>
-              <h1 className="font-display mt-7 text-5xl font-semibold leading-[1.02] text-fg sm:text-6xl lg:text-7xl">
+              <h1 data-hero style={stagger(1)} className="font-display mt-7 text-5xl font-semibold leading-[1.02] text-fg sm:text-6xl lg:text-7xl">
                 Le sang, les lits et les ambulances, <span className="highlight">enfin connectés.</span>
               </h1>
-              <p className="mt-7 max-w-xl text-lg leading-relaxed text-muted">
+              <p data-hero style={stagger(2)} className="mt-7 max-w-xl text-lg leading-relaxed text-muted">
                 Jappo Dundu relie en temps réel les donneurs, les hôpitaux et le SAMU : l’ambulance la plus proche, le
                 lit disponible et le donneur compatible, au même endroit.
               </p>
-              <div className="mt-9 flex flex-wrap gap-3">
+              <div data-hero style={stagger(3)} className="mt-9 flex flex-wrap gap-3">
                 <a href="#modules" className={`${pillPrimary} h-13 px-7 py-3.5 text-base`}>
-                  <Plus className="h-5 w-5" aria-hidden="true" />
+                  <Plus className="pill-plus h-5 w-5" aria-hidden="true" />
                   Découvrir les modules
                 </a>
                 <a href="#don" className={`${pillOutline} h-13 px-7 py-3.5 text-base`}>
                   Devenir donneur
-                  <ArrowRight className="h-5 w-5" aria-hidden="true" />
+                  <ArrowRight className="pill-arrow h-5 w-5" aria-hidden="true" />
                 </a>
               </div>
             </div>
             <div className="relative mx-auto w-full max-w-md">
-              <div className="aspect-[4/5] overflow-hidden rounded-[2.5rem] shadow-[var(--shadow-raised)]">
+              <div data-hero-photo className="aspect-[4/5] overflow-hidden rounded-[2.5rem] shadow-[var(--shadow-raised)]">
                 <Photo
                   eager
                   name="alert"
@@ -252,8 +265,8 @@ export const Landing: React.FC = () => {
                   className="object-[50%_20%]"
                 />
               </div>
-              <AlertCard className="absolute -left-4 bottom-10 sm:-left-12" />
-              <span className="absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-1.5 text-xs font-semibold text-accent-green shadow-[var(--shadow-panel)]">
+              <AlertCard className="hero-notif absolute -left-4 bottom-10 sm:-left-12" />
+              <span className="hero-pop absolute right-5 top-5 flex items-center gap-1.5 rounded-full bg-surface/95 px-3 py-1.5 text-xs font-semibold text-accent-green shadow-[var(--shadow-panel)]">
                 <span className="live-pulse h-1.5 w-1.5 rounded-full bg-accent-green" aria-hidden="true" /> Alerte en
                 temps réel
               </span>
@@ -262,7 +275,7 @@ export const Landing: React.FC = () => {
 
           {/* Bandeau défilant */}
           <div className="relative overflow-hidden bg-brand py-3.5 text-on-brand" aria-label="La plateforme en bref">
-            <ul className="landing-ticker flex w-max gap-12 whitespace-nowrap text-sm">
+            <ul className="landing-ticker landing-ticker-mask flex w-max gap-12 whitespace-nowrap text-sm">
               {[...TICKER, ...TICKER].map((item, index) => (
                 <li key={index} className="flex items-center gap-2" aria-hidden={index >= TICKER.length}>
                   <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-white/80" />
@@ -277,9 +290,17 @@ export const Landing: React.FC = () => {
             {KEY_FIGURES.map((figure, index) => (
               <div
                 key={figure.label}
+                data-reveal="scale"
+                style={stagger(index)}
                 className={`rounded-full px-6 py-8 text-center ${index % 2 === 0 ? 'bg-raised' : 'bg-surface shadow-[var(--shadow-panel)]'}`}
               >
-                <div className="font-display text-5xl font-semibold text-brand">{figure.value}</div>
+                <div className="font-display text-5xl font-semibold text-brand">
+                  {/* Compteur animé à l'apparition ; la valeur finale reste lisible par les lecteurs d'écran. */}
+                  <span aria-hidden="true" data-count={figure.value}>
+                    {figure.value}
+                  </span>
+                  <span className="sr-only">{figure.value}</span>
+                </div>
                 <div className="mx-auto mt-2 max-w-[12rem] text-sm leading-snug text-muted">{figure.label}</div>
               </div>
             ))}
@@ -302,15 +323,17 @@ export const Landing: React.FC = () => {
               <ProductPreview />
             </div>
             <div className="mt-14 grid gap-6 lg:grid-cols-3">
-              {MODULES.map((module) => {
+              {MODULES.map((module, index) => {
                 const style = MODULE_STYLE[module.key]
                 const Icon = style.icon
                 return (
                   <article
                     key={module.key}
-                    className="rounded-[2rem] border border-line bg-surface p-8 shadow-[var(--shadow-panel)]"
+                    data-reveal
+                    style={stagger(index)}
+                    className="lift rounded-[2rem] border border-line bg-surface p-8 shadow-[var(--shadow-panel)]"
                   >
-                    <span className={`flex h-14 w-14 items-center justify-center rounded-full ${style.soft}`}>
+                    <span className={`lift-icon flex h-14 w-14 items-center justify-center rounded-full ${style.soft}`}>
                       <Icon className={`h-7 w-7 ${style.text}`} aria-hidden="true" />
                     </span>
                     <h3 className="font-display mt-6 text-3xl font-semibold text-fg">{module.name}</h3>
@@ -343,7 +366,7 @@ export const Landing: React.FC = () => {
               intro="Un accident sur la route : voici comment les trois modules se relaient."
             />
             <div className="mt-14 grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-              <div className="relative min-h-80 overflow-hidden rounded-[2rem]">
+              <div data-reveal="photo" className="relative min-h-80 overflow-hidden rounded-[2rem]">
                 <Photo name="need" alt="Une ambulance en intervention de nuit" className="absolute inset-0" />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-6 pt-20">
                   <p className="font-label text-[0.65rem] font-semibold text-amber">Chaque minute compte</p>
@@ -357,10 +380,15 @@ export const Landing: React.FC = () => {
                   const style = MODULE_STYLE[step.module]
                   const Icon = style.icon
                   return (
-                    <li key={step.title} className="rounded-[1.75rem] bg-surface p-7 shadow-[var(--shadow-panel)]">
+                    <li
+                      key={step.title}
+                      data-reveal
+                      style={stagger(index)}
+                      className="lift rounded-[1.75rem] bg-surface p-7 shadow-[var(--shadow-panel)]"
+                    >
                       <div className="flex items-center justify-between">
                         <span className="font-display text-4xl font-semibold text-brand">{index + 1}</span>
-                        <span className={`flex h-10 w-10 items-center justify-center rounded-full ${style.soft}`}>
+                        <span className={`lift-icon flex h-10 w-10 items-center justify-center rounded-full ${style.soft}`}>
                           <Icon className={`h-5 w-5 ${style.text}`} aria-hidden="true" />
                         </span>
                       </div>
@@ -391,8 +419,13 @@ export const Landing: React.FC = () => {
               {AUDIENCES.map((audience, index) => {
                 const Icon = AUDIENCE_ICONS[index]
                 return (
-                  <div key={audience.who} className="rounded-[1.75rem] border border-line bg-surface p-7">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-soft">
+                  <div
+                    key={audience.who}
+                    data-reveal
+                    style={stagger(index)}
+                    className="lift rounded-[1.75rem] border border-line bg-surface p-7"
+                  >
+                    <span className="lift-icon flex h-12 w-12 items-center justify-center rounded-full bg-amber-soft">
                       <Icon className="h-6 w-6 text-amber-ink" aria-hidden="true" />
                     </span>
                     <h3 className="font-display mt-5 text-2xl font-semibold text-fg">{audience.who}</h3>
@@ -421,8 +454,13 @@ export const Landing: React.FC = () => {
               {PILOTING.map((item, index) => {
                 const Icon = PILOTING_ICONS[index]
                 return (
-                  <div key={item.title} className="rounded-[1.75rem] bg-white/6 p-7 ring-1 ring-white/10">
-                    <Icon className="h-7 w-7 text-amber" aria-hidden="true" />
+                  <div
+                    key={item.title}
+                    data-reveal
+                    style={stagger(index)}
+                    className="lift rounded-[1.75rem] bg-white/6 p-7 ring-1 ring-white/10"
+                  >
+                    <Icon className="lift-icon h-7 w-7 text-amber" aria-hidden="true" />
                     <h3 className="font-display mt-4 text-2xl font-semibold text-white">{item.title}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-white/70">{item.text}</p>
                   </div>
@@ -446,8 +484,13 @@ export const Landing: React.FC = () => {
                 intro="Avec l’application, vous êtes prévenu quand un hôpital proche a besoin de votre groupe sanguin."
               />
               <ul className="mt-8 space-y-3">
-                {DONOR_CONDITIONS.map((condition) => (
-                  <li key={condition} className="flex items-center gap-3 text-base text-fg">
+                {DONOR_CONDITIONS.map((condition, index) => (
+                  <li
+                    key={condition}
+                    data-reveal="left"
+                    style={stagger(index)}
+                    className="flex items-center gap-3 text-base text-fg"
+                  >
                     <CheckCircle2 className="h-5 w-5 shrink-0 text-accent-green" aria-hidden="true" />
                     {condition}
                   </li>
@@ -460,23 +503,28 @@ export const Landing: React.FC = () => {
                 className={`${pillOutline} mt-9 px-6 py-3 text-sm`}
               >
                 Conditions complètes et lieux de don (CNTS)
-                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                <ExternalLink className="pill-arrow h-4 w-4" aria-hidden="true" />
               </a>
             </div>
             <div className="flex flex-col gap-6">
-              <div className="rounded-[2rem] bg-raised p-8">
+              <div data-reveal className="rounded-[2rem] bg-raised p-8">
                 <p className="font-label text-xs font-semibold text-brand">Groupes recherchés</p>
                 <h3 className="font-display mt-2 text-3xl font-semibold text-fg">Votre groupe est-il attendu ?</h3>
                 <p className="mt-1 text-sm text-muted">Selon le CNTS, au {BLOOD_NEEDS.updated}.</p>
                 <div className="mt-6 grid grid-cols-2 gap-3">
-                  {BLOOD_NEEDS.groups.map((g) => {
+                  {BLOOD_NEEDS.groups.map((g, index) => {
                     const critical = g.level === 'critical'
                     return (
-                      <div key={g.group} className="flex items-center justify-between rounded-2xl bg-surface p-4">
+                      <div
+                        key={g.group}
+                        data-reveal="scale"
+                        style={stagger(index + 2)}
+                        className="flex items-center justify-between rounded-2xl bg-surface p-4"
+                      >
                         <span className="font-display text-4xl font-semibold text-fg">{g.group}</span>
                         <span
                           className={`font-label rounded-full px-2.5 py-1 text-[0.6rem] font-semibold ${
-                            critical ? 'bg-brand text-on-brand' : 'bg-amber-soft text-amber-ink'
+                            critical ? 'heartbeat bg-brand text-on-brand' : 'bg-amber-soft text-amber-ink'
                           }`}
                         >
                           {critical ? 'Critique' : 'En baisse'}
@@ -490,7 +538,7 @@ export const Landing: React.FC = () => {
                   <p className="text-sm text-muted">L’application des donneurs arrive bientôt sur Android et iPhone.</p>
                 </div>
               </div>
-              <div className="aspect-[4/3] overflow-hidden rounded-[2rem]">
+              <div data-reveal="photo" className="aspect-[4/3] overflow-hidden rounded-[2rem]">
                 <Photo name="donate" alt="Un bras pendant un don de sang" className="object-[50%_22%]" />
               </div>
             </div>
@@ -510,11 +558,11 @@ export const Landing: React.FC = () => {
               }
             />
             <div className="mt-12 space-y-3">
-              {FAQ.map((item) => (
-                <details key={item.q} className="group rounded-3xl bg-surface">
+              {FAQ.map((item, index) => (
+                <details key={item.q} data-reveal style={stagger(index)} className="group rounded-3xl bg-surface">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-7 py-5 text-base font-semibold text-fg [&::-webkit-details-marker]:hidden">
                     {item.q}
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-raised transition-transform group-open:rotate-45">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-raised transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-open:rotate-45 motion-reduce:transition-none">
                       <Plus className="h-4 w-4 text-brand" aria-hidden="true" />
                     </span>
                   </summary>
@@ -528,10 +576,10 @@ export const Landing: React.FC = () => {
         {/* Appel final */}
         <section className="px-5 py-20">
           <div className="mx-auto mb-14 grid max-w-6xl items-center gap-10 rounded-[2.5rem] bg-raised p-6 sm:p-10 lg:grid-cols-2">
-            <div className="aspect-[4/3] overflow-hidden rounded-[2rem]">
+            <div data-reveal="photo" className="aspect-[4/3] overflow-hidden rounded-[2rem]">
               <Photo name="impact" alt="Une mère tient son nouveau-né dans ses bras" className="object-[60%_45%]" />
             </div>
-            <div>
+            <div data-reveal style={stagger(1)}>
               <p className="font-label text-xs font-semibold text-brand">Pourquoi Jappo Dundu</p>
               <p className="font-display mt-3 text-3xl font-semibold leading-tight text-fg sm:text-4xl">
                 Derrière chaque alerte, <span className="highlight">une vie à sauver.</span>
@@ -542,7 +590,7 @@ export const Landing: React.FC = () => {
               </p>
             </div>
           </div>
-          <div className="mx-auto max-w-4xl text-center">
+          <div data-reveal className="mx-auto max-w-4xl text-center">
             <h2 className="font-display text-4xl font-semibold leading-tight text-fg sm:text-5xl">
               Votre établissement veut <span className="highlight">{'rejoindre le réseau ?'}</span>
             </h2>
@@ -551,7 +599,7 @@ export const Landing: React.FC = () => {
             </p>
             <Link to={spaceLink.to} className={`${pillPrimary} mt-9 px-8 py-4 text-base`}>
               {spaceLink.label}
-              <ArrowRight className="h-5 w-5" aria-hidden="true" />
+              <ArrowRight className="pill-arrow h-5 w-5" aria-hidden="true" />
             </Link>
           </div>
         </section>

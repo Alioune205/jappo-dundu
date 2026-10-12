@@ -387,6 +387,11 @@
   animation-play-state: paused;
 }
 
+/* Bords du bandeau fondus : le texte entre et sort sans coupure nette. */
+.landing-ticker-mask {
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .landing-ticker {
     animation: none;
@@ -395,6 +400,388 @@
   .live-pulse {
     animation: none;
   }
+}
+
+/*
+ * Motion design de la page d'accueil (voir pages/landing/motion.ts).
+ *
+ * Une seule grammaire : les éléments montent et se précisent (flou → net) sur
+ * une décélération forte, en cascade (--i). Le contenu reste visible par
+ * défaut : les états de départ n'existent que sous [data-motion='on'], posé
+ * par JS, et tout est coupé si l'utilisateur réduit les animations.
+ */
+.landing {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-reveal: 900ms;
+  --stagger: 90ms;
+  interpolate-size: allow-keywords;
+}
+
+/* Surlignage ambre : dessiné de gauche à droite à l'apparition du titre. */
+.landing .highlight {
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* --- Accroche : entrée en cascade au chargement --------------------- */
+  @keyframes hero-rise {
+    from {
+      opacity: 0;
+      transform: translateY(28px);
+      filter: blur(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+      filter: blur(0);
+    }
+  }
+  @keyframes hero-photo {
+    from {
+      clip-path: inset(14% 10% 14% 10% round 2.5rem);
+      opacity: 0;
+    }
+    to {
+      clip-path: inset(0 round 2.5rem);
+      opacity: 1;
+    }
+  }
+  @keyframes photo-settle {
+    from {
+      scale: 1.14;
+    }
+    to {
+      scale: 1;
+    }
+  }
+  @keyframes notif-in {
+    from {
+      opacity: 0;
+      transform: translateY(-22px) scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      translate: 0 0;
+    }
+    50% {
+      translate: 0 -8px;
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes blob-drift {
+    from {
+      translate: 0 0;
+      scale: 1;
+    }
+    to {
+      translate: -48px 36px;
+      scale: 1.08;
+    }
+  }
+  @keyframes highlight-sweep {
+    from {
+      background-size: 0% 100%;
+    }
+    to {
+      background-size: 100% 100%;
+    }
+  }
+
+  .landing[data-motion='on'] [data-hero] {
+    animation: hero-rise var(--dur-reveal) var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 110ms + 80ms);
+  }
+  .landing[data-motion='on'] [data-hero] .highlight {
+    animation: highlight-sweep 900ms var(--ease-out) 750ms both;
+  }
+  .landing[data-motion='on'] [data-hero-photo] {
+    animation: hero-photo 1.2s var(--ease-out) 150ms both;
+  }
+  .landing[data-motion='on'] [data-hero-photo] img {
+    animation: photo-settle 1.8s var(--ease-out) 150ms both;
+  }
+  .landing[data-motion='on'] .hero-notif {
+    animation:
+      notif-in 700ms var(--ease-back) 1.1s both,
+      float 6s ease-in-out 2s infinite;
+  }
+  .landing[data-motion='on'] .hero-pop {
+    animation: pop-in 500ms var(--ease-back) 1.5s both;
+  }
+  .landing[data-motion='on'] .hero-blob {
+    animation: blob-drift 16s ease-in-out infinite alternate;
+  }
+
+  /* --- Apparitions au défilement -------------------------------------- */
+  .landing[data-motion='on'] [data-reveal] {
+    opacity: 0;
+    transform: translateY(36px);
+    filter: blur(4px);
+    /* Délai en cascade pour l'apparition seulement : le survol reste immédiat. */
+    transition:
+      opacity var(--dur-reveal) var(--ease-out),
+      transform var(--dur-reveal) var(--ease-out),
+      filter var(--dur-reveal) var(--ease-out),
+      translate 350ms var(--ease-out),
+      box-shadow 350ms var(--ease-out);
+    transition-delay:
+      calc(var(--i, 0) * var(--stagger)),
+      calc(var(--i, 0) * var(--stagger)),
+      calc(var(--i, 0) * var(--stagger)),
+      0s,
+      0s;
+  }
+  .landing[data-motion='on'] [data-reveal='scale'] {
+    transform: scale(0.92);
+  }
+  .landing[data-motion='on'] [data-reveal='left'] {
+    transform: translateX(-24px);
+  }
+  .landing[data-motion='on'] [data-reveal='photo'] {
+    transform: none;
+    filter: none;
+    clip-path: inset(10% 8% 10% 8% round 2rem);
+    transition:
+      opacity 1s var(--ease-out),
+      clip-path 1.2s var(--ease-out);
+  }
+  .landing[data-motion='on'] [data-reveal='photo'] img {
+    scale: 1.14;
+    transition: scale 1.8s var(--ease-out);
+  }
+  .landing[data-motion='on'] [data-reveal][data-revealed='true'] {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  .landing[data-motion='on'] [data-reveal='photo'][data-revealed='true'] {
+    clip-path: inset(0 round 2rem);
+  }
+  .landing[data-motion='on'] [data-reveal='photo'][data-revealed='true'] img {
+    scale: 1;
+  }
+  .landing[data-motion='on'] [data-reveal] .highlight {
+    background-size: 0% 100%;
+    transition: background-size 1s var(--ease-out) 350ms;
+  }
+  .landing[data-motion='on'] [data-reveal][data-revealed='true'] .highlight {
+    background-size: 100% 100%;
+  }
+
+  /* --- Navigation : s'affirme dès qu'on quitte le haut de page --------- */
+  .landing .landing-nav {
+    transition:
+      box-shadow 300ms ease,
+      background-color 300ms ease;
+  }
+  .landing[data-scrolled='true'] .landing-nav {
+    box-shadow: var(--shadow-raised);
+  }
+
+  /* --- Micro-interactions ---------------------------------------------- */
+  .landing .pill {
+    transition:
+      background-color 200ms ease,
+      color 200ms ease,
+      translate 250ms var(--ease-out),
+      box-shadow 250ms var(--ease-out);
+  }
+  .landing .pill:hover {
+    translate: 0 -2px;
+  }
+  .landing .pill:active {
+    translate: 0 0;
+  }
+  .landing .pill-arrow {
+    transition: translate 250ms var(--ease-out);
+  }
+  .landing .pill:hover .pill-arrow {
+    translate: 4px 0;
+  }
+  .landing .pill:hover .pill-plus {
+    rotate: 90deg;
+  }
+  .landing .pill-plus {
+    transition: rotate 350ms var(--ease-back);
+  }
+  .landing .lift {
+    transition:
+      translate 350ms var(--ease-out),
+      box-shadow 350ms var(--ease-out);
+  }
+  .landing .lift:hover {
+    translate: 0 -6px;
+    box-shadow: var(--shadow-raised);
+  }
+  .landing .lift .lift-icon {
+    transition: scale 400ms var(--ease-back), rotate 400ms var(--ease-back);
+  }
+  .landing .lift:hover .lift-icon {
+    scale: 1.12;
+    rotate: -6deg;
+  }
+
+  /* --- Aperçu produit : l'ambulance rejoint le lit libre --------------- */
+  @keyframes route-flow {
+    to {
+      stroke-dashoffset: -26;
+    }
+  }
+  /* Points échantillonnés à abscisse curviligne constante sur la courbe du SVG. */
+  @keyframes route-run {
+    0% {
+      left: 12.5%;
+      top: 78.1%;
+      opacity: 0;
+    }
+    6% {
+      opacity: 1;
+    }
+    10% {
+      left: 20.7%;
+      top: 72.4%;
+    }
+    20% {
+      left: 27.8%;
+      top: 64.7%;
+    }
+    30% {
+      left: 35.2%;
+      top: 54.7%;
+    }
+    40% {
+      left: 42.5%;
+      top: 45.7%;
+    }
+    50% {
+      left: 50.5%;
+      top: 39.7%;
+    }
+    60% {
+      left: 58.5%;
+      top: 38.5%;
+    }
+    70% {
+      left: 66.6%;
+      top: 39.3%;
+    }
+    80% {
+      left: 74.1%;
+      top: 36.4%;
+    }
+    90% {
+      left: 80.8%;
+      top: 27.3%;
+      opacity: 1;
+    }
+    100% {
+      left: 87.5%;
+      top: 17.5%;
+      opacity: 0;
+    }
+  }
+  @keyframes route-arrive {
+    0%,
+    86%,
+    100% {
+      scale: 1;
+      box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent-blue) 45%, transparent);
+    }
+    92% {
+      scale: 1.18;
+      box-shadow: 0 0 0 10px color-mix(in oklab, var(--accent-blue) 0%, transparent);
+    }
+  }
+  @keyframes ping {
+    from {
+      scale: 1;
+      opacity: 0.55;
+    }
+    to {
+      scale: 2.4;
+      opacity: 0;
+    }
+  }
+  .landing[data-motion='on'] .route-flow {
+    animation: route-flow 1.6s linear infinite;
+  }
+  .landing[data-motion='on'] .route-runner {
+    display: block;
+    animation: route-run 4.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+  .landing[data-motion='on'] .route-target {
+    animation: route-arrive 4.8s ease-out infinite;
+  }
+  .landing[data-motion='on'] .ping::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 9999px;
+    border: 2px solid currentColor;
+    animation: ping 2.4s var(--ease-out) infinite;
+  }
+
+  /* --- Groupe sanguin critique : battement de cœur --------------------- */
+  @keyframes heartbeat {
+    0%,
+    40%,
+    100% {
+      scale: 1;
+    }
+    10%,
+    30% {
+      scale: 1.12;
+    }
+    20% {
+      scale: 0.98;
+    }
+  }
+  .landing[data-motion='on'] .heartbeat {
+    animation: heartbeat 1.8s ease-in-out infinite;
+  }
+
+  /* --- FAQ : ouverture fluide (navigateurs compatibles) ---------------- */
+  .landing details::details-content {
+    height: 0;
+    overflow: clip;
+    transition:
+      height 450ms var(--ease-out),
+      content-visibility 450ms allow-discrete;
+  }
+  .landing details[open]::details-content {
+    height: auto;
+  }
+  @keyframes faq-in {
+    from {
+      opacity: 0;
+      translate: 0 -6px;
+    }
+  }
+  .landing details[open] > p {
+    animation: faq-in 450ms var(--ease-out) 60ms both;
+  }
+}
+
+/* La pastille animée de l'aperçu n'existe qu'en mouvement. */
+.route-runner {
+  display: none;
 }
 
 /* Leaflet : intégration aux couleurs du thème. */
