@@ -1,13 +1,17 @@
 import React, { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@/context/AuthContext'
 import { api } from '@/lib/api'
 import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { BLOOD_GROUPS, URGENCIES } from '@/lib/constants'
-import type { BloodGroup, BloodRequest, BloodRequestInput, Urgency } from '@/types/api'
+import type { BloodGroup, BloodRequest, BloodRequestInput, FacilitySummary, Urgency } from '@/types/api'
 import { QK } from '@/lib/queryKeys'
+
+/** Établissements qui peuvent demander du sang (pas les services d'ambulances). */
+const BLOOD_SITE_TYPES = new Set(['hospital', 'health_center', 'clinic', 'blood_bank'])
 
 const EMPTY_REQUEST: BloodRequestInput = {
   blood_group: 'O+',
@@ -35,6 +39,18 @@ const CreateRequestForm: React.FC<{ onDone: () => void }> = ({ onDone }) => {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<BloodRequestInput>(EMPTY_REQUEST)
   const set = (patch: Partial<BloodRequestInput>) => setForm((current) => ({ ...current, ...patch }))
+  // L'administrateur général n'est rattaché à aucun établissement : il choisit
+  // celui qui demande (l'API l'exige). Les autres rôles demandent pour le leur.
+  const { isAdmin } = useAuth()
+  const { data: sites = [] } = useQuery<FacilitySummary[]>({
+    queryKey: QK.facilitiesBloodSites,
+    queryFn: async () =>
+      ((await api.get<{ results: FacilitySummary[] }>('/api/facilities/')).results || []).filter((f) =>
+        BLOOD_SITE_TYPES.has(f.facility_type)
+      ),
+    enabled: isAdmin,
+  })
+  const missingFacility = isAdmin && !form.facility_id
 
   const create = useMutation({
     mutationFn: () => api.post<BloodRequest>('/api/sang/requests/', form),
@@ -54,6 +70,22 @@ const CreateRequestForm: React.FC<{ onDone: () => void }> = ({ onDone }) => {
     >
       {create.error && (
         <Alert tone="danger">{create.error instanceof Error ? create.error.message : 'Erreur lors de la création.'}</Alert>
+      )}
+
+      {isAdmin && (
+        <Select
+          label="Établissement demandeur"
+          required
+          value={form.facility_id ?? ''}
+          onChange={(e) => set({ facility_id: e.target.value ? Number(e.target.value) : undefined })}
+        >
+          <option value="">Choisir un établissement…</option>
+          {sites.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name} ({f.city})
+            </option>
+          ))}
+        </Select>
       )}
 
       <div className="grid grid-cols-2 gap-3">
@@ -103,7 +135,7 @@ const CreateRequestForm: React.FC<{ onDone: () => void }> = ({ onDone }) => {
         <Button variant="ghost" onClick={onDone}>
           Annuler
         </Button>
-        <Button type="submit" variant="primary" isLoading={create.isPending}>
+        <Button type="submit" variant="primary" isLoading={create.isPending} disabled={missingFacility}>
           Diffuser la demande
         </Button>
       </div>

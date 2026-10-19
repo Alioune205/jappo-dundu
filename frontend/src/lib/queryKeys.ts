@@ -19,6 +19,7 @@ export const QK = {
   // Lits
   bedCapacities: ['bed-capacities'],
   bedsSummary: ['beds-summary'],
+  bedReservations: ['bed-reservations'],
   bedsNearest: ['beds-nearest'],
   // SAMU
   ambulancesList: ['ambulances-list'],
@@ -38,4 +39,5 @@ export const QK = {
   facilityOptions: ['facility-options'],
   facilitiesMap: ['facilities-map'],
   facilitiesHospitals: ['facilities-hospitals'],
+  facilitiesBloodSites: ['facilities-blood-sites'],
 } as const satisfies Record<string, readonly [string]>

@@ -22,6 +22,7 @@ from django.utils import timezone
 
 from geo.distance import GeoPoint
 from geo.search import nearest
+from lits.services import close_mission_reservation
 from realtime.broadcast import broadcast_alert, broadcast_dashboard
 from users.exceptions import Conflict
 
@@ -259,6 +260,10 @@ def advance(mission, status, *, destination=None, cancellation_reason=''):
         mission.cancellation_reason = cancellation_reason
     mission.save()
 
+    if mission.is_final:
+        # Lit réservé à l'hôpital de destination : occupé si le patient est remis,
+        # libéré si la mission est annulée.
+        close_mission_reservation(mission)
     if mission.is_final and mission.ambulance_id:
         Ambulance.objects.filter(
             pk=mission.ambulance_id, status=AmbulanceStatus.ON_MISSION

@@ -112,7 +112,7 @@ export const Login: React.FC = () => {
           <div>
             <p className="font-label text-xs font-semibold text-amber">Espace professionnel</p>
             <p className="font-display mt-3 max-w-lg text-4xl xl:text-5xl font-semibold leading-[1.05]">
-              Chaque minute compte. <span className="italic text-amber">Chaque lit aussi.</span>
+              Chaque minute compte. <span className="text-amber">Chaque lit aussi.</span>
             </p>
             <p className="mt-4 max-w-md text-base leading-relaxed text-white/80">
               Hôpitaux, centres de transfusion et SAMU : une seule plateforme pour le sang, les lits et les

@@ -239,6 +239,7 @@ La sécurité de Jappo Dundu repose sur un modèle hybride rigoureux :
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Lits : Capacités & Services** | L+É (Tous) | L (Tous), É (Étab.) | 403 | L (Tous) | L (Tous), É (Étab.) | L (Tous) | 403 | L+É (Étab., clé lits) |
 | **Lits : Entrées / Sorties (ADT)** | L+É (Tous) | L+É (Étab.) | 403 | 403 | L+É (Étab.) | 403 | 403 | É (Étab., clé lits) |
+| **Lits : Réservations** | L+É (Tous) | L+É (Étab.) | 403 | L+É (Sa région, sans admission) | L+É (Étab. ; régulation : sa région) | 403 | 403 | 403 |
 | **Sang : Demandes urgentes** | L+É (Tous) | 403 | L+É (Étab. ; CNTS : Région) | 403 | L+É (Étab.) | 403 | L (Proches) | 403 |
 | **Sang : Confirmation de don** | L+É (Tous) | 403 | L+É (Étab. ; CNTS : Région) | 403 | L+É (Étab.) | 403 | 403 | 403 |
 | **Sang : Carte & Profil donneur** | L+É (Tous) | 403 | L (Lookup carte/tél) | 403 | L (Lookup carte/tél) | 403 | L+É (Propre) | 403 |

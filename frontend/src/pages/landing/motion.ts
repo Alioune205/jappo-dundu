@@ -53,7 +53,7 @@ export function useLandingMotion(rootRef: RefObject<HTMLElement | null>) {
         }
       },
       // Déclenche un peu avant que l'élément soit pleinement entré.
-      { rootMargin: '0px 0px -12% 0px', threshold: 0.15 }
+      { rootMargin: '0px 0px -4% 0px', threshold: 0.1 }
     )
     root.querySelectorAll('[data-reveal]').forEach((el) => observer.observe(el))
 

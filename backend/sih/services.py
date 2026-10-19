@@ -17,7 +17,7 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
 from lits.models import BedCapacity
-from lits.services import notify_capacity
+from lits.services import notify_capacity, release_for_physical_capacity
 from ml.models import BloodStockRecord
 from realtime.broadcast import broadcast_dashboard
 from users.exceptions import Conflict
@@ -66,6 +66,11 @@ def sync_beds_batch(facility, services_data, *, api_key=None, ip_address=None):
 
             if capacity:
                 previous_available = capacity.available_beds
+                # Le SIH fait foi sur l'état physique : les réservations qui ne
+                # tiennent plus dans les lits déclarés sont libérées d'abord.
+                release_for_physical_capacity(
+                    capacity, total_beds=total, occupied_beds=occupied, reason="Service plein selon le SIH"
+                )
                 capacity.total_beds = total
                 capacity.occupied_beds = occupied
                 capacity.save(update_fields=['total_beds', 'occupied_beds', 'updated_at'])
@@ -85,6 +90,7 @@ def sync_beds_batch(facility, services_data, *, api_key=None, ip_address=None):
                 'category_display': capacity.get_category_display(),
                 'total_beds': capacity.total_beds,
                 'occupied_beds': capacity.occupied_beds,
+                'reserved_beds': capacity.reserved_beds,
                 'available_beds': capacity.available_beds,
                 'occupancy_rate': capacity.occupancy_rate,
             })
@@ -137,6 +143,13 @@ def process_bed_event(facility, category, action, *, delta=1, patient_ref=None, 
                     f"Capacité saturée pour le service {capacity.get_category_display()} : "
                     f"impossible d'admettre {delta} patient(s). Lits libres : {capacity.available_beds}."
                 )
+            # Patient réellement admis (physique) : libère au besoin les réservations en trop.
+            release_for_physical_capacity(
+                capacity,
+                total_beds=capacity.total_beds,
+                occupied_beds=capacity.occupied_beds + delta,
+                reason="Service plein selon le SIH",
+            )
             capacity.occupied_beds += delta
         elif action == 'discharge':
             if capacity.occupied_beds < delta:

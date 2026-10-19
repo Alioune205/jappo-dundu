@@ -43,7 +43,7 @@ export const Sidebar: React.FC = () => {
       title: 'Ressources',
       items: [
         { to: '/blood', label: 'Banque de sang', icon: Droplets },
-        { to: '/beds', label: 'Capacité en lits', icon: BedDouble },
+        { to: '/beds', label: 'Lits', icon: BedDouble },
         { to: '/ambulances', label: 'Flotte SAMU', icon: Ambulance },
       ],
     },

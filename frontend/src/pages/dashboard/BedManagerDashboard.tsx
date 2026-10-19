@@ -169,7 +169,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
             to="/beds"
             className="inline-flex h-10 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-on-brand hover:bg-brand-strong"
           >
-            Gérer les capacités <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            Ouvrir Mes lits <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         }
       />
@@ -243,10 +243,10 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3">
             <div>
               <h2 className="text-sm font-semibold text-fg">Mes services</h2>
-              <p className="text-xs text-muted">Enregistrez une admission (+) ou une sortie (−) en un clic.</p>
+              <p className="text-xs text-muted">Admettre un patient (+) ou enregistrer sa sortie (−). Réservations : « Mes lits ».</p>
             </div>
             <Link to="/beds" className="flex items-center gap-1 text-xs text-muted hover:text-fg">
-              Détail <ArrowRight className="h-3.5 w-3.5" />
+              Mes lits <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
           {actionError && (
@@ -286,6 +286,12 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                       <p className="mt-0.5 text-xs text-muted">
                         <span className="num font-semibold text-fg">{cap.available_beds}</span> libre
                         {cap.available_beds > 1 ? 's' : ''} sur <span className="num">{cap.total_beds}</span>
+                        {cap.reserved_beds > 0 && (
+                          <span className="font-medium text-info">
+                            {' · '}
+                            {cap.reserved_beds} réservé{cap.reserved_beds > 1 ? 's' : ''}
+                          </span>
+                        )}
                         {' · '}
                         {formatRelative(cap.updated_at, now)}
                       </p>
@@ -311,8 +317,8 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                         type="button"
                         onClick={() => admit.mutate(cap.id)}
                         disabled={busy || cap.available_beds === 0}
-                        aria-label={`Admission : ${cap.category_display}`}
-                        title="Admission d’un patient"
+                        aria-label={`Admettre un patient : ${cap.category_display}`}
+                        title="Admettre un patient"
                         className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-brand text-on-brand transition-colors hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <Plus className="h-4 w-4" />

@@ -18,6 +18,7 @@ export const facility = (overrides: Partial<FacilitySummary> = {}): FacilitySumm
 export const capacity = (overrides: Partial<BedCapacity> = {}): BedCapacity => {
   const total = overrides.total_beds ?? 10
   const occupied = overrides.occupied_beds ?? 6
+  const reserved = overrides.reserved_beds ?? 0
   return {
     id: 1,
     facility: facility(),
@@ -25,7 +26,8 @@ export const capacity = (overrides: Partial<BedCapacity> = {}): BedCapacity => {
     category_display: 'Urgences',
     total_beds: total,
     occupied_beds: occupied,
-    available_beds: total - occupied,
+    reserved_beds: reserved,
+    available_beds: total - occupied - reserved,
     occupancy_rate: occupied / total,
     updated_at: '2026-10-04T06:00:00Z',
     ...overrides,

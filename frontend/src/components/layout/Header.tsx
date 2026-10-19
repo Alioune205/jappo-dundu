@@ -26,7 +26,7 @@ const dakarClock = new Intl.DateTimeFormat('fr-SN', {
 const PAGE_LABELS: Record<string, string> = {
   '/': 'Tableau de bord',
   '/blood': 'Banque de sang',
-  '/beds': 'Capacité en lits',
+  '/beds': 'Lits',
   '/ambulances': 'Flotte SAMU',
   '/ml': 'Prévisions de pénurie',
   '/facilities': 'Structures',

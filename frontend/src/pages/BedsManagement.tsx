@@ -1,37 +1,51 @@
-import React, { useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import React, { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
 import { BED_EVENTS } from '@/lib/realtimeEvents'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { Skeleton, EmptyState } from '@/components/ui/Skeleton'
-import type { BedCapacity } from '@/types/api'
-import { computeBedStats, filterCapacities, type CapacityActions } from './beds/bedStats'
-import { BedStatsGrid } from './beds/BedStatsGrid'
-import { BedFilters, type BedViewMode } from './beds/BedFilters'
-import { BedTable } from './beds/BedTable'
-import { BedCards } from './beds/BedCards'
-import { NearestBedsPanel } from './beds/NearestBedsPanel'
-import { CapacityEditModal } from './beds/CapacityEditModal'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { Tabs } from '@/components/ui/Tabs'
+import type { BedCapacity, BedReservation, Role } from '@/types/api'
 import { QK } from '@/lib/queryKeys'
 import { useAuth } from '@/context/AuthContext'
 import { canManage } from '@/lib/access'
+import { CapacityEditModal } from './beds/CapacityEditModal'
+import { MyBedsView } from './beds/MyBedsView'
+import { NetworkBedsView } from './beds/NetworkBedsView'
+import { ReserveBedModal } from './beds/ReserveBedModal'
+import { canReserveAt } from './beds/reservationAccess'
+import { useBedActions } from './beds/useBedActions'
 
-/** Page « Capacité en lits » : chargement, filtres, admissions et sorties. */
+type View = 'mine' | 'network'
+
+/** Rôles autorisés à réserver (mêmes que l'API : lits et régulation). */
+const RESERVING_ROLES: Role[] = ['admin', 'hospital_staff', 'bed_manager', 'ambulance_manager']
+
+const DESCRIPTIONS: Record<View, string> = {
+  mine: 'Les services de l’établissement : admissions, sorties et patients attendus.',
+  network: 'Où reste-t-il de la place ? Lits libres du réseau et réservation pour un patient en route.',
+}
+
+/**
+ * Page « Lits », un écran par métier :
+ * - « Mes lits » (gestionnaire des lits) : son établissement et ses actions du quotidien ;
+ * - « Trouver un lit » (régulation, orientation) : le réseau, en lecture, avec réservation.
+ */
 export const BedsManagement: React.FC = () => {
   const { user, roles, isAdmin } = useAuth()
-  const queryClient = useQueryClient()
+  const viewer = { user, roles, isAdmin }
+  const managesBeds = canManage(roles, 'beds')
+  const canListReservations = roles.some((r) => RESERVING_ROLES.includes(r))
+  const [view, setView] = useState<View>(managesBeds && !isAdmin ? 'mine' : 'network')
+  const [editing, setEditing] = useState<BedCapacity | null>(null)
+  const [reserving, setReserving] = useState<BedCapacity | null>(null)
+  const actions = useBedActions()
 
   // Mises à jour poussées par le serveur (regroupées, voir useRealtimeRefresh).
-  useRealtimeRefresh([{ events: BED_EVENTS, queryKeys: [QK.bedCapacities, QK.bedsSummary] }])
-
-  const [viewMode, setViewMode] = useState<BedViewMode>('table')
-  const [category, setCategory] = useState('')
-  const [region, setRegion] = useState('')
-  const [search, setSearch] = useState('')
-  const [editing, setEditing] = useState<BedCapacity | null>(null)
+  useRealtimeRefresh([{ events: BED_EVENTS, queryKeys: [QK.bedCapacities, QK.bedsSummary, QK.bedReservations] }])
 
   const {
     data: capacities = [],
@@ -39,59 +53,26 @@ export const BedsManagement: React.FC = () => {
     isRefetching,
     refetch,
   } = useQuery<BedCapacity[]>({
-    queryKey: [...QK.bedCapacities, category, region],
-    queryFn: async () => {
-      const res = await api.get<{ results: BedCapacity[] }>('/api/lits/capacities/', {
-        category: category || undefined,
-        region: region || undefined,
-      })
-      return res.results || []
-    },
+    queryKey: [...QK.bedCapacities, 'all'],
+    queryFn: async () => (await api.get<{ results: BedCapacity[] }>('/api/lits/capacities/')).results || [],
+  })
+  const { data: reservations = [] } = useQuery<BedReservation[]>({
+    queryKey: [...QK.bedReservations, 'active'],
+    queryFn: async () =>
+      (await api.get<{ results: BedReservation[] }>('/api/lits/reservations/', { status: 'active' })).results || [],
+    enabled: canListReservations,
+    // Les expirations ne poussent pas d'événement si personne n'agit : relecture régulière.
+    refetchInterval: 60_000,
   })
 
-  const refreshBeds = () => {
-    queryClient.invalidateQueries({ queryKey: QK.bedCapacities })
-    queryClient.invalidateQueries({ queryKey: QK.bedsSummary })
-  }
-  const admitMutation = useMutation({
-    mutationFn: (id: number) => api.post<BedCapacity>(`/api/lits/capacities/${id}/admit/`),
-    onSuccess: refreshBeds,
-  })
-  const dischargeMutation = useMutation({
-    mutationFn: (id: number) => api.post<BedCapacity>(`/api/lits/capacities/${id}/discharge/`),
-    onSuccess: refreshBeds,
-  })
-
-  const ownFacilityId = isAdmin ? undefined : user?.facility?.id
-  const filtered = useMemo(() => {
-    const rows = filterCapacities(capacities, search)
-    // Administrateur d'un établissement : ses services d'abord (tri stable).
-    return ownFacilityId === undefined
-      ? rows
-      : [...rows].sort((a, b) => Number(b.facility?.id === ownFacilityId) - Number(a.facility?.id === ownFacilityId))
-  }, [capacities, search, ownFacilityId])
-  const stats = useMemo(() => computeBedStats(capacities), [capacities])
-  const vacantCount = filtered.filter((c) => c.available_beds > 0).length
-
-  const actions: CapacityActions = {
-    onAdmit: (id) => admitMutation.mutate(id),
-    onDischarge: (id) => dischargeMutation.mutate(id),
-    onEdit: setEditing,
-    isAdmitting: (id) => admitMutation.isPending && admitMutation.variables === id,
-    isDischarging: (id) => dischargeMutation.isPending && dischargeMutation.variables === id,
-    admitBusy: admitMutation.isPending,
-    dischargeBusy: dischargeMutation.isPending,
-    // Même règle que le backend (users/permissions.py) : admin partout,
-    // administrateur des lits sur son établissement uniquement.
-    canEdit: (cap) => isAdmin || (canManage(roles, 'beds') && cap.facility?.id === user?.facility?.id),
-  }
-  const actionError = admitMutation.error ?? dischargeMutation.error
+  const canReserve = (cap: BedCapacity) => canReserveAt(viewer, cap.facility)
+  const mineLabel = isAdmin ? 'Gérer un établissement' : 'Mes lits'
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
-        title="Capacité en lits"
-        description="Occupation des services, admissions et sorties, orientation vers les lits libres les plus proches."
+        title="Lits"
+        description={DESCRIPTIONS[view]}
         actions={
           <Button
             variant="ghost"
@@ -105,55 +86,43 @@ export const BedsManagement: React.FC = () => {
         }
       />
 
-      <BedStatsGrid stats={stats} serviceCount={capacities.length} />
+      {managesBeds && (
+        <Tabs<View>
+          tabs={[
+            { id: 'mine', label: mineLabel },
+            { id: 'network', label: 'Trouver un lit' },
+          ]}
+          activeTab={view}
+          onChange={setView}
+        />
+      )}
 
-      <BedFilters
-        search={search}
-        onSearchChange={setSearch}
-        category={category}
-        onCategoryChange={setCategory}
-        region={region}
-        onRegionChange={setRegion}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-      />
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <div className="space-y-3 xl:col-span-2">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-fg">
-              Services <span className="num ml-1 font-normal text-muted">{filtered.length}</span>
-            </h2>
-            <span className="text-xs text-muted">
-              <span className="num text-fg">{vacantCount}</span> avec lits vacants
-            </span>
-          </div>
-
-          {actionError && (
-            <p role="alert" className="text-xs text-critical">
-              {actionError instanceof Error ? actionError.message : 'Action impossible.'}
-            </p>
-          )}
-
-          {isLoading ? (
-            <div className="space-y-2 panel p-4">
-              {[0, 1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-8 w-full" />
-              ))}
-            </div>
-          ) : filtered.length === 0 ? (
-            <EmptyState title="Aucun service" description="Aucun service ne correspond aux critères sélectionnés." />
-          ) : viewMode === 'table' ? (
-            <BedTable capacities={filtered} {...actions} />
-          ) : (
-            <BedCards capacities={filtered} {...actions} />
-          )}
+      {isLoading ? (
+        <div className="space-y-2 panel p-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
         </div>
-
-        <NearestBedsPanel />
-      </div>
+      ) : view === 'mine' ? (
+        <MyBedsView
+          capacities={capacities}
+          reservations={reservations}
+          viewer={viewer}
+          actions={actions}
+          onReserve={setReserving}
+          onEdit={setEditing}
+        />
+      ) : (
+        <NetworkBedsView
+          capacities={capacities}
+          canReserve={canReserve}
+          onReserve={setReserving}
+          showReservations={canListReservations && !(managesBeds && !isAdmin)}
+        />
+      )}
 
       <CapacityEditModal capacity={editing} onClose={() => setEditing(null)} />
+      <ReserveBedModal capacity={reserving} onClose={() => setReserving(null)} />
     </div>
   )
 }

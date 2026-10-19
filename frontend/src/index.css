@@ -120,7 +120,10 @@
   --color-accent-yellow: var(--accent-yellow);
   --color-accent-green: var(--accent-green);
   --color-accent-red: var(--accent-red);
-  /* Page d'accueil uniquement (variables définies sous .landing). */
+  /* Pages publiques uniquement (variables définies sous .landing). */
+  --color-navy: var(--navy);
+  --color-on-navy: var(--on-navy);
+  --color-on-navy-muted: var(--on-navy-muted);
   --color-amber: var(--amber);
   --color-amber-soft: var(--amber-soft);
   --color-amber-ink: var(--amber-ink);
@@ -311,117 +314,110 @@
 }
 
 /*
- * Page d'accueil publique : style « papier » (polices Newsreader, Public Sans,
- * Spline Sans Mono ; fond chaud, rouge sang, accent ambre). Les variables ne
- * s'appliquent qu'à la page d'accueil : l'application garde son thème.
+ * Pages publiques (accueil, connexion) : style institutionnel.
+ *
+ * Bleu marine et rouge du logo, une seule famille (Public Sans), filets fins
+ * et rayons modérés ; fonds marine quadrillés pour l'accroche, le pilotage et
+ * le pied de page. Les variables ne s'appliquent qu'à .landing : l'application
+ * garde son propre thème.
  */
 .landing {
-  --canvas: #fcf7ef;
-  --surface: #fffdfa;
-  --raised: #f9eee2;
-  --line: #e9dfd5;
-  --line-strong: #d8cbbf;
-  --fg: #211a17;
-  --fg-muted: #6b6461;
-  --fg-subtle: #a8a3a1;
-  --brand: #b91b22;
-  --brand-strong: #980e1a;
-  --brand-soft: #fff0ef;
+  --canvas: #f6f8fb;
+  --surface: #ffffff;
+  --raised: #eef2f7;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  --fg: #0b1f3a;
+  --fg-muted: #475569;
+  --fg-subtle: #8492a6;
+  --brand: #c8102e;
+  --brand-strong: #a30d26;
+  --brand-soft: #fdecef;
   --brand-fg: #ffffff;
-  --accent-red: #cb1e21;
-  --accent-blue: #3d78b2;
-  --accent-green: #269258;
-  --amber: #f2b95a;
-  --amber-soft: #fce5bb;
-  --amber-ink: #6e4108;
-  --shadow-panel: 0 1px 2px rgb(33 26 23 / 0.05), 0 4px 14px rgb(33 26 23 / 0.04);
-  --shadow-raised: 0 18px 40px -12px rgb(33 26 23 / 0.18);
+  --accent-red: #c8102e;
+  --accent-blue: #1d63b8;
+  --accent-green: #0f7a55;
+  /* Fonds sombres institutionnels. */
+  --navy: #0b1f3a;
+  --navy-line: rgb(255 255 255 / 0.06);
+  --on-navy: #f1f5fb;
+  --on-navy-muted: #a9b8cc;
+  /* Accent clair, lisible sur fond marine (nom « amber » conservé pour la page de connexion). */
+  --amber: #ff8e9b;
+  --amber-soft: #e8eef7;
+  --amber-ink: #0b1f3a;
+  --shadow-panel: 0 1px 2px rgb(11 31 58 / 0.05);
+  --shadow-raised: 0 24px 48px -16px rgb(11 31 58 / 0.28), 0 2px 6px rgb(11 31 58 / 0.06);
   font-family: 'Public Sans', system-ui, -apple-system, sans-serif;
 }
 .dark .landing {
-  --canvas: #1f1413;
-  --surface: #2e1e1d;
-  --raised: #402d2c;
-  --line: #402d2c;
-  --line-strong: #5a4341;
-  --fg: #f6ede4;
-  --fg-muted: #c7c3c1;
-  --fg-subtle: #8a8380;
-  --brand: #e6625d;
-  --brand-strong: #fb9892;
-  --brand-soft: #3d0509;
-  --amber-soft: #6e4108;
+  --canvas: #08111f;
+  --surface: #0f1b2e;
+  --raised: #15243b;
+  --line: #1d2d46;
+  --line-strong: #2a3d5a;
+  --fg: #eef3fa;
+  --fg-muted: #a3b1c6;
+  --fg-subtle: #6f7f97;
+  --brand: #ef3e55;
+  --brand-strong: #ff6577;
+  --brand-soft: #3a0f17;
+  --accent-red: #ff6577;
+  --accent-blue: #6aa8ef;
+  --accent-green: #3fc28f;
+  --navy: #050c18;
+  --amber-soft: #15243b;
+  --amber-ink: #eef3fa;
 }
-.landing .font-display {
-  font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
+.landing h1,
+.landing h2,
+.landing h3 {
   letter-spacing: -0.02em;
 }
+.landing .font-display {
+  font-family: inherit;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
 .landing .font-label {
-  font-family: 'Spline Sans Mono', ui-monospace, monospace;
-  letter-spacing: 0.08em;
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-/* Mot mis en valeur : italique rouge surligné d'ambre. */
 .landing .highlight {
-  font-style: italic;
   color: var(--brand);
-  background: linear-gradient(transparent 58%, var(--amber-soft) 58%, var(--amber-soft) 92%, transparent 92%);
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-  padding: 0 0.08em;
 }
-
-/* Bandeau défilant (liste dupliquée : boucle sans saut). */
-@keyframes landing-ticker {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-.landing-ticker {
-  animation: landing-ticker 45s linear infinite;
-}
-.landing-ticker:hover {
-  animation-play-state: paused;
-}
-
-/* Bords du bandeau fondus : le texte entre et sort sans coupure nette. */
-.landing-ticker-mask {
-  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+/* Quadrillage discret des fonds marine, estompé vers les bords. */
+.landing .bg-grid {
+  background-image:
+    linear-gradient(var(--navy-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--navy-line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 70% at 60% 30%, #000 30%, transparent 80%);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-ticker {
-    animation: none;
-  }
-
   .live-pulse {
     animation: none;
   }
 }
 
 /*
- * Motion design de la page d'accueil (voir pages/landing/motion.ts).
+ * Motion design des pages publiques (voir pages/landing/motion.ts).
  *
- * Une seule grammaire : les éléments montent et se précisent (flou → net) sur
- * une décélération forte, en cascade (--i). Le contenu reste visible par
+ * Grammaire sobre : les éléments montent légèrement et apparaissent, en
+ * cascade (--i), sur une décélération forte. Le contenu reste visible par
  * défaut : les états de départ n'existent que sous [data-motion='on'], posé
  * par JS, et tout est coupé si l'utilisateur réduit les animations.
  */
 .landing {
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --dur-reveal: 900ms;
-  --stagger: 90ms;
+  --dur-reveal: 700ms;
+  --stagger: 80ms;
   interpolate-size: allow-keywords;
-}
-
-/* Surlignage ambre : dessiné de gauche à droite à l'apparition du titre. */
-.landing .highlight {
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -429,37 +425,27 @@
   @keyframes hero-rise {
     from {
       opacity: 0;
-      transform: translateY(28px);
-      filter: blur(6px);
+      transform: translateY(16px);
     }
     to {
       opacity: 1;
       transform: none;
-      filter: blur(0);
     }
   }
-  @keyframes hero-photo {
+  @keyframes mock-in {
     from {
-      clip-path: inset(14% 10% 14% 10% round 2.5rem);
       opacity: 0;
+      transform: translateY(32px) scale(0.98);
     }
     to {
-      clip-path: inset(0 round 2.5rem);
       opacity: 1;
-    }
-  }
-  @keyframes photo-settle {
-    from {
-      scale: 1.14;
-    }
-    to {
-      scale: 1;
+      transform: none;
     }
   }
   @keyframes notif-in {
     from {
       opacity: 0;
-      transform: translateY(-22px) scale(0.9);
+      transform: translateY(-16px) scale(0.94);
     }
     to {
       opacity: 1;
@@ -472,170 +458,106 @@
       translate: 0 0;
     }
     50% {
-      translate: 0 -8px;
-    }
-  }
-  @keyframes pop-in {
-    from {
-      opacity: 0;
-      transform: scale(0.6);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  @keyframes blob-drift {
-    from {
-      translate: 0 0;
-      scale: 1;
-    }
-    to {
-      translate: -48px 36px;
-      scale: 1.08;
-    }
-  }
-  @keyframes highlight-sweep {
-    from {
-      background-size: 0% 100%;
-    }
-    to {
-      background-size: 100% 100%;
+      translate: 0 -6px;
     }
   }
 
   .landing[data-motion='on'] [data-hero] {
     animation: hero-rise var(--dur-reveal) var(--ease-out) both;
-    animation-delay: calc(var(--i, 0) * 110ms + 80ms);
+    animation-delay: calc(var(--i, 0) * 90ms + 60ms);
   }
-  .landing[data-motion='on'] [data-hero] .highlight {
-    animation: highlight-sweep 900ms var(--ease-out) 750ms both;
-  }
-  .landing[data-motion='on'] [data-hero-photo] {
-    animation: hero-photo 1.2s var(--ease-out) 150ms both;
-  }
-  .landing[data-motion='on'] [data-hero-photo] img {
-    animation: photo-settle 1.8s var(--ease-out) 150ms both;
+  .landing[data-motion='on'] [data-hero-mock] {
+    animation: mock-in 1.1s var(--ease-out) 250ms both;
   }
   .landing[data-motion='on'] .hero-notif {
     animation:
-      notif-in 700ms var(--ease-back) 1.1s both,
+      notif-in 600ms var(--ease-back) 1.2s both,
       float 6s ease-in-out 2s infinite;
-  }
-  .landing[data-motion='on'] .hero-pop {
-    animation: pop-in 500ms var(--ease-back) 1.5s both;
-  }
-  .landing[data-motion='on'] .hero-blob {
-    animation: blob-drift 16s ease-in-out infinite alternate;
   }
 
   /* --- Apparitions au défilement -------------------------------------- */
   .landing[data-motion='on'] [data-reveal] {
     opacity: 0;
-    transform: translateY(36px);
-    filter: blur(4px);
+    transform: translateY(20px);
     /* Délai en cascade pour l'apparition seulement : le survol reste immédiat. */
     transition:
       opacity var(--dur-reveal) var(--ease-out),
       transform var(--dur-reveal) var(--ease-out),
-      filter var(--dur-reveal) var(--ease-out),
-      translate 350ms var(--ease-out),
-      box-shadow 350ms var(--ease-out);
+      translate 300ms var(--ease-out),
+      box-shadow 300ms var(--ease-out);
     transition-delay:
-      calc(var(--i, 0) * var(--stagger)),
       calc(var(--i, 0) * var(--stagger)),
       calc(var(--i, 0) * var(--stagger)),
       0s,
       0s;
   }
   .landing[data-motion='on'] [data-reveal='scale'] {
-    transform: scale(0.92);
-  }
-  .landing[data-motion='on'] [data-reveal='left'] {
-    transform: translateX(-24px);
+    transform: scale(0.96);
   }
   .landing[data-motion='on'] [data-reveal='photo'] {
     transform: none;
-    filter: none;
-    clip-path: inset(10% 8% 10% 8% round 2rem);
+    clip-path: inset(6% 4% 6% 4% round 0.75rem);
     transition:
-      opacity 1s var(--ease-out),
-      clip-path 1.2s var(--ease-out);
+      opacity 900ms var(--ease-out),
+      clip-path 1.1s var(--ease-out);
   }
   .landing[data-motion='on'] [data-reveal='photo'] img {
-    scale: 1.14;
-    transition: scale 1.8s var(--ease-out);
+    scale: 1.08;
+    transition: scale 1.6s var(--ease-out);
   }
   .landing[data-motion='on'] [data-reveal][data-revealed='true'] {
     opacity: 1;
     transform: none;
-    filter: none;
   }
   .landing[data-motion='on'] [data-reveal='photo'][data-revealed='true'] {
-    clip-path: inset(0 round 2rem);
+    clip-path: inset(0 round 0.75rem);
   }
   .landing[data-motion='on'] [data-reveal='photo'][data-revealed='true'] img {
     scale: 1;
   }
-  .landing[data-motion='on'] [data-reveal] .highlight {
-    background-size: 0% 100%;
-    transition: background-size 1s var(--ease-out) 350ms;
-  }
-  .landing[data-motion='on'] [data-reveal][data-revealed='true'] .highlight {
-    background-size: 100% 100%;
-  }
 
-  /* --- Navigation : s'affirme dès qu'on quitte le haut de page --------- */
+  /* --- En-tête : ombre dès qu'on quitte le haut de page ---------------- */
   .landing .landing-nav {
-    transition:
-      box-shadow 300ms ease,
-      background-color 300ms ease;
+    transition: box-shadow 300ms ease;
   }
   .landing[data-scrolled='true'] .landing-nav {
-    box-shadow: var(--shadow-raised);
+    box-shadow: 0 8px 24px -12px rgb(11 31 58 / 0.18);
   }
 
   /* --- Micro-interactions ---------------------------------------------- */
-  .landing .pill {
+  .landing .btn {
     transition:
       background-color 200ms ease,
+      border-color 200ms ease,
       color 200ms ease,
-      translate 250ms var(--ease-out),
-      box-shadow 250ms var(--ease-out);
+      translate 250ms var(--ease-out);
   }
-  .landing .pill:hover {
-    translate: 0 -2px;
+  .landing .btn:hover {
+    translate: 0 -1px;
   }
-  .landing .pill:active {
+  .landing .btn:active {
     translate: 0 0;
   }
-  .landing .pill-arrow {
+  .landing .btn-arrow {
     transition: translate 250ms var(--ease-out);
   }
-  .landing .pill:hover .pill-arrow {
-    translate: 4px 0;
-  }
-  .landing .pill:hover .pill-plus {
-    rotate: 90deg;
-  }
-  .landing .pill-plus {
-    transition: rotate 350ms var(--ease-back);
+  .landing .btn:hover .btn-arrow {
+    translate: 3px 0;
   }
   .landing .lift {
     transition:
-      translate 350ms var(--ease-out),
-      box-shadow 350ms var(--ease-out);
+      translate 300ms var(--ease-out),
+      box-shadow 300ms var(--ease-out);
   }
   .landing .lift:hover {
-    translate: 0 -6px;
+    translate: 0 -3px;
     box-shadow: var(--shadow-raised);
   }
   .landing .lift .lift-icon {
-    transition: scale 400ms var(--ease-back), rotate 400ms var(--ease-back);
+    transition: scale 350ms var(--ease-back);
   }
   .landing .lift:hover .lift-icon {
-    scale: 1.12;
-    rotate: -6deg;
+    scale: 1.08;
   }
 
   /* --- Aperçu produit : l'ambulance rejoint le lit libre --------------- */
@@ -705,17 +627,17 @@
       box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent-blue) 45%, transparent);
     }
     92% {
-      scale: 1.18;
+      scale: 1.15;
       box-shadow: 0 0 0 10px color-mix(in oklab, var(--accent-blue) 0%, transparent);
     }
   }
   @keyframes ping {
     from {
       scale: 1;
-      opacity: 0.55;
+      opacity: 0.5;
     }
     to {
-      scale: 2.4;
+      scale: 2.2;
       opacity: 0;
     }
   }
@@ -738,7 +660,7 @@
     animation: ping 2.4s var(--ease-out) infinite;
   }
 
-  /* --- Groupe sanguin critique : battement de cœur --------------------- */
+  /* --- Groupe sanguin critique : battement discret --------------------- */
   @keyframes heartbeat {
     0%,
     40%,
@@ -747,14 +669,14 @@
     }
     10%,
     30% {
-      scale: 1.12;
+      scale: 1.08;
     }
     20% {
-      scale: 0.98;
+      scale: 0.99;
     }
   }
   .landing[data-motion='on'] .heartbeat {
-    animation: heartbeat 1.8s ease-in-out infinite;
+    animation: heartbeat 2s ease-in-out infinite;
   }
 
   /* --- FAQ : ouverture fluide (navigateurs compatibles) ---------------- */
@@ -762,8 +684,8 @@
     height: 0;
     overflow: clip;
     transition:
-      height 450ms var(--ease-out),
-      content-visibility 450ms allow-discrete;
+      height 400ms var(--ease-out),
+      content-visibility 400ms allow-discrete;
   }
   .landing details[open]::details-content {
     height: auto;
@@ -771,11 +693,11 @@
   @keyframes faq-in {
     from {
       opacity: 0;
-      translate: 0 -6px;
+      translate: 0 -4px;
     }
   }
   .landing details[open] > p {
-    animation: faq-in 450ms var(--ease-out) 60ms both;
+    animation: faq-in 400ms var(--ease-out) 60ms both;
   }
 }
 

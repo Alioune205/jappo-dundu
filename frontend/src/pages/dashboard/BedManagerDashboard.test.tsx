@@ -53,8 +53,8 @@ describe('Tableau de bord de l’administrateur des lits', () => {
   it('enregistre une admission en un clic, et bloque l’admission d’un service plein', async () => {
     api.post.mockResolvedValue({})
     renderWithProviders(<Dashboard />)
-    expect(await screen.findByRole('button', { name: 'Admission : Réanimation' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Admission : Chirurgie' }))
+    expect(await screen.findByRole('button', { name: 'Admettre un patient : Réanimation' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Admettre un patient : Chirurgie' }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/lits/capacities/1/admit/'))
   })
 })

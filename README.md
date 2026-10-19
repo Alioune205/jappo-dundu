@@ -27,7 +27,7 @@ Ce projet de fin d'études vise à interconnecter les établissements de santé,
 | Administrateur du sang | demandes de sang, dons, prévisions de pénurie | son établissement (CNTS : sa région) |
 | Administrateur des ambulances | véhicules, missions SAMU, affectation | son service, sa région |
 
-> 📖 **Documentation complète des profils et autorisations** : Consultez le guide dédié [ROLES_ET_ACCES.md](file:///C:/Users/senep/Desktop/Nouveau%20dossier/jappo_dundu/jappo-dundu-repo/ROLES_ET_ACCES.md) pour la matrice complète des droits, les fiches des 8 profils et les identifiants de démonstration.
+> 📖 **Documentation complète des profils et autorisations** : Consultez le guide dédié [README_PROFILS.md](file:///c:/Users/senep/Desktop/Nouveau%20dossier/jappo_dundu/jappo-dundu-repo/README_PROFILS.md) ou la matrice détaillée [ROLES_ET_ACCES.md](file:///c:/Users/senep/Desktop/Nouveau%20dossier/jappo_dundu/jappo-dundu-repo/ROLES_ET_ACCES.md) pour les fiches des 8 profils, la matrice CRUD complète et les identifiants de démonstration.
 
 Détail des règles techniques de sécurité : `backend/security/README.md`.
 Comptes de démonstration (`python seed_demo_data.py`, mot de passe `Password123!`) :
@@ -71,6 +71,16 @@ Guides d'intégration de l'API : `backend/users/README.md`, `backend/sang/README
 - [x] Entraîner le modèle ML de prédiction des pénuries — **sur données simulées** : la collecte de l'historique réel du CNTS reste à faire (voir `backend/ml/README.md`).
 - [x] Préparer le déploiement (API/Base) et l'hébergement du Frontend web : configuration de production dans `deploy/`.
 - [ ] Vérifier le système global avant présentation (MVP) via les scénarios de test (scénarios et `smoke_test.py` prêts dans `deploy/`).
+
+---
+
+## 🔭 Perspectives
+
+Évolutions identifiées pour la suite du projet.
+
+### 🏥 Gestion des lits
+- **Ajouter un service hospitalier depuis l'interface web** : aujourd'hui, l'écran *Lits* permet les admissions, les sorties et l'ajustement des capacités, mais pas l'ouverture d'un nouveau service (par exemple une néonatologie). L'API le permet déjà (`POST /api/lits/capacities/`) : il reste à ajouter le formulaire dans le tableau de bord.
+- **Brancher les logiciels hospitaliers (SIH)** : l'API d'interopérabilité existe (`/api/sih/`, voir `backend/sih/README.md`). Elle permet de mettre à jour les lits et les stocks de sang automatiquement, sans saisie manuelle, à l'aide d'une clé API par établissement. Il reste à ajouter dans le tableau de bord un écran de gestion des clés et à mener un pilote avec un vrai SIH (OpenMRS, GNU Health, DHIS2…).
 
 ---
 

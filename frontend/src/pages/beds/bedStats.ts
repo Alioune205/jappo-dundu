@@ -49,18 +49,3 @@ export function filterCapacities(capacities: readonly BedCapacity[], query: stri
       c.category_display?.toLowerCase().includes(q)
   )
 }
-
-/** Actions de ligne partagées par la vue tableau et la vue cartes. */
-export interface CapacityActions {
-  onAdmit: (id: number) => void
-  onDischarge: (id: number) => void
-  onEdit: (capacity: BedCapacity) => void
-  /** Admission en cours pour ce service. */
-  isAdmitting: (id: number) => boolean
-  isDischarging: (id: number) => boolean
-  /** Une admission / sortie est en cours ailleurs : on bloque les autres lignes. */
-  admitBusy: boolean
-  dischargeBusy: boolean
-  /** Le compte peut-il modifier ce service ? (admin, ou administrateur des lits de cet hôpital) */
-  canEdit: (capacity: BedCapacity) => boolean
-}

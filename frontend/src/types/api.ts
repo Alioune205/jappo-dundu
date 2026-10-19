@@ -227,10 +227,39 @@ export interface BedCapacity {
   category_display: string
   total_beds: number
   occupied_beds: number
+  /** Lits bloqués pour des patients attendus (déduits des lits libres). */
+  reserved_beds: number
   available_beds: number
   occupancy_rate: number
   updated_at: string
   updated_by: PersonRef | null
+}
+
+export type BedReservationStatus = 'active' | 'fulfilled' | 'cancelled' | 'expired'
+
+export interface BedReservation {
+  id: number
+  capacity: { id: number; category: BedCategory; category_display: string }
+  facility: FacilitySummary
+  mission: { id: number; priority: Urgency; priority_display: string; status: MissionStatus; status_display: string } | null
+  reference: string
+  notes: string
+  status: BedReservationStatus
+  status_display: string
+  expires_at: string
+  created_at: string
+  created_by: PersonRef | null
+  closed_at: string | null
+  closed_by: PersonRef | null
+  closing_reason: string
+}
+
+export interface BedReservationInput {
+  capacity_id: number
+  mission_id: number | null
+  reference: string
+  notes: string
+  hold_minutes: number
 }
 
 export interface BedSummaryRow {
@@ -240,6 +269,7 @@ export interface BedSummaryRow {
   category_display: string
   total_beds: number
   occupied_beds: number
+  reserved_beds: number
   available_beds: number
   occupancy_rate: number | null
 }

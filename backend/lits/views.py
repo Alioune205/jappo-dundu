@@ -9,6 +9,12 @@ API REST de l'application Lits.
 - GET   /api/lits/capacities/summary/          synthèse par région et service
 - GET   /api/lits/capacities/nearest/          établissements proches avec lits libres
 
+- GET   /api/lits/reservations/                réservations (?status=active &facility= &mission=)
+- POST  /api/lits/reservations/                réserver un lit {capacity_id | facility_id + category,
+                                               mission_id?, reference?, notes?, hold_minutes?}
+- POST  /api/lits/reservations/<id>/fulfill/   patient arrivé : le lit réservé devient occupé
+- POST  /api/lits/reservations/<id>/cancel/    libérer le lit {reason?}
+
 Lecture : admin, personnel hospitalier et ambulanciers (orientation des
 patients). Écriture : admin, ou personnel de l'établissement concerné.
 
@@ -18,18 +24,27 @@ Auteur : Ibrahima Khalilou Diallo
 from django.db.models import F, Sum
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
+
+from ambulances.models import Mission
+from ambulances.views import MissionViewSet, is_dispatcher, service_of
 
 from geo.serializers import parse_nearby_query
 from ml.constants import REGION_CODES, REGION_LABELS
 from security.permissions import role_permission
-from security.roles import DOMAIN_ROLES, Domain, Role
+from security.roles import DOMAIN_ROLES, Domain, Role, manages
 from users.filters import boolean_param, choice_param, int_param
-from users.permissions import facility_for_write, facility_permission
+from users.permissions import facility_for_write, facility_permission, in_scope, is_admin, scope_to_facility
 
 from . import services
-from .models import BedCapacity
-from .serializers import BedCapacitySerializer, NearbyBedFacilitySerializer
+from .models import BedCapacity, BedReservation
+from .serializers import (
+    BedCapacitySerializer,
+    BedReservationCreateSerializer,
+    BedReservationSerializer,
+    NearbyBedFacilitySerializer,
+)
 
 CATEGORY_CODES = tuple(BedCapacity.Category.values)
 CATEGORY_LABELS = dict(BedCapacity.Category.choices)
@@ -88,9 +103,9 @@ class BedCapacityViewSet(
             queryset = queryset.filter(facility_id=facility)
         available = boolean_param(params, 'available')
         if available is True:
-            queryset = queryset.filter(occupied_beds__lt=F('total_beds'))
+            queryset = queryset.filter(occupied_beds__lt=F('total_beds') - F('reserved_beds'))
         elif available is False:
-            queryset = queryset.filter(occupied_beds__gte=F('total_beds'))
+            queryset = queryset.filter(occupied_beds__gte=F('total_beds') - F('reserved_beds'))
         return queryset.order_by('facility__name', 'category')
 
     def create(self, request, *args, **kwargs):
@@ -130,7 +145,7 @@ class BedCapacityViewSet(
             self.get_queryset()
             .order_by()
             .values('facility__region', 'category')
-            .annotate(total=Sum('total_beds'), occupied=Sum('occupied_beds'))
+            .annotate(total=Sum('total_beds'), occupied=Sum('occupied_beds'), reserved=Sum('reserved_beds'))
             .order_by('facility__region', 'category')
         )
         return Response(
@@ -144,7 +159,8 @@ class BedCapacityViewSet(
                     'category_display': CATEGORY_LABELS[row['category']],
                     'total_beds': row['total'],
                     'occupied_beds': row['occupied'],
-                    'available_beds': row['total'] - row['occupied'],
+                    'reserved_beds': row['reserved'],
+                    'available_beds': row['total'] - row['occupied'] - row['reserved'],
                     'occupancy_rate': round(row['occupied'] / row['total'], 4)
                     if row['total']
                     else None,
@@ -171,3 +187,125 @@ class BedCapacityViewSet(
             min_available=int_param(params, 'min_available', default=1, maximum=500),
         )
         return Response(NearbyBedFacilitySerializer(facilities, many=True).data)
+
+
+# =============================================================
+# RÉSERVATIONS
+# =============================================================
+
+# Réservent : les administrateurs des lits (leur établissement) et la régulation
+# (sa région) ; l'administrateur général partout.
+CanReserveBeds = role_permission(
+    *DOMAIN_ROLES[Domain.BEDS],
+    *DOMAIN_ROLES[Domain.AMBULANCES],
+    message="Réservation de lits réservée aux administrateurs des lits et à la régulation.",
+)
+
+
+def _dispatch_region(user):
+    """Région de régulation d'un régulateur limité ; None sinon."""
+    if not is_dispatcher(user) or is_admin(user):
+        return None
+    service = service_of(user)
+    return service.region if service is not None else None
+
+
+def can_reserve_at(user, facility):
+    if is_admin(user):
+        return True
+    if manages(user, Domain.BEDS) and in_scope(user, Domain.BEDS, facility):
+        return True
+    region = _dispatch_region(user)
+    return region is not None and facility.region == region
+
+
+def can_fulfill(user, reservation):
+    """Admettre le patient : l'hôpital qui l'accueille (ou l'administrateur général)."""
+    return is_admin(user) or (
+        manages(user, Domain.BEDS) and in_scope(user, Domain.BEDS, reservation.capacity.facility)
+    )
+
+
+def can_cancel(user, reservation):
+    return (
+        reservation.created_by_id == user.pk
+        or can_fulfill(user, reservation)
+        or can_reserve_at(user, reservation.capacity.facility)
+    )
+
+
+class BedReservationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    """Réservations de lits (voir l'en-tête du module)."""
+
+    serializer_class = BedReservationSerializer
+    permission_classes = [CanReserveBeds]
+    lookup_value_regex = r'\d+'
+
+    def get_queryset(self):
+        services.release_expired()
+        user = self.request.user
+        base = BedReservation.objects.select_related(
+            'capacity__facility', 'mission', 'created_by', 'closed_by'
+        )
+        if is_admin(user):
+            queryset = base
+        else:
+            queryset = base.none()
+            if manages(user, Domain.BEDS):
+                queryset = queryset | scope_to_facility(base, user, Domain.BEDS, field='capacity__facility')
+            region = _dispatch_region(user)
+            if region is not None:
+                queryset = queryset | base.filter(capacity__facility__region=region)
+        if self.action != 'list':
+            return queryset
+        params = self.request.query_params
+        filters = {
+            'status': choice_param(params, 'status', BedReservation.Status.values),
+            'capacity__facility_id': int_param(params, 'facility'),
+            'mission_id': int_param(params, 'mission'),
+        }
+        return queryset.filter(**{k: v for k, v in filters.items() if v is not None}).order_by(
+            'status', 'expires_at'
+        )
+
+    def create(self, request, *args, **kwargs):
+        serializer = BedReservationCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        capacity = data['capacity']
+        if not can_reserve_at(request.user, capacity.facility):
+            raise PermissionDenied("Vous ne pouvez pas réserver de lit dans cet établissement.")
+        mission = data.get('mission')
+        if mission is not None:
+            visible = Mission.objects.filter(MissionViewSet._visible_missions(request.user), pk=mission.pk)
+            if not visible.exists():
+                raise PermissionDenied("Cette mission ne relève pas de votre périmètre.")
+        reservation = services.reserve(
+            capacity,
+            created_by=request.user,
+            mission=mission,
+            reference=data['reference'],
+            notes=data['notes'],
+            hold_minutes=data['hold_minutes'],
+        )
+        return Response(
+            self.get_serializer(self.get_queryset().get(pk=reservation.pk)).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['post'])
+    def fulfill(self, request, pk=None):
+        reservation = self.get_object()
+        if not can_fulfill(request.user, reservation):
+            raise PermissionDenied("Seul l'établissement qui accueille le patient enregistre son admission.")
+        services.fulfill_reservation(reservation, closed_by=request.user)
+        return Response(self.get_serializer(reservation).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        reservation = self.get_object()
+        if not can_cancel(request.user, reservation):
+            raise PermissionDenied("Vous ne pouvez pas annuler cette réservation.")
+        reason = str(request.data.get('reason', '') if isinstance(request.data, dict) else '')[:200]
+        services.cancel_reservation(reservation, closed_by=request.user, reason=reason)
+        return Response(self.get_serializer(reservation).data)
