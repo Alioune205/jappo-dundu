@@ -15,7 +15,7 @@ const ICONS: Record<string, IconName> = {
   centers: 'pin',
 }
 /** Écrans des onglets sans bouton dans la barre (ouverts depuis l'accueil). */
-const HIDDEN = new Set(['profile'])
+const HIDDEN = new Set(['profile', 'badges'])
 const BUBBLE = 52
 
 /**

@@ -152,3 +152,36 @@ export interface BloodAlertEvent {
     status: string
   }
 }
+
+export type BadgeCategory = 'milestone' | 'special' | 'solidarity'
+
+export interface GamificationBadge {
+  id: number
+  code: string
+  name: string
+  description: string
+  /** Nom de pictogramme choisi côté serveur (heart, award, shield…). */
+  icon: string
+  points_bonus: number
+  category: BadgeCategory
+  /** Nombre de dons du palier (0 : condition particulière). */
+  required_donations: number
+  awarded_at?: string
+  unlocked: boolean
+}
+
+/** GET /api/sang/donors/me/gamification/ */
+export interface GamificationProfile {
+  points: number
+  donation_points: number
+  badge_points: number
+  donations_count: number
+  level: number
+  title: string
+  progress_percent: number
+  next_level_points: number | null
+  points_to_next_level: number
+  earned_badges_count: number
+  badges: GamificationBadge[]
+  locked_badges: GamificationBadge[]
+}

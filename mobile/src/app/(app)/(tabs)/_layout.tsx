@@ -1,14 +1,18 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
-import { Redirect, useRouter } from 'expo-router'
+import { Redirect, usePathname, useRouter } from 'expo-router'
 import { Tabs } from 'expo-router/js-tabs'
+import * as Haptics from 'expo-haptics'
 import * as Notifications from 'expo-notifications'
 import { TabBar } from '@/components/TabBar'
 import { Button } from '@/components/ui/Button'
 import { Text } from '@/components/ui/Text'
+import { pickAlert, UrgentAlert } from '@/features/alerts/UrgentAlert'
+import { useDeviceLocation } from '@/lib/location'
 import { pushSupported, registerForPush, requestIdOf } from '@/lib/push'
-import { isMissingDonor, useDonor } from '@/lib/queries'
+import { isMissingDonor, useDonor, useNearby, useRespond } from '@/lib/queries'
 import { space, useTheme } from '@/theme'
+import type { DonorProfile, NearbyRequest } from '@/types/api'
 
 /**
  * Espace donneur : Accueil, Ma carte, Alertes, Historique, Centres (et Profil,
@@ -17,7 +21,8 @@ import { space, useTheme } from '@/theme'
  * - sans profil donneur, passage obligé par sa création ;
  * - le téléphone se réenregistre pour les push à chaque ouverture (jeton
  *   renouvelé, compte changé) si l'autorisation est déjà accordée ;
- * - toucher une notification ouvre la demande correspondante.
+ * - toucher une notification ouvre la demande correspondante ;
+ * - une demande sans réponse s'affiche en alerte par-dessus l'écran courant.
  *
  * Responsable du domaine : Pape Alioune Sene (application mobile)
  */
@@ -48,14 +53,16 @@ export default function TabsLayout() {
   return (
     <>
       <PushBridge />
+      <AlertBridge donor={donor.data} />
       <Tabs tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.canvas } }}>
         <Tabs.Screen name="home" options={{ title: 'Accueil' }} />
         <Tabs.Screen name="card" options={{ title: 'Ma carte' }} />
         <Tabs.Screen name="alerts" options={{ title: 'Alertes' }} />
         <Tabs.Screen name="history" options={{ title: 'Historique' }} />
         <Tabs.Screen name="centers" options={{ title: 'Centres' }} />
-        {/* Ouvert depuis le menu de l'accueil : pas de bouton dans la barre (voir TabBar). */}
+        {/* Ouverts depuis l'accueil et le profil : pas de bouton dans la barre (voir TabBar). */}
         <Tabs.Screen name="profile" options={{ title: 'Profil' }} />
+        <Tabs.Screen name="badges" options={{ title: 'Mes badges' }} />
       </Tabs>
     </>
   )
@@ -82,6 +89,67 @@ function PushBridge() {
   }, [router])
 
   return null
+}
+
+/**
+ * Alerte plein écran de la demande la plus grave sans réponse. « J'y vais
+ * maintenant » accepte et ouvre la demande (itinéraire, appel) ; « Plus tard »
+ * l'écarte pour la session, elle reste dans l'écran Alertes (où l'alerte ne
+ * s'affiche pas).
+ */
+function AlertBridge({ donor }: { donor: DonorProfile }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const location = useDeviceLocation()
+  const canQuery = !!location.coords || (donor.latitude != null && donor.longitude != null)
+  const nearby = useNearby(location.coords, { enabled: canQuery && donor.is_available, live: false })
+  const respond = useRespond()
+  const [dismissed, setDismissed] = useState<ReadonlySet<number>>(() => new Set())
+
+  const canDonate = donor.is_eligible
+  // Règles CNTS : pas d'alerte si le donneur ne peut pas donner (délai entre deux
+  // dons, plafond annuel…) ni s'il est déjà attendu pour un don ailleurs.
+  const engaged = nearby.data?.some((r) => r.my_response === 'accepted') ?? false
+  const canAlert = donor.is_available && donor.is_eligible && !engaged
+  // Réponse en cours d'envoi : l'alerte reste sur sa demande (déjà marquée acceptée dans le cache).
+  const sendingId = respond.isPending ? respond.variables?.id : undefined
+  // L'écran Alertes liste déjà toutes les demandes : pas d'alerte par-dessus.
+  const request =
+    sendingId !== undefined
+      ? nearby.data?.find((r) => r.id === sendingId)
+      : canAlert && pathname !== '/alerts'
+        ? pickAlert(nearby.data, dismissed)
+        : undefined
+  const dismiss = (id: number) => setDismissed((previous) => new Set(previous).add(id))
+  const open = (id: number) => router.navigate({ pathname: '/alerts', params: { request: String(id) } })
+
+  const go = (target: NearbyRequest) => {
+    if (!canDonate) {
+      dismiss(target.id)
+      open(target.id)
+      return
+    }
+    respond.mutate(
+      { id: target.id, status: 'accepted' },
+      {
+        onSuccess: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success),
+        onSettled: () => {
+          dismiss(target.id)
+          open(target.id)
+        },
+      }
+    )
+  }
+
+  return (
+    <UrgentAlert
+      request={request}
+      canDonate={canDonate}
+      busy={respond.isPending}
+      onGo={go}
+      onLater={(target) => dismiss(target.id)}
+    />
+  )
 }
 
 const styles = StyleSheet.create({

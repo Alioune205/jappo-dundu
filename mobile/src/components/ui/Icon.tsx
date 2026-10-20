@@ -8,6 +8,9 @@ import { useTheme, type Palette } from '@/theme'
  */
 const PATHS = {
   pulse: 'M3 12h4l2.2-5 3.6 10 2.4-5H21',
+  alert: 'M12 4.5l8.5 15h-17zM12 10v4.5M12 17.2v.1',
+  arrow: 'M5 12h14M13 6l6 6-6 6',
+  back: 'M19 12H5M11 6l-6 6 6 6',
   clock: 'M12 7.5V12l3 2',
   user: 'M5 19.5c1.3-3 3.9-4.5 7-4.5s5.7 1.5 7 4.5',
   pin: 'M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z',

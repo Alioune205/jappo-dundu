@@ -78,7 +78,13 @@ function Home({ donor }: { donor: DonorProfile }) {
         </Animated.View>
 
         <Animated.View entering={enter(1)} style={styles.statsRow}>
-          <Stat icon="award" value={String(donations).padStart(2, '0')} label={donations > 1 ? 'dons enregistrés' : 'don enregistré'} />
+          <Stat
+            icon="award"
+            value={String(donations).padStart(2, '0')}
+            label={donations > 1 ? 'dons enregistrés' : 'don enregistré'}
+            onPress={() => router.navigate('/badges')}
+            hint="Ouvre vos badges"
+          />
           <View style={[styles.avatarRing, { borderColor: colors.surface, backgroundColor: colors.brand }]}>
             <Text style={[styles.initials, { color: colors.onBrand }]}>{initials}</Text>
             <View style={[styles.groupBubble, { backgroundColor: colors.surface, borderColor: colors.brandSoft }]}>
@@ -226,9 +232,25 @@ function RequestTile({ request, highlighted, onPress }: { request: NearbyRequest
   )
 }
 
-function Stat({ icon, value, label, alignEnd = false }: { icon: IconName; value: string; label: string; alignEnd?: boolean }) {
+interface StatProps {
+  icon: IconName
+  value: string
+  label: string
+  alignEnd?: boolean
+  onPress?: () => void
+  hint?: string
+}
+
+function Stat({ icon, value, label, alignEnd = false, onPress, hint }: StatProps) {
   return (
-    <View style={[styles.stat, alignEnd && styles.statEnd]}>
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={`${value} ${label}`}
+      accessibilityHint={hint}
+      style={({ pressed }) => [styles.stat, alignEnd && styles.statEnd, pressed && { opacity: 0.6 }]}
+    >
       <Icon name={icon} size={24} color="brand" />
       <View>
         <Text variant="bodyStrong" tone="brand">
@@ -238,7 +260,7 @@ function Stat({ icon, value, label, alignEnd = false }: { icon: IconName; value:
           {label}
         </Text>
       </View>
-    </View>
+    </Pressable>
   )
 }
 

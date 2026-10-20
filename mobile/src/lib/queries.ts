@@ -17,6 +17,7 @@ import type {
   MyResponse,
   NearbyFacility,
   NearbyRequest,
+  GamificationProfile,
   Paginated,
   ResponseStatus,
 } from '@/types/api'
@@ -28,6 +29,7 @@ export const QK = {
   nearby: ['nearby'] as const,
   history: ['history'] as const,
   centers: ['centers'] as const,
+  gamification: ['gamification'] as const,
 }
 
 /** Le compte n'a pas encore de profil donneur (404 de /donors/me/). */
@@ -43,6 +45,14 @@ export function useDonor() {
     queryKey: QK.donor,
     queryFn: () => api.get<DonorProfile>('/api/sang/donors/me/'),
     retry: (count, error) => !isMissingDonor(error) && count < 2,
+  })
+}
+
+/** Points, niveau et badges du donneur (attribués côté serveur à chaque don enregistré). */
+export function useGamification() {
+  return useQuery({
+    queryKey: QK.gamification,
+    queryFn: () => api.get<GamificationProfile>('/api/sang/donors/me/gamification/'),
   })
 }
 

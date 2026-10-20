@@ -119,6 +119,18 @@ export default function ProfileScreen() {
         </Animated.View>
 
         <Animated.View entering={enter(2)}>
+          <Card style={styles.list}>
+            <Row
+              icon="award"
+              title="Mes badges"
+              value="Points, niveau et badges à débloquer"
+              onPress={() => router.push('/badges')}
+              actionLabel="Voir"
+            />
+          </Card>
+        </Animated.View>
+
+        <Animated.View entering={enter(3)}>
           <Text variant="eyebrow" tone="subtle" style={styles.section}>
             Sollicitations
           </Text>
@@ -168,7 +180,7 @@ export default function ProfileScreen() {
           ) : null}
         </Animated.View>
 
-        <Animated.View entering={enter(3)} style={styles.footer}>
+        <Animated.View entering={enter(4)} style={styles.footer}>
           <Button
             label="Se déconnecter"
             variant="secondary"
