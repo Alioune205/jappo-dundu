@@ -12,6 +12,8 @@ interface MissionTableProps {
   isLoading: boolean
   onAssign: (missionId: number) => void
   onAdvance: (missionId: number, status: MissionStatus) => void
+  /** Ouvre la régulation (choix de l'ambulance, du lit, annulation). */
+  onDispatch?: (mission: Mission) => void
   isAssigning: (missionId: number) => boolean
   isAdvancing: (missionId: number) => boolean
 }
@@ -22,6 +24,7 @@ export const MissionTable: React.FC<MissionTableProps> = ({
   isLoading,
   onAssign,
   onAdvance,
+  onDispatch,
   isAssigning,
   isAdvancing,
 }) => {
@@ -93,20 +96,33 @@ export const MissionTable: React.FC<MissionTableProps> = ({
                   </td>
                   <td className="num whitespace-nowrap text-xs text-muted">{formatDateTime(mission.created_at)}</td>
                   <td className="text-right">
-                    {mission.status === 'pending' ? (
-                      <Button variant="primary" size="sm" onClick={() => onAssign(mission.id)} isLoading={isAssigning(mission.id)}>
-                        Affecter
-                      </Button>
-                    ) : next ? (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => onAdvance(mission.id, next.status)}
-                        isLoading={isAdvancing(mission.id)}
-                      >
-                        {next.label}
-                      </Button>
-                    ) : null}
+                    <div className="flex justify-end gap-1">
+                      {mission.status === 'pending' ? (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => onAssign(mission.id)}
+                          isLoading={isAssigning(mission.id)}
+                          title="Affecter l'ambulance disponible la plus proche"
+                        >
+                          Affecter
+                        </Button>
+                      ) : next ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => onAdvance(mission.id, next.status)}
+                          isLoading={isAdvancing(mission.id)}
+                        >
+                          {next.label}
+                        </Button>
+                      ) : null}
+                      {isActive && onDispatch && (
+                        <Button variant="ghost" size="sm" onClick={() => onDispatch(mission)} aria-label={`Réguler la mission ${mission.id}`}>
+                          Réguler
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )

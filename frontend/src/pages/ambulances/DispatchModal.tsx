@@ -1,0 +1,361 @@
+import React, { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { BedDouble, Navigation } from 'lucide-react'
+import { api } from '@/lib/api'
+import { useAuth } from '@/context/AuthContext'
+import { Alert } from '@/components/ui/Alert'
+import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { Select, Textarea } from '@/components/ui/Input'
+import { Modal } from '@/components/ui/Modal'
+import { BED_CATEGORIES, MISSION_STATUSES, URGENCIES, toneOf } from '@/lib/constants'
+import { formatDistance, formatPhone, formatRelative } from '@/lib/format'
+import { QK } from '@/lib/queryKeys'
+import { useNow } from '@/lib/useNow'
+import { canReserveAt, remainingLabel } from '@/pages/beds/reservationAccess'
+import type { BedCategory, BedReservation, Mission, MissionDestinations, NearbyAmbulance } from '@/types/api'
+import { isActiveMission } from './missionUtils'
+
+/** Rayon de recherche (km) des ambulances et des lits, comme l'affectation automatique de la page. */
+const DISPATCH_RADIUS_KM = 60
+/** Durée de blocage d'un lit réservé pour une mission (minutes). */
+const HOLD_MINUTES = 45
+
+interface DispatchModalProps {
+  /** Mission régulée ; null ferme la fenêtre. */
+  mission: Mission | null
+  onClose: () => void
+}
+
+/**
+ * Régulation d'une mission : choisir l'ambulance (les plus proches
+ * disponibles), orienter vers un hôpital qui a des lits libres en y
+ * réservant un lit, ou annuler. C'est ici que se rejoignent les ambulances
+ * et les lits.
+ */
+export const DispatchModal: React.FC<DispatchModalProps> = ({ mission, onClose }) => (
+  <Modal
+    isOpen={mission !== null}
+    onClose={onClose}
+    title={mission ? `Mission #${mission.id}` : 'Mission'}
+    description={mission ? mission.pickup_address : undefined}
+    maxWidth="2xl"
+  >
+    {mission && <DispatchPanel key={mission.id} missionId={mission.id} fallback={mission} onDone={onClose} />}
+  </Modal>
+)
+
+const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: () => void }> = ({ missionId, fallback, onDone }) => {
+  const queryClient = useQueryClient()
+  const now = useNow(30_000)
+  const [error, setError] = useState<string | null>(null)
+
+  // Mission relue en continu : l'ambulancier la fait avancer pendant que la fenêtre est ouverte.
+  const { data: mission = fallback } = useQuery<Mission>({
+    queryKey: [...QK.missionsAll, missionId],
+    queryFn: () => api.get<Mission>(`/api/ambulances/missions/${missionId}/`),
+    initialData: fallback,
+    refetchInterval: 15_000,
+  })
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: QK.missionsAll })
+    queryClient.invalidateQueries({ queryKey: QK.missionsActive })
+    queryClient.invalidateQueries({ queryKey: QK.ambulancesFleet })
+    queryClient.invalidateQueries({ queryKey: QK.ambulancesNearest })
+    queryClient.invalidateQueries({ queryKey: QK.missionDestinations })
+    queryClient.invalidateQueries({ queryKey: QK.bedReservations })
+    queryClient.invalidateQueries({ queryKey: QK.bedCapacities })
+  }
+  const fail = (fallbackMessage: string) => (err: unknown) => setError(err instanceof Error ? err.message : fallbackMessage)
+
+  const active = isActiveMission(mission)
+
+  return (
+    <div className="space-y-5">
+      {error && (
+        <Alert tone="danger" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+        <Badge tone={toneOf(URGENCIES, mission.priority)} size="sm">
+          {mission.priority_display}
+        </Badge>
+        <Badge tone={toneOf(MISSION_STATUSES, mission.status)} size="sm">
+          {mission.status_display}
+        </Badge>
+        <span>Déclenchée {formatRelative(mission.created_at, now)}</span>
+        {mission.caller_phone && <span className="num">· Appelant {formatPhone(mission.caller_phone)}</span>}
+      </div>
+      {mission.description && <p className="text-sm text-fg">{mission.description}</p>}
+
+      {mission.status === 'pending' ? (
+        <AmbulancePicker mission={mission} onAssigned={refresh} onError={fail('Affectation impossible.')} />
+      ) : mission.ambulance ? (
+        <section className="rounded-lg border border-line px-4 py-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Ambulance</h3>
+          <p className="mt-1 text-sm text-fg">
+            <span className="num font-semibold">{mission.ambulance.plate_number}</span> · {mission.ambulance.ambulance_type_display}
+            {mission.ambulance.driver ? ` · ${mission.ambulance.driver.full_name}` : ' · sans chauffeur'}
+          </p>
+        </section>
+      ) : null}
+
+      {active && <DestinationPicker mission={mission} onReserved={refresh} onError={fail('Réservation impossible.')} />}
+
+      {active && <CancelMission mission={mission} onCancelled={() => (refresh(), onDone())} onError={fail('Annulation impossible.')} />}
+    </div>
+  )
+}
+
+/** Ambulances disponibles les plus proches du lieu d'intervention (PostGIS). */
+const AmbulancePicker: React.FC<{ mission: Mission; onAssigned: () => void; onError: (err: unknown) => void }> = ({
+  mission,
+  onAssigned,
+  onError,
+}) => {
+  const { data: nearest = [], isLoading } = useQuery<NearbyAmbulance[]>({
+    queryKey: [...QK.ambulancesNearest, mission.id],
+    queryFn: () =>
+      api.get<NearbyAmbulance[]>('/api/ambulances/vehicles/nearest/', {
+        latitude: mission.pickup_latitude,
+        longitude: mission.pickup_longitude,
+        radius_km: DISPATCH_RADIUS_KM,
+        limit: 6,
+      }),
+  })
+
+  const assign = useMutation({
+    mutationFn: (ambulanceId: number) =>
+      api.post<Mission>(`/api/ambulances/missions/${mission.id}/assign/`, { ambulance_id: ambulanceId }),
+    onSuccess: onAssigned,
+    onError,
+  })
+
+  return (
+    <section className="space-y-2">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Ambulances disponibles</h3>
+      {isLoading ? (
+        <p className="text-xs text-muted">Recherche des véhicules proches…</p>
+      ) : nearest.length === 0 ? (
+        <p className="text-sm text-muted">Aucune ambulance disponible à moins de {DISPATCH_RADIUS_KM} km.</p>
+      ) : (
+        <ul className="divide-y divide-line rounded-lg border border-line">
+          {nearest.map((amb, index) => (
+            <li key={amb.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <div className="min-w-0">
+                <p className="text-sm text-fg">
+                  <span className="num font-semibold">{amb.plate_number}</span> · {amb.ambulance_type_display}
+                  {index === 0 && (
+                    <Badge tone="success" size="sm" className="ml-2">
+                      La plus proche
+                    </Badge>
+                  )}
+                </p>
+                <p className="truncate text-xs text-muted">
+                  <Navigation className="mr-1 inline h-3 w-3" aria-hidden="true" />
+                  {formatDistance(amb.distance_km)} · {amb.facility?.name}
+                  {amb.driver ? ` · ${amb.driver.full_name}` : ' · sans chauffeur'}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant={index === 0 ? 'primary' : 'secondary'}
+                onClick={() => assign.mutate(amb.id)}
+                isLoading={assign.isPending && assign.variables === amb.id}
+                disabled={assign.isPending}
+                aria-label={`Affecter ${amb.plate_number}`}
+              >
+                Affecter
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+/** Hôpitaux proches avec des lits libres : réserver un lit oriente la mission vers cet hôpital. */
+const DestinationPicker: React.FC<{ mission: Mission; onReserved: () => void; onError: (err: unknown) => void }> = ({
+  mission,
+  onReserved,
+  onError,
+}) => {
+  const auth = useAuth()
+  const now = useNow(30_000)
+  const [category, setCategory] = useState<BedCategory>('emergency')
+
+  const { data: destinations, isLoading } = useQuery<MissionDestinations>({
+    queryKey: [...QK.missionDestinations, mission.id, category],
+    queryFn: () =>
+      api.get<MissionDestinations>(`/api/ambulances/missions/${mission.id}/destinations/`, {
+        category,
+        radius_km: DISPATCH_RADIUS_KM,
+        limit: 6,
+      }),
+  })
+
+  const { data: reservations = [] } = useQuery<BedReservation[]>({
+    queryKey: [...QK.bedReservations, 'mission', mission.id],
+    queryFn: async () =>
+      (await api.get<{ results: BedReservation[] }>('/api/lits/reservations/', { mission: mission.id, status: 'active' }))
+        .results || [],
+  })
+  const held = reservations[0]
+
+  const reserve = useMutation({
+    mutationFn: (facilityId: number) =>
+      api.post<BedReservation>('/api/lits/reservations/', {
+        facility_id: facilityId,
+        category,
+        mission_id: mission.id,
+        hold_minutes: HOLD_MINUTES,
+      }),
+    onSuccess: onReserved,
+    onError,
+  })
+
+  const results = destinations?.results ?? []
+
+  return (
+    <section className="space-y-2">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Hôpital de destination</h3>
+          <p className="text-xs text-muted">
+            {mission.destination ? (
+              <>
+                Actuelle : <span className="font-medium text-fg">{mission.destination.name}</span>
+                {held
+                  ? ` · lit réservé en ${held.capacity.category_display.toLowerCase()}, expire dans ${remainingLabel(held.expires_at, now)}`
+                  : ' · aucun lit réservé'}
+              </>
+            ) : (
+              'Aucune : réservez un lit pour orienter l’ambulance.'
+            )}
+          </p>
+        </div>
+        <Select
+          aria-label="Service recherché"
+          value={category}
+          onChange={(e) => setCategory(e.target.value as BedCategory)}
+          className="w-auto"
+        >
+          {BED_CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      {isLoading ? (
+        <p className="text-xs text-muted">Recherche des lits libres…</p>
+      ) : results.length === 0 ? (
+        <p className="text-sm text-muted">Aucun lit libre dans ce service à moins de {DISPATCH_RADIUS_KM} km.</p>
+      ) : (
+        <ul className="divide-y divide-line rounded-lg border border-line">
+          {results.map((facility) => {
+            const current = mission.destination?.id === facility.id
+            const allowed = canReserveAt(auth, facility)
+            return (
+              <li key={facility.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-fg">
+                    {facility.name}
+                    {current && (
+                      <Badge tone="info" size="sm" className="ml-2">
+                        Destination
+                      </Badge>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {facility.city} · {formatDistance(facility.distance_km)} ·{' '}
+                    <span className="num font-semibold text-ok">
+                      <BedDouble className="mr-0.5 inline h-3 w-3" aria-hidden="true" />
+                      {facility.available_beds} lit{facility.available_beds > 1 ? 's' : ''} libre
+                      {facility.available_beds > 1 ? 's' : ''}
+                    </span>
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant={current ? 'ghost' : 'secondary'}
+                  onClick={() => reserve.mutate(facility.id)}
+                  isLoading={reserve.isPending && reserve.variables === facility.id}
+                  disabled={!allowed || reserve.isPending || (current && !!held)}
+                  title={allowed ? undefined : 'Établissement hors de votre région de régulation.'}
+                  aria-label={`Réserver un lit à ${facility.name}`}
+                >
+                  {current && held ? 'Lit réservé' : 'Réserver un lit'}
+                </Button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+/** Annulation par la régulation, motif obligatoire (l'ambulancier est prévenu, le lit réservé libéré). */
+const CancelMission: React.FC<{ mission: Mission; onCancelled: () => void; onError: (err: unknown) => void }> = ({
+  mission,
+  onCancelled,
+  onError,
+}) => {
+  const [open, setOpen] = useState(false)
+  const [reason, setReason] = useState('')
+  const cancel = useMutation({
+    mutationFn: () =>
+      api.post<Mission>(`/api/ambulances/missions/${mission.id}/status/`, {
+        status: 'cancelled',
+        cancellation_reason: reason.trim(),
+      }),
+    onSuccess: onCancelled,
+    onError,
+  })
+
+  // Le transport commencé ne s'annule plus (le patient est à bord).
+  if (mission.status === 'transporting') return null
+
+  if (!open) {
+    return (
+      <div className="border-t border-line pt-3">
+        <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+          Annuler la mission…
+        </Button>
+      </div>
+    )
+  }
+  return (
+    <form
+      className="space-y-3 border-t border-line pt-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (reason.trim()) cancel.mutate()
+      }}
+    >
+      <Textarea
+        label="Motif d’annulation"
+        placeholder="ex. patient transporté par les sapeurs-pompiers"
+        required
+        autoFocus
+        maxLength={255}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+      />
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+          Retour
+        </Button>
+        <Button type="submit" variant="danger" size="sm" disabled={!reason.trim()} isLoading={cancel.isPending}>
+          Annuler la mission
+        </Button>
+      </div>
+    </form>
+  )
+}

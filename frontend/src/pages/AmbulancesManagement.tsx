@@ -19,6 +19,7 @@ import { MissionTable } from './ambulances/MissionTable'
 import { FleetTable } from './ambulances/FleetTable'
 import { NewMissionModal } from './ambulances/NewMissionModal'
 import { VehicleModal } from './ambulances/VehicleModal'
+import { DispatchModal } from './ambulances/DispatchModal'
 import { QK } from '@/lib/queryKeys'
 
 /** Page « Flotte SAMU » : missions, affectation, cycle de vie, carte et administration de la flotte. */
@@ -40,6 +41,7 @@ export const AmbulancesManagement: React.FC = () => {
   const [actionError, setActionError] = useState<string | null>(null)
   const [isNewMissionOpen, setIsNewMissionOpen] = useState(false)
   const [editingVehicle, setEditingVehicle] = useState<Ambulance | 'new' | null>(null)
+  const [dispatching, setDispatching] = useState<Mission | null>(null)
 
   const {
     data: missions = [],
@@ -175,6 +177,7 @@ export const AmbulancesManagement: React.FC = () => {
             isLoading={isLoadingMissions}
             onAssign={(id) => assignNearest.mutate(id)}
             onAdvance={(id, status) => advanceStatus.mutate({ id, status })}
+            onDispatch={setDispatching}
             isAssigning={(id) => assignNearest.isPending && assignNearest.variables === id}
             isAdvancing={(id) => advanceStatus.isPending && advanceStatus.variables?.id === id}
           />
@@ -189,6 +192,8 @@ export const AmbulancesManagement: React.FC = () => {
           />
         )}
       </div>
+
+      <DispatchModal mission={dispatching} onClose={() => setDispatching(null)} />
 
       <VehicleModal vehicle={editingVehicle} service={service} onClose={() => setEditingVehicle(null)} />
 

@@ -28,6 +28,8 @@ export const QK = {
   missionsActive: ['missions-active'],
   missionsAll: ['missions-all'],
   missionStats: ['mission-stats'],
+  ambulancesNearest: ['ambulances-nearest'],
+  missionDestinations: ['mission-destinations'],
   // Prévisions
   predictionsSummary: ['predictions-summary'],
   mlPredictionsList: ['ml-predictions-list'],
