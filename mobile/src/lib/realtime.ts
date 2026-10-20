@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { AppState } from 'react-native'
-import type { BloodAlertEvent } from '@/types/api'
+import type { AmbulanceAlertEvent, BloodAlertEvent } from '@/types/api'
 import { api } from './api'
 import { WS_URL } from './config'
 
@@ -22,7 +22,20 @@ const PING_MS = 25_000
 /** Codes de refus définitifs (consumers.py) : inutile de réessayer en boucle. */
 const FATAL_CODES = new Set([4400, 4403])
 
-export function useAlertStream(onAlert: (event: BloodAlertEvent) => void, enabled = true): StreamStatus {
+interface AlertEvents {
+  blood_alert: BloodAlertEvent
+  ambulance_alert: AmbulanceAlertEvent
+}
+
+/**
+ * `kind` : alertes transmises à `onAlert` (sang pour le donneur, missions pour
+ * l'ambulancier ; le serveur ne remet à chacun que celles de son rôle).
+ */
+export function useAlertStream<K extends keyof AlertEvents = 'blood_alert'>(
+  onAlert: (event: AlertEvents[K]) => void,
+  enabled = true,
+  kind: K = 'blood_alert' as K
+): StreamStatus {
   const [status, setStatus] = useState<StreamStatus>('connecting')
   const [active, setActive] = useState(AppState.currentState !== 'background')
   const onAlertRef = useRef(onAlert)
@@ -75,8 +88,8 @@ export function useAlertStream(onAlert: (event: BloodAlertEvent) => void, enable
         if (payload.type === 'connection_established') {
           attempts = 0
           setStatus('live')
-        } else if (payload.type === 'blood_alert') {
-          onAlertRef.current(payload as BloodAlertEvent)
+        } else if (payload.type === kind) {
+          onAlertRef.current(payload as AlertEvents[K])
         }
       }
       socket.onopen = () => {
@@ -98,7 +111,7 @@ export function useAlertStream(onAlert: (event: BloodAlertEvent) => void, enable
       if (ping) clearInterval(ping)
       socket?.close()
     }
-  }, [enabled, active])
+  }, [enabled, active, kind])
 
   return enabled && active ? status : 'offline'
 }

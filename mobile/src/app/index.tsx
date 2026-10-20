@@ -1,12 +1,13 @@
 import { Redirect } from 'expo-router'
 import { useAuth } from '@/context/AuthContext'
 import { useOnboarding } from '@/context/OnboardingContext'
+import { isDriver } from '@/lib/missions'
 
-/** Aiguillage de démarrage : application, onboarding (premier lancement) ou connexion. */
+/** Aiguillage de démarrage : espace ambulancier ou donneur, onboarding (premier lancement) ou connexion. */
 export default function Index() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const { done } = useOnboarding()
-  if (isAuthenticated) return <Redirect href="/home" />
+  if (isAuthenticated) return <Redirect href={isDriver(user?.roles) ? '/mission' : '/home'} />
   if (!done) return <Redirect href="/onboarding" />
   return <Redirect href="/login" />
 }

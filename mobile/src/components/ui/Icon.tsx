@@ -36,6 +36,7 @@ const PATHS = {
   heart: 'M12 19.5s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 7.5 2.5c0 5.4-7.5 10-7.5 10z',
   award: 'M8.5 14l-1.5 6.5 5-2.5 5 2.5-1.5-6.5',
   menu: 'M4.5 7h15M4.5 12h15M4.5 17h10',
+  ambulance: 'M3.5 17.5v-10h10.5v10M14 10.5h3.6l2.9 3.2v3.8h-1.7M8.8 17.5h6.4M5.2 17.5H3.5M8.7 9.7v4.2M6.6 11.8h4.2',
   sparkle: 'M12 3.5l1.9 6.6 6.6 1.9-6.6 1.9-1.9 6.6-1.9-6.6-6.6-1.9 6.6-1.9z',
 } as const
 
@@ -60,6 +61,12 @@ export function Icon({ name, size = 22, color = 'fg', strokeWidth = 1.8 }: IconP
       {name === 'pin' && <Circle cx={12} cy={10} r={2.3} {...common} />}
       {name === 'location' && <Circle cx={12} cy={12} r={5.5} {...common} />}
       {name === 'award' && <Circle cx={12} cy={9} r={5} {...common} />}
+      {name === 'ambulance' && (
+        <>
+          <Circle cx={7} cy={17.5} r={1.8} {...common} />
+          <Circle cx={17} cy={17.5} r={1.8} {...common} />
+        </>
+      )}
       {(name === 'eye' || name === 'eyeOff') && <Circle cx={12} cy={12} r={3} {...common} />}
     </Svg>
   )

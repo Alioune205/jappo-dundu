@@ -40,7 +40,8 @@ export default function CompleteProfileScreen() {
     try {
       await api.patch('/api/users/me/', { phone_number: `+221${digits}`, region })
       await refreshProfile()
-      router.replace('/donor-setup')
+      // Aiguillage selon le rôle : ambulancier vers sa mission, donneur vers son profil donneur.
+      router.replace('/')
     } catch (err) {
       setErrors(err instanceof ApiError && Object.keys(err.fieldErrors).length ? err.fieldErrors : { phone_number: [err instanceof Error ? err.message : 'Enregistrement impossible.'] })
     } finally {

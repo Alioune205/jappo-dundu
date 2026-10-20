@@ -147,7 +147,7 @@ def seed():
     ambulances = [
         ('DK-8492-AA', facilities['principal'], Ambulance.AmbulanceType.MEDICALIZED, Ambulance.Status.AVAILABLE, 14.6644, -17.4336),
         ('DK-5120-BB', facilities['samu'], Ambulance.AmbulanceType.MEDICALIZED, Ambulance.Status.AVAILABLE, 14.7315, -17.4522),
-        ('DK-3341-CC', facilities['samu'], Ambulance.AmbulanceType.BASIC, Ambulance.Status.ON_MISSION, 14.7120, -17.4480),
+        ('DK-3341-CC', facilities['samu'], Ambulance.AmbulanceType.BASIC, Ambulance.Status.AVAILABLE, 14.7120, -17.4480),
         ('DK-9901-DD', facilities['dalal_jamm'], Ambulance.AmbulanceType.BASIC, Ambulance.Status.AVAILABLE, 14.7812, -17.4201),
         ('TH-2104-AB', facilities['thies'], Ambulance.AmbulanceType.BASIC, Ambulance.Status.AVAILABLE, 14.7915, -16.9256),
     ]
@@ -292,6 +292,12 @@ def seed():
                     'last_donation_date': date.today() - timedelta(days=120),
                 }
             )
+
+    # Ambulancier de démonstration (application mobile) : conducteur de
+    # l'ambulance de base du SAMU, celle que la régulation lui affecte.
+    Ambulance.objects.filter(plate_number='DK-3341-CC').update(
+        driver=User.objects.get(username='samu.driver')
+    )
 
     print("6. Création de demandes de sang urgentes de test...")
     BloodRequest.objects.get_or_create(

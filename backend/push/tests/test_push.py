@@ -9,6 +9,7 @@ from unittest import mock
 
 from django.test import TestCase, override_settings
 
+from ambulances.tests import AmbulanceFixturesMixin, make_mission
 from sang.tests.helpers import SangFixturesMixin, make_donor
 from security.roles import Role
 from users.tests.factories import api_client, make_user
@@ -199,3 +200,56 @@ class BloodRequestPushTests(SangFixturesMixin, TestCase):
         spy, urlopen = self.create_request(notes='Hémorragie')
         spy.assert_not_called()
         urlopen.assert_not_called()
+
+
+@override_settings(PUSH_ASYNC=False, PUSH_ENABLED=True)
+class MissionPushTests(AmbulanceFixturesMixin, TestCase):
+    """L'ambulancier est prévenu de l'affectation et de l'annulation de sa mission."""
+
+    def call(self, user, path, payload):
+        with (
+            mock.patch('ambulances.services.broadcast_alert'),
+            mock.patch('ambulances.services.broadcast_dashboard'),
+            mock.patch('push.services.urllib.request.urlopen', side_effect=lambda req, timeout: expo_response(
+                [{'status': 'ok'}] * len(json.loads(req.data))
+            )) as urlopen,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            response = api_client(user).post(path, payload, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        return [message for call in urlopen.call_args_list for message in json.loads(call.args[0].data)]
+
+    def test_driver_is_notified_without_patient_details(self):
+        PushDevice.objects.create(user=self.driver, token='ExponentPushToken[driver]', platform='android')
+        PushDevice.objects.create(user=self.other_driver, token='ExponentPushToken[other]', platform='android')
+        mission = make_mission(priority='critical', pickup_address='Rue 10, Médina')
+
+        messages = self.call(self.dispatcher, f'/api/ambulances/missions/{mission.pk}/assign/', {})
+
+        self.assertEqual([m['to'] for m in messages], ['ExponentPushToken[driver]'])
+        message = messages[0]
+        self.assertEqual(message['title'], 'Mission critique — DK-0001-AA')
+        self.assertEqual(message['data'], {'type': 'mission', 'mission_id': mission.pk})
+        self.assertEqual(message['channelId'], 'missions')
+        # L'adresse du patient n'apparaît jamais sur l'écran verrouillé.
+        self.assertNotIn('Médina', json.dumps(message))
+
+    def test_driver_is_notified_of_cancellation(self):
+        PushDevice.objects.create(user=self.driver, token='ExponentPushToken[driver]', platform='android')
+        mission = make_mission(ambulance=self.near, status='assigned')
+
+        messages = self.call(
+            self.dispatcher,
+            f'/api/ambulances/missions/{mission.pk}/status/',
+            {'status': 'cancelled', 'cancellation_reason': 'Patient pris en charge par les pompiers'},
+        )
+
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]['title'], 'Mission annulée — DK-0001-AA')
+
+    def test_vehicle_without_driver_sends_nothing(self):
+        mission = make_mission(priority='urgent')
+        messages = self.call(
+            self.dispatcher, f'/api/ambulances/missions/{mission.pk}/assign/', {'ambulance_id': self.far.pk}
+        )
+        self.assertEqual(messages, [])

@@ -22,6 +22,8 @@ import * as Notifications from 'expo-notifications'
 import { api } from './api'
 
 export const ALERT_CHANNEL = 'blood-alerts'
+/** Missions confiées à l'ambulancier (backend : push.services.MISSION_CHANNEL). */
+export const MISSION_CHANNEL = 'missions'
 const TOKEN_KEY = 'jappo-dundu.push-token'
 
 export type PushStatus = 'granted' | 'denied' | 'undetermined' | 'unsupported'
@@ -49,6 +51,14 @@ async function ensureChannel() {
     description: 'Demandes urgentes des hôpitaux proches compatibles avec votre groupe.',
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 220, 120, 220],
+    lightColor: '#E4151E',
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+  })
+  await Notifications.setNotificationChannelAsync(MISSION_CHANNEL, {
+    name: 'Missions d’ambulance',
+    description: 'Interventions confiées par la régulation du SAMU (ambulanciers).',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 400, 200, 400, 200, 400],
     lightColor: '#E4151E',
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   })
@@ -108,6 +118,12 @@ export async function unregisterPush() {
 export function requestIdOf(response: Notifications.NotificationResponse | null | undefined): number | null {
   const data = response?.notification.request.content.data as { type?: string; request_id?: unknown } | undefined
   return data?.type === 'blood_request' && typeof data.request_id === 'number' ? data.request_id : null
+}
+
+/** Identifiant de mission porté par une notification (ambulancier), s'il y en a un. */
+export function missionIdOf(notification: Notifications.Notification | null | undefined): number | null {
+  const data = notification?.request.content.data as { type?: string; mission_id?: unknown } | undefined
+  return data?.type === 'mission' && typeof data.mission_id === 'number' ? data.mission_id : null
 }
 
 /**

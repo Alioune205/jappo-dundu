@@ -30,6 +30,10 @@ export const QK = {
   history: ['history'] as const,
   centers: ['centers'] as const,
   gamification: ['gamification'] as const,
+  // Ambulancier (lib/missions.ts)
+  ambulance: ['ambulance'] as const,
+  missions: ['missions'] as const,
+  destinations: ['destinations'] as const,
 }
 
 /** Le compte n'a pas encore de profil donneur (404 de /donors/me/). */

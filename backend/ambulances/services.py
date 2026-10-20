@@ -23,6 +23,7 @@ from django.utils import timezone
 from geo.distance import GeoPoint
 from geo.search import nearest
 from lits.services import close_mission_reservation
+from push.services import notify_mission_assigned, notify_mission_cancelled
 from realtime.broadcast import broadcast_alert, broadcast_dashboard
 from users.exceptions import Conflict
 
@@ -232,6 +233,8 @@ def assign(
     mission.save(update_fields=['ambulance', 'status', 'assigned_at', 'updated_at'])
     notify_mission(mission, MISSION_UPDATED)
     notify_ambulance(chosen, AMBULANCE_STATUS)
+    # L'ambulancier est prévenu même application fermée.
+    transaction.on_commit(lambda: notify_mission_assigned(mission))
     logger.info("Mission %s : ambulance %s affectée", mission.pk, chosen.pk)
     return mission
 
@@ -271,6 +274,8 @@ def advance(mission, status, *, destination=None, cancellation_reason=''):
         mission.ambulance.refresh_from_db(fields=['status', 'updated_at'])
         notify_ambulance(mission.ambulance, AMBULANCE_STATUS)
     notify_mission(mission, MISSION_UPDATED)
+    if status == MissionStatus.CANCELLED:
+        transaction.on_commit(lambda: notify_mission_cancelled(mission))
     logger.info("Mission %s : %s", mission.pk, status)
     return mission
 

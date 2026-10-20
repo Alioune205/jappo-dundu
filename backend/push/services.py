@@ -44,8 +44,9 @@ BATCH_SIZE = 100
 TIMEOUT_SECONDS = 10
 TOKEN_RE = re.compile(r'^Expo(nent)?PushToken\[[A-Za-z0-9_\-]+\]$')
 
-# Canal Android créé par l'application (son et importance « haute »).
+# Canaux Android créés par l'application (son et importance « haute »).
 ANDROID_CHANNEL = 'blood-alerts'
+MISSION_CHANNEL = 'missions'
 
 _executor = None
 _executor_lock = threading.Lock()
@@ -67,7 +68,7 @@ def _get_executor():
         return _executor
 
 
-def send_to_users(user_ids, *, title, body, data=None):
+def send_to_users(user_ids, *, title, body, data=None, channel=ANDROID_CHANNEL):
     """Notifie les téléphones actifs de ``user_ids``. Retourne le nombre de messages préparés."""
     if not _setting('PUSH_ENABLED', True) or not user_ids:
         return 0
@@ -85,7 +86,7 @@ def send_to_users(user_ids, *, title, body, data=None):
             'data': data or {},
             'sound': 'default',
             'priority': 'high',
-            'channelId': ANDROID_CHANNEL,
+            'channelId': channel,
         }
         for token in tokens
     ]
@@ -189,4 +190,43 @@ def notify_blood_request(blood_request):
         title=title,
         body=body,
         data={'type': 'blood_request', 'request_id': blood_request.pk},
+    )
+
+
+MISSION_PRIORITY_TITLES = {
+    'critical': 'Mission critique',
+    'urgent': 'Mission urgente',
+    'normal': 'Nouvelle mission',
+}
+
+
+def notify_mission_assigned(mission):
+    """Prévient l'ambulancier de l'ambulance affectée (application mobile).
+
+    L'adresse et la position du patient restent hors de la notification
+    (visible sur l'écran verrouillé) : l'application les affiche à l'ouverture.
+    """
+    ambulance = mission.ambulance
+    if ambulance is None or ambulance.driver_id is None:
+        return 0
+    return send_to_users(
+        [ambulance.driver_id],
+        title=f"{MISSION_PRIORITY_TITLES.get(mission.priority, 'Nouvelle mission')} — {ambulance.plate_number}",
+        body="Une intervention vous est confiée. Ouvrez Jappo Dundu pour l'adresse et l'itinéraire.",
+        data={'type': 'mission', 'mission_id': mission.pk},
+        channel=MISSION_CHANNEL,
+    )
+
+
+def notify_mission_cancelled(mission):
+    """Prévient l'ambulancier que la régulation a annulé sa mission."""
+    ambulance = mission.ambulance
+    if ambulance is None or ambulance.driver_id is None:
+        return 0
+    return send_to_users(
+        [ambulance.driver_id],
+        title=f"Mission annulée — {ambulance.plate_number}",
+        body="La régulation a annulé votre intervention. Votre ambulance est de nouveau disponible.",
+        data={'type': 'mission', 'mission_id': mission.pk},
+        channel=MISSION_CHANNEL,
     )

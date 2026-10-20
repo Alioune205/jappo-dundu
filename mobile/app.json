@@ -14,7 +14,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "sn.jappodundu.donneurs",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Votre position permet de vous montrer les demandes de sang des hôpitaux proches. Elle n'est jamais transmise aux hôpitaux."
+        "NSLocationWhenInUseUsageDescription": "Votre position permet de vous montrer les demandes de sang des hôpitaux proches ; elle n'est jamais transmise aux hôpitaux. Ambulanciers : en service, elle est partagée avec la régulation du SAMU."
       },
       "usesAppleSignIn": true
     },
@@ -57,7 +57,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Votre position permet de vous montrer les demandes de sang des hôpitaux proches. Elle n'est jamais transmise aux hôpitaux.",
+          "locationWhenInUsePermission": "Votre position permet de vous montrer les demandes de sang des hôpitaux proches ; elle n'est jamais transmise aux hôpitaux. Ambulanciers : en service, elle est partagée avec la régulation du SAMU.",
           "isAndroidBackgroundLocationEnabled": false
         }
       ],

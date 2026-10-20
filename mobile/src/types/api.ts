@@ -185,3 +185,85 @@ export interface GamificationProfile {
   badges: GamificationBadge[]
   locked_badges: GamificationBadge[]
 }
+
+// ---------------------------------------------------------------------------
+// Ambulancier (ambulances/serializers.py)
+// ---------------------------------------------------------------------------
+
+export type AmbulanceStatus = 'available' | 'on_mission' | 'out_of_service'
+export type AmbulanceType = 'basic' | 'medicalized'
+export type MissionPriority = 'critical' | 'urgent' | 'normal'
+export type MissionStatus = 'pending' | 'assigned' | 'on_site' | 'transporting' | 'completed' | 'cancelled'
+
+export interface Person {
+  id: number
+  full_name: string
+}
+
+/** GET /api/ambulances/vehicles/mine/ */
+export interface Ambulance {
+  id: number
+  plate_number: string
+  facility: FacilitySummary
+  ambulance_type: AmbulanceType
+  ambulance_type_display: string
+  status: AmbulanceStatus
+  status_display: string
+  driver: Person | null
+  latitude: number | null
+  longitude: number | null
+  location_updated_at: string | null
+}
+
+export interface Mission {
+  id: number
+  priority: MissionPriority
+  priority_display: string
+  status: MissionStatus
+  status_display: string
+  description: string
+  pickup_address: string
+  pickup_latitude: number
+  pickup_longitude: number
+  region: RegionCode
+  region_display: string
+  caller_phone: string
+  ambulance: Ambulance | null
+  destination: FacilitySummary | null
+  cancellation_reason: string
+  created_at: string
+  updated_at: string
+  assigned_at: string | null
+  on_site_at: string | null
+  transporting_at: string | null
+  completed_at: string | null
+  cancelled_at: string | null
+  response_time_minutes: number | null
+}
+
+/** Établissement proche avec des lits libres (GET /api/ambulances/missions/<id>/destinations/). */
+export interface BedDestination extends NearbyFacility {
+  available_beds: number
+}
+
+export interface DestinationsResponse {
+  origin: { latitude: number; longitude: number }
+  category: string
+  results: BedDestination[]
+}
+
+/** Message « ambulance_alert » du flux /ws/alerts/ (ambulances/services.py). */
+export interface AmbulanceAlertEvent {
+  type: 'ambulance_alert'
+  id: string
+  sent_at: string
+  data: {
+    event: 'mission_created' | 'mission_updated'
+    mission_id: number
+    status: MissionStatus
+    priority: MissionPriority
+    region: RegionCode
+    ambulance: { id: number; plate_number: string; ambulance_type: AmbulanceType } | null
+    destination: { id: number; name: string } | null
+  }
+}

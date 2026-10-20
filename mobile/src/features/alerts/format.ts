@@ -39,13 +39,16 @@ export const pendingCount = (requests: readonly NearbyRequest[] | undefined) =>
 
 export const units = (n: number) => `${n} poche${n > 1 ? 's' : ''}`
 
+/** Lieu à rejoindre : un établissement, ou le lieu d'une intervention (ambulancier). */
+export type Place = Pick<FacilitySummary, 'name' | 'latitude' | 'longitude'> & { city?: string }
+
 /** Itinéraire dans l'application de cartes du téléphone. */
-export function openDirections(facility: FacilitySummary) {
-  const label = encodeURIComponent(facility.name)
-  const { latitude: lat, longitude: lon } = facility
+export function openDirections(place: Place) {
+  const label = encodeURIComponent(place.name)
+  const { latitude: lat, longitude: lon } = place
   const url =
     lat == null || lon == null
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${facility.name} ${facility.city}`)}`
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${place.name} ${place.city ?? ''}`.trim())}`
       : Platform.OS === 'ios'
         ? `maps:?daddr=${lat},${lon}&q=${label}`
         : Platform.OS === 'android'

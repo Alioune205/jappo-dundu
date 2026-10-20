@@ -7,8 +7,10 @@ import * as Notifications from 'expo-notifications'
 import { TabBar } from '@/components/TabBar'
 import { Button } from '@/components/ui/Button'
 import { Text } from '@/components/ui/Text'
+import { useAuth } from '@/context/AuthContext'
 import { pickAlert, UrgentAlert } from '@/features/alerts/UrgentAlert'
 import { useDeviceLocation } from '@/lib/location'
+import { isDriver } from '@/lib/missions'
 import { pushSupported, registerForPush, requestIdOf } from '@/lib/push'
 import { isMissingDonor, useDonor, useNearby, useRespond } from '@/lib/queries'
 import { space, useTheme } from '@/theme'
@@ -27,6 +29,13 @@ import type { DonorProfile, NearbyRequest } from '@/types/api'
  * Responsable du domaine : Pape Alioune Sene (application mobile)
  */
 export default function TabsLayout() {
+  const { user } = useAuth()
+  // Ambulancier (connexion ou lien vers /home) : son espace, sans profil donneur.
+  if (isDriver(user?.roles)) return <Redirect href="/mission" />
+  return <DonorTabs />
+}
+
+function DonorTabs() {
   const { colors } = useTheme()
   const donor = useDonor()
 
