@@ -12,6 +12,10 @@ ENV/
 # Fichiers de base de données
 db.sqlite3
 *.db
+jappo_db
+
+# Scripts de test manuels (numéros de téléphone réels)
+test_sms.py
 
 # OS
 .DS_Store

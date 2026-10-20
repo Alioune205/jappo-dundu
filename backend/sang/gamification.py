@@ -247,6 +247,7 @@ def get_donor_gamification_profile(donor):
             'icon': eb.badge.icon,
             'points_bonus': eb.badge.points_bonus,
             'category': eb.badge.category,
+            'required_donations': eb.badge.required_donations,
             'awarded_at': eb.awarded_at,
             'unlocked': True,
         }

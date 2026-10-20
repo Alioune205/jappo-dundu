@@ -13,6 +13,10 @@ Source : Centre National de Transfusion Sanguine, « Qui peut donner »
   sur les 365 derniers jours) ;
 - le donneur doit s'être déclaré disponible et son compte être actif.
 
+L'espacement et le plafond annuel valent aussi à l'enregistrement d'un don
+(``donation_conflict``) : un centre ne peut pas inscrire un don trop proche
+d'un autre, y compris un don saisi a posteriori.
+
 L'entretien médical et le taux d'hémoglobine, vérifiés au centre le jour du
 don, restent hors de la plateforme. Les mêmes règles existent en Python
 (fiche d'un donneur) et en SQL (``Donor.objects.eligible``) ; les tests
@@ -103,3 +107,44 @@ def ineligibility_reasons(donor, today, donation_dates=()):
             f'prochain don possible le {cap_date.strftime("%d/%m/%Y")}.'
         )
     return reasons
+
+
+def _fr(day):
+    return day.strftime('%d/%m/%Y')
+
+
+def donation_conflict(sex, donated_on, donation_dates):
+    """Raison pour laquelle un don le ``donated_on`` enfreint les règles CNTS (None : conforme).
+
+    ``donation_dates`` : dates des dons déjà enregistrés pour ce donneur, avant
+    comme après ``donated_on`` (un don peut être saisi a posteriori).
+    """
+    interval = DONATION_INTERVAL_DAYS[sex]
+    too_close = sorted(
+        (day for day in donation_dates if abs((donated_on - day).days) < interval),
+        key=lambda day: abs((donated_on - day).days),
+    )
+    if too_close:
+        other = too_close[0]
+        if other <= donated_on:
+            return (
+                f"Espacement des dons non respecté (règle CNTS : {interval} jours) : "
+                f"dernier don le {_fr(other)}, prochain don possible le "
+                f"{_fr(other + timedelta(days=interval))}."
+            )
+        return (
+            f"Espacement des dons non respecté (règle CNTS : {interval} jours) : "
+            f"un don est déjà enregistré le {_fr(other)}."
+        )
+
+    # Plafond annuel : aucune fenêtre de 365 jours ne doit compter plus de N dons.
+    cap = MAX_DONATIONS_PER_YEAR[sex]
+    days = sorted([*donation_dates, donated_on])
+    for index, start in enumerate(days):
+        window = [day for day in days[index:] if (day - start).days < YEAR_DAYS]
+        if len(window) > cap and donated_on in window:
+            return (
+                f"Nombre maximal de dons sur un an atteint (règle CNTS : {cap}) : "
+                f"prochain don possible le {_fr(start + timedelta(days=YEAR_DAYS))}."
+            )
+    return None

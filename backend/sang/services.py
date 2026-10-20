@@ -17,6 +17,7 @@ Auteur : Ibrahima Khalilou Diallo
 """
 
 import logging
+from datetime import timedelta
 
 from django.db import transaction
 from django.utils import timezone
@@ -25,7 +26,7 @@ from geo.distance import GeoPoint
 from geo.search import MAX_RESULTS, nearest
 from users.exceptions import Conflict
 
-from . import notifications
+from . import eligibility, notifications
 from .compatibility import can_donate, compatible_donor_groups, compatible_recipient_groups
 from .models import BloodRequest, Donation, Donor, DonorResponse
 
@@ -187,6 +188,23 @@ def respond(donor, blood_request, status, *, today=None):
         reasons = donor.ineligibility_reasons(today)
         if reasons:
             raise Conflict(" ".join(reasons))
+        # Un seul don possible par période d'espacement : un seul engagement à la fois.
+        engaged = (
+            DonorResponse.objects.filter(
+                donor=donor,
+                status=ResponseStatus.ACCEPTED,
+                blood_request__status=BloodRequest.Status.OPEN,
+            )
+            .exclude(blood_request=blood_request)
+            .select_related('blood_request__facility')
+            .first()
+        )
+        if engaged is not None:
+            raise Conflict(
+                f"Vous êtes déjà attendu à {engaged.blood_request.facility.name}. "
+                "Les dons doivent être espacés (règle CNTS) : annulez cet engagement "
+                "pour en accepter un autre."
+            )
 
     if response is None:
         response = DonorResponse.objects.create(
@@ -211,6 +229,37 @@ def _locked_response(blood_request, response_id):
         return None
 
 
+def _check_donation_rules(donor, donated_on):
+    """Refuse un don qui enfreint l'espacement ou le plafond annuel du CNTS."""
+    window = timedelta(days=eligibility.YEAR_DAYS)
+    dates = list(
+        donor.donations.filter(
+            donated_on__gt=donated_on - window, donated_on__lt=donated_on + window
+        ).values_list('donated_on', flat=True)
+    )
+    reason = eligibility.donation_conflict(donor.sex, donated_on, dates)
+    if reason:
+        raise Conflict(reason)
+
+
+def _release_other_engagements(donor, keep=None):
+    """Don enregistré : les autres engagements du donneur tombent (il ne peut plus donner)."""
+    others = DonorResponse.objects.select_related('blood_request').filter(
+        donor=donor, status=ResponseStatus.ACCEPTED
+    )
+    if keep is not None:
+        others = others.exclude(pk=keep.pk)
+    for other in others:
+        other.status = ResponseStatus.CANCELLED
+        other.save(update_fields=['status', 'updated_at'])
+        notifications.notify_response(other)
+        logger.info(
+            "Engagement libéré après un don : demande=%s donneur=%s",
+            other.blood_request_id,
+            donor.pk,
+        )
+
+
 @transaction.atomic
 def confirm_donation(blood_request, response_id, *, recorded_by, donated_on=None):
     """Confirme le don d'un donneur engagé : historique, stock collecté, clôture."""
@@ -224,6 +273,7 @@ def confirm_donation(blood_request, response_id, *, recorded_by, donated_on=None
         raise Conflict("Seul un donneur ayant accepté peut voir son don confirmé.")
 
     donated_on = donated_on or timezone.localdate()
+    _check_donation_rules(response.donor, donated_on)
     donation = Donation.objects.create(
         donor=response.donor,
         facility=blood_request.facility,
@@ -235,6 +285,7 @@ def confirm_donation(blood_request, response_id, *, recorded_by, donated_on=None
     response.status = ResponseStatus.DONATED
     response.save(update_fields=['status', 'updated_at'])
     response.donor.record_donation_date(donated_on)
+    _release_other_engagements(response.donor, keep=response)
 
     blood_request.units_collected += 1
     event = notifications.REQUEST_UPDATED
@@ -289,6 +340,8 @@ def mark_no_show(blood_request, response_id):
 def record_donation(*, donor, facility, donated_on=None, recorded_by=None):
     """Enregistre un don hors demande (don spontané au centre de transfusion)."""
     donated_on = donated_on or timezone.localdate()
+    donor = Donor.objects.select_for_update().get(pk=donor.pk)
+    _check_donation_rules(donor, donated_on)
     donation = Donation.objects.create(
         donor=donor,
         facility=facility,
@@ -296,6 +349,7 @@ def record_donation(*, donor, facility, donated_on=None, recorded_by=None):
         recorded_by=recorded_by,
     )
     donor.record_donation_date(donated_on)
+    _release_other_engagements(donor)
 
     # Gamification : évaluation et attribution des badges mérités
     try:

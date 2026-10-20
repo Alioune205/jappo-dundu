@@ -11,6 +11,8 @@ Valide :
 Auteur : Pape Alioune Sene
 """
 
+from datetime import timedelta
+
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status
@@ -135,12 +137,17 @@ class GamificationLogicTests(TestCase):
         self.assertIn('life_saver', earned_codes)
 
     def test_donation_milestones_badges(self):
+        # Dons espacés de 120 jours (règle CNTS), du plus ancien au plus récent.
+        today = timezone.localdate()
+        days = [today - timedelta(days=120 * n) for n in range(4, -1, -1)]
+
         # Enregistrer 3 dons pour obtenir regular_donor
-        for i in range(3):
+        for day in days[:3]:
             services.record_donation(
                 donor=self.donor_o_pos,
                 facility=self.facility,
                 recorded_by=self.staff,
+                donated_on=day,
             )
 
         earned_codes = set(self.donor_o_pos.earned_badges.values_list('badge__code', flat=True))
@@ -149,11 +156,12 @@ class GamificationLogicTests(TestCase):
         self.assertNotIn('bronze_donor', earned_codes)
 
         # Enregistrer 2 dons supplémentaires (total 5) pour bronze_donor
-        for i in range(2):
+        for day in days[3:]:
             services.record_donation(
                 donor=self.donor_o_pos,
                 facility=self.facility,
                 recorded_by=self.staff,
+                donated_on=day,
             )
 
         earned_codes = set(self.donor_o_pos.earned_badges.values_list('badge__code', flat=True))
