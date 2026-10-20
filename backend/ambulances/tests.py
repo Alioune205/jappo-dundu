@@ -464,3 +464,79 @@ class FleetAdministrationTests(AmbulanceFixturesMixin, TestCase):
         response = client.patch(f'{VEHICLES}{self.far.pk}/', {'driver_id': None}, format='json')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertIsNone(response.data['driver'])
+
+
+SOS = '/api/ambulances/sos/'
+
+
+class SosTests(AmbulanceFixturesMixin, TestCase):
+    """Alerte SOS d'un citoyen : mission en attente, à qualifier par la régulation."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.citizen = make_user('fatou', Role.DONOR, phone='+221771112233', region='thies')
+        cls.thies = make_facility("Hôpital de Thiès", north_km=10, east_km=55, region='thies', city='Thiès')
+
+    def send(self, user=None, **payload):
+        latitude, longitude = offset(1, 0)
+        body = {'latitude': latitude, 'longitude': longitude, 'kind': 'accident', **payload}
+        with captured_broadcasts('ambulances.services') as calls, self.captureOnCommitCallbacks(execute=True):
+            response = api_client(user or self.citizen).post(SOS, body, format='json')
+        return response, calls
+
+    def test_sos_creates_a_pending_mission_for_the_regulation(self):
+        response, calls = self.send(landmark='Devant la pharmacie')
+        self.assertEqual(response.status_code, 201, response.data)
+        mission = Mission.objects.get(pk=response.data['id'])
+        self.assertEqual(mission.source, 'sos')
+        self.assertEqual(mission.status, 'pending')
+        self.assertEqual(mission.description, 'SOS — Accident')
+        self.assertEqual(mission.pickup_address, 'Devant la pharmacie')
+        self.assertEqual(mission.caller_phone, '+221771112233')
+        self.assertEqual(mission.created_by, self.citizen)
+        # Région du lieu (établissement le plus proche), pas celle du profil.
+        self.assertEqual(mission.region, 'dakar')
+        self.assertEqual(calls['alert'][0][1]['event'], 'mission_created')
+        # La régulation la voit, marquée SOS.
+        row = api_client(self.dispatcher).get(MISSIONS).data['results'][0]
+        self.assertEqual((row['id'], row['source']), (mission.pk, 'sos'))
+
+    def test_a_second_press_returns_the_same_alert(self):
+        first, _ = self.send()
+        second, _ = self.send(kind='malaise')
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.data['id'], first.data['id'])
+        self.assertEqual(Mission.objects.filter(source='sos').count(), 1)
+
+    def test_citizen_follows_the_alert_without_regulation_details(self):
+        response, _ = self.send()
+        mission = Mission.objects.get(pk=response.data['id'])
+        mission.ambulance, mission.status = self.near, 'assigned'
+        mission.save()
+        data = api_client(self.citizen).get(SOS).data
+        self.assertEqual(data['status'], 'assigned')
+        self.assertEqual(data['ambulance']['plate_number'], 'DK-0001-AA')
+        self.assertAlmostEqual(data['ambulance']['distance_km'], 1.0, delta=0.1)
+        self.assertNotIn('caller_phone', data)
+        self.assertNotIn('created_by', data)
+        # Rien pour un autre citoyen.
+        self.assertEqual(api_client(self.donor).get(SOS).status_code, 404)
+
+    def test_citizen_withdraws_only_a_pending_alert(self):
+        response, _ = self.send()
+        pk = response.data['id']
+        self.assertEqual(api_client(self.donor).post(f'{SOS}{pk}/cancel/').status_code, 404)
+        with self.captureOnCommitCallbacks(execute=True):
+            withdrawn = api_client(self.citizen).post(f'{SOS}{pk}/cancel/')
+        self.assertEqual(withdrawn.status_code, 200, withdrawn.data)
+        self.assertEqual(withdrawn.data['status'], 'cancelled')
+
+        response, _ = self.send()
+        Mission.objects.filter(pk=response.data['id']).update(ambulance=self.near, status='assigned')
+        self.assertEqual(api_client(self.citizen).post(f"{SOS}{response.data['id']}/cancel/").status_code, 409)
+
+    def test_requires_a_signed_in_account_and_a_known_kind(self):
+        self.assertEqual(api_client().post(SOS, {}, format='json').status_code, 401)
+        response, _ = self.send(kind='inconnu')
+        self.assertEqual(response.status_code, 400)

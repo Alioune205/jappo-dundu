@@ -23,9 +23,10 @@ from django.utils import timezone
 from geo.distance import GeoPoint
 from geo.search import nearest
 from lits.services import close_mission_reservation
-from push.services import notify_mission_assigned, notify_mission_cancelled
+from push.services import notify_mission_assigned, notify_mission_cancelled, notify_sos_assigned
 from realtime.broadcast import broadcast_alert, broadcast_dashboard
 from users.exceptions import Conflict
+from users.models import HealthFacility
 
 from .models import Ambulance, Mission
 
@@ -233,8 +234,11 @@ def assign(
     mission.save(update_fields=['ambulance', 'status', 'assigned_at', 'updated_at'])
     notify_mission(mission, MISSION_UPDATED)
     notify_ambulance(chosen, AMBULANCE_STATUS)
-    # L'ambulancier est prévenu même application fermée.
+    # L'ambulancier est prévenu même application fermée ; le citoyen d'une
+    # alerte SOS apprend qu'une ambulance arrive.
     transaction.on_commit(lambda: notify_mission_assigned(mission))
+    if mission.source == Mission.Source.SOS:
+        transaction.on_commit(lambda: notify_sos_assigned(mission))
     logger.info("Mission %s : ambulance %s affectée", mission.pk, chosen.pk)
     return mission
 
@@ -278,6 +282,78 @@ def advance(mission, status, *, destination=None, cancellation_reason=''):
         transaction.on_commit(lambda: notify_mission_cancelled(mission))
     logger.info("Mission %s : %s", mission.pk, status)
     return mission
+
+
+# =============================================================
+# ALERTE SOS (citoyen)
+# =============================================================
+
+SOS_KINDS = {
+    'accident': "Accident",
+    'malaise': "Malaise ou perte de connaissance",
+    'breathing': "Difficulté à respirer",
+    'childbirth': "Accouchement",
+    'other': "Autre urgence",
+}
+# Rayon de recherche de l'établissement qui fixe la région de l'alerte.
+SOS_REGION_RADIUS_M = 300_000
+
+
+def region_at(point, default=None):
+    """Région de l'établissement actif le plus proche du point (sinon ``default``)."""
+    closest = nearest(
+        HealthFacility.objects.filter(is_active=True), point, radius_m=SOS_REGION_RADIUS_M, limit=1
+    )
+    return closest[0].region if closest else default
+
+
+def active_sos(user):
+    return (
+        Mission.objects.filter(created_by=user, source=Mission.Source.SOS)
+        .exclude(status__in=Mission.FINAL_STATUSES)
+        .order_by('-created_at')
+        .first()
+    )
+
+
+def create_sos(user, point, *, kind, landmark=''):
+    """Alerte SOS envoyée depuis l'application : mission en attente, à qualifier.
+
+    Un citoyen n'a qu'une alerte en cours : un second appui renvoie la même
+    (un doigt qui insiste ne doit pas mobiliser deux ambulances). Retourne
+    ``(mission, created)``.
+    """
+    with transaction.atomic():
+        current = active_sos(user)
+        if current is not None:
+            return current, False
+        profile = getattr(user, 'profile', None)
+        region = region_at(point, default=getattr(profile, 'region', None))
+        if region is None:
+            raise Conflict("Position hors de la zone couverte : appelez le SAMU au 1515.")
+        mission = Mission.objects.create(
+            created_by=user,
+            source=Mission.Source.SOS,
+            priority=Mission.Priority.URGENT,
+            description=f"SOS — {SOS_KINDS[kind]}",
+            pickup_address=landmark.strip() or "Position GPS du téléphone",
+            pickup_latitude=point.latitude,
+            pickup_longitude=point.longitude,
+            region=region,
+            caller_phone=getattr(profile, 'phone_number', '') or '',
+        )
+        notify_mission(mission, MISSION_CREATED)
+    logger.info("Alerte SOS %s (%s, %s)", mission.pk, kind, region)
+    return mission, True
+
+
+@transaction.atomic
+def cancel_sos(mission):
+    """Le citoyen retire son alerte tant qu'aucune ambulance n'est partie."""
+    mission = _locked_mission(mission)
+    if mission.status != MissionStatus.PENDING:
+        raise Conflict("Une ambulance est déjà en route : appelez le SAMU au 1515 pour l'annuler.")
+    return advance(mission, MissionStatus.CANCELLED, cancellation_reason="Alerte retirée par l'appelant")
 
 
 @transaction.atomic

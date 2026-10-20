@@ -34,6 +34,8 @@ export const QK = {
   ambulance: ['ambulance'] as const,
   missions: ['missions'] as const,
   destinations: ['destinations'] as const,
+  // Alerte SOS du citoyen (lib/sos.ts)
+  sos: ['sos'] as const,
 }
 
 /** Le compte n'a pas encore de profil donneur (404 de /donors/me/). */

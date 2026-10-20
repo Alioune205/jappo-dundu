@@ -30,3 +30,10 @@ export function responseTrend(averageMinutes: number | null): string | undefined
     ? `Objectif ${RESPONSE_TARGET_MINUTES} min tenu`
     : `Au-delà de ${RESPONSE_TARGET_MINUTES} min`
 }
+
+/** Alertes SOS de citoyens en attente d'une ambulance, les plus anciennes d'abord. */
+export function pendingSos(missions: Mission[]): Mission[] {
+  return missions
+    .filter((m) => m.source === 'sos' && m.status === 'pending')
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+}

@@ -64,7 +64,14 @@ export const MissionTable: React.FC<MissionTableProps> = ({
               const isActive = isActiveMission(mission)
               return (
                 <tr key={mission.id} data-severity={missionSeverity(mission)}>
-                  <td className="num whitespace-nowrap font-medium text-fg">#{mission.id}</td>
+                  <td className="num whitespace-nowrap font-medium text-fg">
+                    #{mission.id}
+                    {mission.source === 'sos' && (
+                      <Badge tone="danger" size="sm" className="ml-1.5">
+                        SOS
+                      </Badge>
+                    )}
+                  </td>
                   <td>
                     <Badge tone={toneOf(URGENCIES, mission.priority)} size="sm">
                       {mission.priority_display}

@@ -11,7 +11,7 @@ import { useAuth } from '@/context/AuthContext'
 import { pickAlert, UrgentAlert } from '@/features/alerts/UrgentAlert'
 import { useDeviceLocation } from '@/lib/location'
 import { isDriver } from '@/lib/missions'
-import { pushSupported, registerForPush, requestIdOf } from '@/lib/push'
+import { isSosNotification, pushSupported, registerForPush, requestIdOf } from '@/lib/push'
 import { isMissingDonor, useDonor, useNearby, useRespond } from '@/lib/queries'
 import { space, useTheme } from '@/theme'
 import type { DonorProfile, NearbyRequest } from '@/types/api'
@@ -85,6 +85,11 @@ function PushBridge() {
     if (!pushSupported) return
     registerForPush().catch(() => undefined)
     const open = (response: Notifications.NotificationResponse | null) => {
+      if (isSosNotification(response)) {
+        Notifications.clearLastNotificationResponse()
+        router.navigate('/sos')
+        return
+      }
       const id = requestIdOf(response)
       if (id === null) return
       // Consommée : un retour ultérieur sur l'application ne la rejoue pas.

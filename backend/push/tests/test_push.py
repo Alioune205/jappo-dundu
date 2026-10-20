@@ -247,6 +247,19 @@ class MissionPushTests(AmbulanceFixturesMixin, TestCase):
         self.assertEqual(len(messages), 1)
         self.assertEqual(messages[0]['title'], 'Mission annulée — DK-0001-AA')
 
+    def test_sos_citizen_learns_an_ambulance_is_coming(self):
+        citizen = make_user('fatou', Role.DONOR)
+        PushDevice.objects.create(user=self.driver, token='ExponentPushToken[driver]', platform='android')
+        PushDevice.objects.create(user=citizen, token='ExponentPushToken[citizen]', platform='android')
+        mission = make_mission(source='sos', created_by=citizen)
+
+        messages = self.call(self.dispatcher, f'/api/ambulances/missions/{mission.pk}/assign/', {})
+
+        by_token = {m['to']: m for m in messages}
+        self.assertEqual(set(by_token), {'ExponentPushToken[driver]', 'ExponentPushToken[citizen]'})
+        self.assertEqual(by_token['ExponentPushToken[citizen]']['title'], 'Une ambulance est en route')
+        self.assertEqual(by_token['ExponentPushToken[citizen]']['data'], {'type': 'sos', 'mission_id': mission.pk})
+
     def test_vehicle_without_driver_sends_nothing(self):
         mission = make_mission(priority='urgent')
         messages = self.call(

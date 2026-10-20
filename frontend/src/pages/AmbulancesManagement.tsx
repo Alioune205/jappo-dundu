@@ -20,6 +20,7 @@ import { FleetTable } from './ambulances/FleetTable'
 import { NewMissionModal } from './ambulances/NewMissionModal'
 import { VehicleModal } from './ambulances/VehicleModal'
 import { DispatchModal } from './ambulances/DispatchModal'
+import { SosAlerts } from './ambulances/SosAlerts'
 import { QK } from '@/lib/queryKeys'
 
 /** Page « Flotte SAMU » : missions, affectation, cycle de vie, carte et administration de la flotte. */
@@ -135,6 +136,8 @@ export const AmbulancesManagement: React.FC = () => {
           {actionError}
         </Alert>
       )}
+
+      <SosAlerts missions={missions} onDispatch={setDispatching} />
 
       <FleetStatsGrid ambulances={ambulances} missions={missions} stats={stats} />
 

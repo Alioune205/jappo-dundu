@@ -94,6 +94,10 @@ class Mission(models.Model):
         URGENT = 'urgent', 'Urgente'
         NORMAL = 'normal', 'Normale'
 
+    class Source(models.TextChoices):
+        DISPATCH = 'dispatch', "Régulation (appel au SAMU)"
+        SOS = 'sos', "Alerte SOS d'un citoyen"
+
     class Status(models.TextChoices):
         PENDING = 'pending', "En attente d'une ambulance"
         ASSIGNED = 'assigned', "Ambulance en route"
@@ -172,6 +176,14 @@ class Mission(models.Model):
     )
     cancellation_reason = models.CharField(
         max_length=255, blank=True, verbose_name="Motif d'annulation"
+    )
+    # SOS : créée par le citoyen depuis l'application (position GPS du
+    # téléphone), à qualifier par la régulation avant l'envoi d'une ambulance.
+    source = models.CharField(
+        max_length=10,
+        choices=Source.choices,
+        default=Source.DISPATCH,
+        verbose_name="Origine",
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

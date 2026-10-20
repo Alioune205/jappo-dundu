@@ -13,6 +13,7 @@ import { recoveryProgress } from '@/features/history/timeline'
 import { deadline, formatDate } from '@/lib/dates'
 import { formatDistance, useDeviceLocation } from '@/lib/location'
 import { useDonor, useHistory, useNearby } from '@/lib/queries'
+import { isActiveSos, useMySos } from '@/lib/sos'
 import { fonts, motion, radius, space, useTheme } from '@/theme'
 import type { DonorProfile, NearbyRequest } from '@/types/api'
 
@@ -27,6 +28,35 @@ const enter = (step: number) => FadeInDown.duration(motion.slow).delay(step * mo
 export default function HomeScreen() {
   const { data: donor } = useDonor()
   return donor ? <Home donor={donor} /> : null
+}
+
+/** Accès à l'alerte SOS : toujours en tête de l'accueil, état de l'alerte en cours s'il y en a une. */
+function SosEntry() {
+  const { colors } = useTheme()
+  const router = useRouter()
+  const { data: alert } = useMySos()
+  const active = isActiveSos(alert)
+  return (
+    <Pressable
+      onPress={() => router.navigate('/sos')}
+      accessibilityRole="button"
+      accessibilityLabel={active ? 'Suivre mon alerte SOS' : 'Urgence médicale : alerter le SAMU'}
+      style={({ pressed }) => [styles.sosCard, { backgroundColor: colors.brand, opacity: pressed ? 0.9 : 1 }]}
+    >
+      <View style={[styles.sosBadge, { borderColor: colors.onBrand }]}>
+        <Text style={[styles.sosLabel, { color: colors.onBrand }]}>SOS</Text>
+      </View>
+      <View style={styles.flex}>
+        <Text variant="bodyStrong" tone="onBrand">
+          {active ? `Alerte en cours · ${alert!.status_display.toLowerCase()}` : 'Urgence médicale ?'}
+        </Text>
+        <Text variant="caption" tone="onBrand">
+          {active ? 'Touchez pour suivre les secours.' : 'Alerter le SAMU avec votre position.'}
+        </Text>
+      </View>
+      <Icon name="chevron" size={20} color="onBrand" />
+    </Pressable>
+  )
 }
 
 function Home({ donor }: { donor: DonorProfile }) {
@@ -96,6 +126,8 @@ function Home({ donor }: { donor: DonorProfile }) {
       </View>
 
       <View style={styles.body}>
+        <SosEntry />
+
         {/* Aptitude */}
         <Animated.View entering={enter(2)} style={[styles.eligibility, { backgroundColor: colors.surface, borderColor: colors.line }]}>
           <View style={[styles.eligibilityIcon, { backgroundColor: donor.is_eligible ? 'rgba(6, 118, 71, 0.12)' : colors.raised }]}>
@@ -317,6 +349,9 @@ function EmptyCard({ text, action, onPress }: { text: string; action?: string; o
 }
 
 const styles = StyleSheet.create({
+  sosCard: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg },
+  sosBadge: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  sosLabel: { fontFamily: fonts.semibold, fontSize: 15, letterSpacing: 1 },
   content: { paddingBottom: space.xxl },
   flex: { flex: 1 },
   center: { textAlign: 'center' },

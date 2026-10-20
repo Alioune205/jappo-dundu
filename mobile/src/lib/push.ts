@@ -120,6 +120,12 @@ export function requestIdOf(response: Notifications.NotificationResponse | null 
   return data?.type === 'blood_request' && typeof data.request_id === 'number' ? data.request_id : null
 }
 
+/** Notification du suivi d'une alerte SOS (citoyen : « une ambulance est en route »). */
+export function isSosNotification(response: Notifications.NotificationResponse | null | undefined) {
+  const data = response?.notification.request.content.data as { type?: string } | undefined
+  return data?.type === 'sos'
+}
+
 /** Identifiant de mission porté par une notification (ambulancier), s'il y en a un. */
 export function missionIdOf(notification: Notifications.Notification | null | undefined): number | null {
   const data = notification?.request.content.data as { type?: string; mission_id?: unknown } | undefined

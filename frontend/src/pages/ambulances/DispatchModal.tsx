@@ -6,14 +6,14 @@ import { useAuth } from '@/context/AuthContext'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Select, Textarea } from '@/components/ui/Input'
+import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { BED_CATEGORIES, MISSION_STATUSES, URGENCIES, toneOf } from '@/lib/constants'
 import { formatDistance, formatPhone, formatRelative } from '@/lib/format'
 import { QK } from '@/lib/queryKeys'
 import { useNow } from '@/lib/useNow'
 import { canReserveAt, remainingLabel } from '@/pages/beds/reservationAccess'
-import type { BedCategory, BedReservation, Mission, MissionDestinations, NearbyAmbulance } from '@/types/api'
+import type { BedCategory, BedReservation, Mission, MissionDestinations, NearbyAmbulance, Urgency } from '@/types/api'
 import { isActiveMission } from './missionUtils'
 
 /** Rayon de recherche (km) des ambulances et des lits, comme l'affectation automatique de la page. */
@@ -89,7 +89,22 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
         <span>Déclenchée {formatRelative(mission.created_at, now)}</span>
         {mission.caller_phone && <span className="num">· Appelant {formatPhone(mission.caller_phone)}</span>}
       </div>
-      {mission.description && <p className="text-sm text-fg">{mission.description}</p>}
+      {mission.source === 'sos' ? (
+        <p className="text-sm text-fg">
+          <span className="font-semibold text-critical">Alerte SOS</span> envoyée depuis l’application par{' '}
+          {mission.created_by?.full_name ?? 'un citoyen'} : position GPS du téléphone{' '}
+          <span className="num text-muted">
+            ({mission.pickup_latitude.toFixed(5)}, {mission.pickup_longitude.toFixed(5)})
+          </span>
+          . Rappelez la personne avant d’envoyer une ambulance.
+        </p>
+      ) : (
+        mission.description && <p className="text-sm text-fg">{mission.description}</p>
+      )}
+
+      {mission.source === 'sos' && mission.status === 'pending' && (
+        <QualifySos mission={mission} onSaved={refresh} onError={fail('Enregistrement impossible.')} />
+      )}
 
       {mission.status === 'pending' ? (
         <AmbulancePicker mission={mission} onAssigned={refresh} onError={fail('Affectation impossible.')} />
@@ -107,6 +122,62 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
 
       {active && <CancelMission mission={mission} onCancelled={() => (refresh(), onDone())} onError={fail('Annulation impossible.')} />}
     </div>
+  )
+}
+
+/** Après le rappel du citoyen : gravité, motif et repère précisés par le régulateur. */
+const QualifySos: React.FC<{ mission: Mission; onSaved: () => void; onError: (err: unknown) => void }> = ({
+  mission,
+  onSaved,
+  onError,
+}) => {
+  const [priority, setPriority] = useState<Urgency>(mission.priority)
+  const [description, setDescription] = useState(mission.description)
+  const [address, setAddress] = useState(mission.pickup_address)
+  const changed = priority !== mission.priority || description !== mission.description || address !== mission.pickup_address
+  const save = useMutation({
+    mutationFn: () =>
+      api.patch<Mission>(`/api/ambulances/missions/${mission.id}/`, {
+        priority,
+        description: description.trim(),
+        pickup_address: address.trim(),
+      }),
+    onSuccess: onSaved,
+    onError,
+  })
+
+  return (
+    <form
+      className="space-y-3 rounded-lg border border-line px-4 py-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (changed) save.mutate()
+      }}
+    >
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Qualifier l’alerte</h3>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[10rem_1fr]">
+        <Select label="Gravité" value={priority} onChange={(e) => setPriority(e.target.value as Urgency)}>
+          {URGENCIES.map((u) => (
+            <option key={u.value} value={u.value}>
+              {u.label}
+            </option>
+          ))}
+        </Select>
+        <Input label="Motif" value={description} maxLength={500} onChange={(e) => setDescription(e.target.value)} />
+      </div>
+      <Input
+        label="Lieu ou point de repère"
+        value={address}
+        maxLength={255}
+        onChange={(e) => setAddress(e.target.value)}
+        helperText="Ce que l’appelant décrit : l’ambulancier le lit sur son téléphone."
+      />
+      <div className="flex justify-end">
+        <Button type="submit" size="sm" variant="secondary" disabled={!changed} isLoading={save.isPending}>
+          Enregistrer
+        </Button>
+      </div>
+    </form>
   )
 }
 
@@ -326,7 +397,7 @@ const CancelMission: React.FC<{ mission: Mission; onCancelled: () => void; onErr
     return (
       <div className="border-t border-line pt-3">
         <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
-          Annuler la mission…
+          {mission.source === 'sos' && mission.status === 'pending' ? 'Fausse alerte ou sans suite…' : 'Annuler la mission…'}
         </Button>
       </div>
     )

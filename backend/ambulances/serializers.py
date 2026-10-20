@@ -9,6 +9,7 @@ import re
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from geo.distance import GeoPoint, haversine_m
 from geo.serializers import distance_km, validate_finite
 from security.roles import Role
 from users.models import HealthFacility
@@ -151,6 +152,7 @@ class MissionSerializer(serializers.ModelSerializer):
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     region_display = serializers.CharField(source='get_region_display', read_only=True)
+    source_display = serializers.CharField(source='get_source_display', read_only=True)
     caller_phone = PhoneNumberField(required=False, allow_blank=True)
     ambulance = AmbulanceSerializer(read_only=True)
     destination = HealthFacilitySummarySerializer(read_only=True)
@@ -183,6 +185,8 @@ class MissionSerializer(serializers.ModelSerializer):
             'destination',
             'destination_id',
             'cancellation_reason',
+            'source',
+            'source_display',
             'created_by',
             'created_at',
             'updated_at',
@@ -197,6 +201,7 @@ class MissionSerializer(serializers.ModelSerializer):
             'id',
             'status',
             'cancellation_reason',
+            'source',
             'created_at',
             'updated_at',
             'assigned_at',
@@ -268,3 +273,53 @@ class MissionStatusSerializer(serializers.Serializer):
                 {'cancellation_reason': ["Le motif d'annulation est obligatoire."]}
             )
         return attrs
+
+
+class SosInputSerializer(serializers.Serializer):
+    """Alerte SOS envoyée par un citoyen : position du téléphone et nature de l'urgence."""
+
+    latitude = serializers.FloatField(min_value=-90, max_value=90, validators=[validate_finite])
+    longitude = serializers.FloatField(min_value=-180, max_value=180, validators=[validate_finite])
+    kind = serializers.ChoiceField(choices=['accident', 'malaise', 'breathing', 'childbirth', 'other'])
+    landmark = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+
+
+class CitizenSosSerializer(serializers.ModelSerializer):
+    """Suivi de son alerte par le citoyen : ni le véhicule détaillé, ni la régulation."""
+
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    ambulance = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Mission
+        fields = [
+            'id',
+            'status',
+            'status_display',
+            'description',
+            'pickup_address',
+            'created_at',
+            'assigned_at',
+            'on_site_at',
+            'completed_at',
+            'cancelled_at',
+            'cancellation_reason',
+            'ambulance',
+        ]
+        read_only_fields = fields
+
+    def get_ambulance(self, obj):
+        ambulance = obj.ambulance
+        if ambulance is None or not obj.is_active:
+            return None
+        distance = None
+        if ambulance.latitude is not None and ambulance.longitude is not None:
+            meters = haversine_m(
+                GeoPoint(obj.pickup_latitude, obj.pickup_longitude), ambulance.latitude, ambulance.longitude
+            )
+            distance = round(meters / 1000, 1)
+        return {
+            'plate_number': ambulance.plate_number,
+            'ambulance_type_display': ambulance.get_ambulance_type_display(),
+            'distance_km': distance,
+        }

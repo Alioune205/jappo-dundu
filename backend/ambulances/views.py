@@ -21,16 +21,27 @@ Missions (/api/ambulances/missions/) :
 - GET   /<id>/destinations/  établissements proches avec lits libres
 - GET   /stats/              indicateurs (délais d'intervention, flotte)
 
+Alerte SOS (/api/ambulances/sos/), tout compte connecté (application mobile) :
+- POST  /                    envoyer sa position et la nature de l'urgence
+- GET   /                    suivre sa dernière alerte
+- POST  /<id>/cancel/        la retirer tant qu'aucune ambulance n'est partie
+
 Auteur : Ibrahima Khalilou Diallo
 """
 
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.views import APIView
 
 from geo.distance import GeoPoint
 from geo.serializers import parse_nearby_query
@@ -50,10 +61,12 @@ from .serializers import (
     AmbulanceSerializer,
     AssignSerializer,
     AvailabilitySerializer,
+    CitizenSosSerializer,
     MissionSerializer,
     MissionStatusSerializer,
     NearbyAmbulanceSerializer,
     PositionSerializer,
+    SosInputSerializer,
 )
 
 CanViewFleet = role_permission(
@@ -466,3 +479,60 @@ class MissionViewSet(
             missions = missions.filter(region=region)
             ambulances = ambulances.filter(facility__region=region)
         return Response(services.mission_statistics(missions, ambulances, days=days))
+
+
+# Alerte terminée encore montrée au citoyen (« ambulance arrivée », « retirée »).
+SOS_RECENT = timedelta(hours=6)
+
+
+class SosView(APIView):
+    """Alerte SOS du citoyen connecté (application mobile)."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_scope = 'sos'
+
+    def get_throttles(self):
+        # Seul l'envoi est plafonné : le suivi se relit toutes les quelques secondes.
+        return [ScopedRateThrottle()] if self.request.method == 'POST' else super().get_throttles()
+
+    def get(self, request):
+        mission = services.active_sos(request.user) or (
+            Mission.objects.filter(
+                created_by=request.user,
+                source=Mission.Source.SOS,
+                created_at__gte=timezone.now() - SOS_RECENT,
+            )
+            .order_by('-created_at')
+            .first()
+        )
+        if mission is None:
+            raise NotFound("Aucune alerte SOS récente.")
+        return Response(CitizenSosSerializer(mission).data)
+
+    def post(self, request):
+        serializer = SosInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        mission, created = services.create_sos(
+            request.user,
+            GeoPoint(data['latitude'], data['longitude']),
+            kind=data['kind'],
+            landmark=data['landmark'],
+        )
+        return Response(
+            CitizenSosSerializer(mission).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+class SosCancelView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        mission = get_object_or_404(
+            Mission.objects.select_related('ambulance'),
+            pk=pk,
+            created_by=request.user,
+            source=Mission.Source.SOS,
+        )
+        return Response(CitizenSosSerializer(services.cancel_sos(mission)).data)

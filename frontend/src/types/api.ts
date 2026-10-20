@@ -331,6 +331,9 @@ export interface Mission {
   ambulance: Ambulance | null
   destination: FacilitySummary | null
   cancellation_reason: string
+  /** dispatch : créée par la régulation ; sos : alerte d'un citoyen depuis l'application. */
+  source: 'dispatch' | 'sos'
+  source_display: string
   created_by: PersonRef | null
   created_at: string
   updated_at: string

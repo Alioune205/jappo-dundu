@@ -271,6 +271,8 @@ REST_FRAMEWORK = {
         'ml_predict': config('THROTTLE_ML_PREDICT_RATE', default='30/hour'),
         # Recherche d'un donneur (carte ou téléphone) par un centre de don.
         'donor_lookup': config('THROTTLE_DONOR_LOOKUP_RATE', default='120/hour'),
+        # Alerte SOS d'un citoyen (une seule active à la fois, voir ambulances.services).
+        'sos': config('THROTTLE_SOS_RATE', default='10/hour'),
         # Récupération de compte : demandes de code et essais, par adresse IP.
         'password_reset': config('THROTTLE_PASSWORD_RESET_RATE', default='5/hour'),
         'password_reset_confirm': config('THROTTLE_PASSWORD_RESET_CONFIRM_RATE', default='20/hour'),

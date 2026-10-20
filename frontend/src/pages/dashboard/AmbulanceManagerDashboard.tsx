@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Ambulance as AmbulanceIcon, ArrowRight, Clock, MapPin, Plus, Siren, Timer, TriangleAlert } from 'lucide-react'
 import { Link } from 'react-router'
@@ -14,6 +14,8 @@ import { useAmbulancePositions } from '@/lib/useAmbulancePositions'
 import { MISSION_EVENTS, RealtimeEvent } from '@/lib/realtimeEvents'
 import { formatMinutes, formatRelative } from '@/lib/format'
 import { QK } from '@/lib/queryKeys'
+import { DispatchModal } from '@/pages/ambulances/DispatchModal'
+import { SosAlerts } from '@/pages/ambulances/SosAlerts'
 import type { Ambulance, AmbulanceStatus, FacilitySummary, Mission, MissionStats } from '@/types/api'
 
 /** Une mission en attente depuis plus longtemps est signalée. */
@@ -39,6 +41,7 @@ const minutesSince = (iso: string | null, now: number) => (iso ? (now - new Date
 export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ facility }) => {
   const now = useNow(30_000)
 
+  const [dispatching, setDispatching] = useState<Mission | null>(null)
   const { data: missions = [], isLoading } = useQuery<Mission[]>({
     queryKey: QK.missionsActive,
     queryFn: async () =>
@@ -101,6 +104,8 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
           </Link>
         }
       />
+
+      <SosAlerts missions={missions} onDispatch={setDispatching} />
 
       {waitingTooLong.length > 0 && (
         <Alert tone="danger" title="Mission en attente">
@@ -271,6 +276,8 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
           <MapView ambulances={fleet} missions={sorted} center={center} zoom={12} height="380px" />
         </div>
       </section>
+
+      <DispatchModal mission={dispatching} onClose={() => setDispatching(null)} />
     </div>
   )
 }

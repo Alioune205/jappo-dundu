@@ -82,6 +82,9 @@ export const mission = (overrides: Partial<Mission> = {}): Mission =>
     destination: null,
     pickup_latitude: 14.71,
     pickup_longitude: -17.45,
+    source: 'dispatch',
+    source_display: 'Régulation (appel au SAMU)',
+    created_by: null,
     created_at: '2026-10-04T06:00:00Z',
     ...overrides,
   }) as Mission

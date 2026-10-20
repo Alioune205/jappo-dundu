@@ -230,3 +230,16 @@ def notify_mission_cancelled(mission):
         data={'type': 'mission', 'mission_id': mission.pk},
         channel=MISSION_CHANNEL,
     )
+
+
+def notify_sos_assigned(mission):
+    """Prévient le citoyen d'une alerte SOS qu'une ambulance est en route."""
+    if mission.created_by_id is None:
+        return 0
+    return send_to_users(
+        [mission.created_by_id],
+        title="Une ambulance est en route",
+        body="Le SAMU a pris en charge votre alerte. Restez joignable et, si possible, sur place.",
+        data={'type': 'sos', 'mission_id': mission.pk},
+        channel=MISSION_CHANNEL,
+    )
