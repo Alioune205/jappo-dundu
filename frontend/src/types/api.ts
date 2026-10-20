@@ -307,6 +307,14 @@ export interface AmbulanceInput {
   driver_id: number | null
 }
 
+/** Ambulancier affectable à un véhicule (GET /api/ambulances/vehicles/drivers/). */
+export interface DriverOption {
+  id: number
+  full_name: string
+  phone_number: string | null
+  ambulance: { id: number; plate_number: string } | null
+}
+
 export interface Mission {
   id: number
   priority: Urgency

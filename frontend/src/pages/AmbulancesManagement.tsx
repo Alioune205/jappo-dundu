@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, RefreshCw } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
+import { canEditFleet } from '@/lib/access'
 import { api } from '@/lib/api'
 import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
 import { MISSION_EVENTS, RealtimeEvent } from '@/lib/realtimeEvents'
@@ -16,11 +18,16 @@ import { FleetStatsGrid } from './ambulances/FleetStatsGrid'
 import { MissionTable } from './ambulances/MissionTable'
 import { FleetTable } from './ambulances/FleetTable'
 import { NewMissionModal } from './ambulances/NewMissionModal'
+import { VehicleModal } from './ambulances/VehicleModal'
 import { QK } from '@/lib/queryKeys'
 
-/** Page « Flotte SAMU » : missions, affectation, cycle de vie, carte de la flotte. */
+/** Page « Flotte SAMU » : missions, affectation, cycle de vie, carte et administration de la flotte. */
 export const AmbulancesManagement: React.FC = () => {
   const queryClient = useQueryClient()
+  const { user, roles, isAdmin } = useAuth()
+  const editsFleet = canEditFleet(roles)
+  // Administrateur des ambulances : véhicules rattachés d'office à son service.
+  const service = isAdmin ? null : (user?.facility ?? null)
 
   // Mises à jour poussées par le serveur (regroupées, voir useRealtimeRefresh).
   useRealtimeRefresh([
@@ -32,6 +39,7 @@ export const AmbulancesManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'missions' | 'fleet'>('missions')
   const [actionError, setActionError] = useState<string | null>(null)
   const [isNewMissionOpen, setIsNewMissionOpen] = useState(false)
+  const [editingVehicle, setEditingVehicle] = useState<Ambulance | 'new' | null>(null)
 
   const {
     data: missions = [],
@@ -73,6 +81,15 @@ export const AmbulancesManagement: React.FC = () => {
     onError: (err: unknown) => setActionError(err instanceof Error ? err.message : 'Changement de statut impossible.'),
   })
 
+  const toggleService = useMutation({
+    mutationFn: (ambulance: Ambulance) =>
+      api.post<Ambulance>(`/api/ambulances/vehicles/${ambulance.id}/availability/`, {
+        status: ambulance.status === 'available' ? 'out_of_service' : 'available',
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: QK.ambulancesFleet }),
+    onError: (err: unknown) => setActionError(err instanceof Error ? err.message : 'Changement de disponibilité impossible.'),
+  })
+
   const activeMissions = missions.filter(isActiveMission)
 
   return (
@@ -91,6 +108,19 @@ export const AmbulancesManagement: React.FC = () => {
             >
               Actualiser
             </Button>
+            {editsFleet && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setActiveTab('fleet')
+                  setEditingVehicle('new')
+                }}
+                icon={<Plus className="h-3.5 w-3.5" />}
+              >
+                Véhicule
+              </Button>
+            )}
             <Button variant="danger" size="sm" onClick={() => setIsNewMissionOpen(true)} icon={<Plus className="h-3.5 w-3.5" />}>
               Nouvelle mission
             </Button>
@@ -149,9 +179,18 @@ export const AmbulancesManagement: React.FC = () => {
             isAdvancing={(id) => advanceStatus.isPending && advanceStatus.variables?.id === id}
           />
         ) : (
-          <FleetTable ambulances={ambulances} isLoading={isLoadingFleet} />
+          <FleetTable
+            ambulances={ambulances}
+            isLoading={isLoadingFleet}
+            canEdit={editsFleet}
+            onEdit={setEditingVehicle}
+            onToggleService={(ambulance) => toggleService.mutate(ambulance)}
+            isToggling={(id) => toggleService.isPending && toggleService.variables?.id === id}
+          />
         )}
       </div>
+
+      <VehicleModal vehicle={editingVehicle} service={service} onClose={() => setEditingVehicle(null)} />
 
       <NewMissionModal
         isOpen={isNewMissionOpen}

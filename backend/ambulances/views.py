@@ -6,8 +6,10 @@ Flotte (/api/ambulances/vehicles/) :
 - POST  /  ; PATCH /<id>/    administration de la flotte (admin, administrateur des ambulances)
 - GET   /nearest/            ambulances disponibles les plus proches (régulation)
 - GET   /mine/               ambulance du conducteur connecté
+- GET   /drivers/            ambulanciers affectables (administration de la flotte)
 - POST  /<id>/position/      position GPS (conducteur de l'ambulance ou admin)
-- POST  /<id>/availability/  en service / hors service (conducteur ou admin)
+- POST  /<id>/availability/  en service / hors service (conducteur, administrateur
+                             des ambulances de son service, admin)
 
 Missions (/api/ambulances/missions/) :
 - GET   /  ; POST /  ; PATCH /<id>/   régulation (admin : national ; administrateur
@@ -22,6 +24,7 @@ Missions (/api/ambulances/missions/) :
 Auteur : Ibrahima Khalilou Diallo
 """
 
+from django.contrib.auth import get_user_model
 from django.db.models import Q
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -38,6 +41,7 @@ from ml.constants import REGION_CODES
 from security.permissions import ManagesAmbulances, role_permission
 from security.roles import DOMAIN_ROLES, Domain, Role, manages, user_has_role
 from users.permissions import user_facility
+from users.services import user_facility_id
 from users.filters import boolean_param, choice_param, int_param
 
 from . import services
@@ -127,6 +131,21 @@ class IsAmbulanceDriverOrAdmin(BasePermission):
         return user_has_role(request.user, Role.ADMIN) or obj.driver_id == request.user.pk
 
 
+class CanSetAvailability(BasePermission):
+    """Conducteur de l'ambulance, administrateur des ambulances de son service, ou admin."""
+
+    message = "Seuls le conducteur et la régulation du service de cette ambulance changent sa disponibilité."
+
+    def has_permission(self, request, view):
+        return user_has_role(request.user, Role.ADMIN, Role.AMBULANCE_DRIVER, Role.AMBULANCE_MANAGER)
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if user_has_role(user, Role.ADMIN) or obj.driver_id == user.pk:
+            return True
+        return user_has_role(user, Role.AMBULANCE_MANAGER) and user_facility_id(user) == obj.facility_id
+
+
 class AmbulanceViewSet(
     mixins.ListModelMixin,
     mixins.CreateModelMixin,
@@ -146,11 +165,13 @@ class AmbulanceViewSet(
     default_radius_km = 50.0
 
     def get_permissions(self):
-        if self.action in ('create', 'partial_update'):
+        if self.action in ('create', 'partial_update', 'drivers'):
             return [CanEditFleet()]
         if self.action == 'nearest':
             return [ManagesAmbulances()]
-        if self.action in ('position', 'availability', 'mine'):
+        if self.action == 'availability':
+            return [CanSetAvailability()]
+        if self.action in ('position', 'mine'):
             return [IsAmbulanceDriverOrAdmin()]
         return [CanViewFleet()]
 
@@ -185,6 +206,9 @@ class AmbulanceViewSet(
         facility = serializer.validated_data.get('facility')
         if service is not None and facility is not None and facility.pk != service.pk:
             raise PermissionDenied("Vous ne gérez que les véhicules de votre service.")
+        driver = serializer.validated_data.get('driver')
+        if service is not None and driver is not None and user_facility_id(driver) != service.pk:
+            raise PermissionDenied("Vous n'affectez que les ambulanciers de votre service.")
         return service
 
     def perform_create(self, serializer):
@@ -212,6 +236,31 @@ class AmbulanceViewSet(
             facility=service_of(request.user),
         )
         return Response(NearbyAmbulanceSerializer(ambulances, many=True).data)
+
+    @action(detail=False, methods=['get'])
+    def drivers(self, request):
+        """GET /api/ambulances/vehicles/drivers/ : comptes ambulanciers actifs
+        (régulation limitée : ceux de son service), avec leur véhicule actuel."""
+        drivers = (
+            get_user_model()
+            .objects.filter(is_active=True, groups__name=Role.AMBULANCE_DRIVER)
+            .select_related('profile', 'ambulance')
+            .order_by('last_name', 'first_name', 'username')
+        )
+        service = service_of(request.user)
+        if service is not None:
+            drivers = drivers.filter(profile__facility=service)
+        return Response([
+            {
+                'id': driver.pk,
+                'full_name': driver.get_full_name() or driver.get_username(),
+                'phone_number': getattr(getattr(driver, 'profile', None), 'phone_number', None),
+                'ambulance': None
+                if getattr(driver, 'ambulance', None) is None
+                else {'id': driver.ambulance.pk, 'plate_number': driver.ambulance.plate_number},
+            }
+            for driver in drivers
+        ])
 
     @action(detail=False, methods=['get'])
     def mine(self, request):

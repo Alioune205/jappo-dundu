@@ -136,7 +136,9 @@ La sécurité de Jappo Dundu repose sur un modèle hybride rigoureux :
 * **Suivi Cartographique** : Visualiser la progression GPS des ambulances en direct sur la carte temps réel (`/ws/alerts/`).
 
 #### Endpoints DRF Clés :
-* `GET/POST /api/ambulances/vehicles/` (Flotte de véhicules)
+* `GET/POST /api/ambulances/vehicles/` & `PATCH /api/ambulances/vehicles/<id>/` (Flotte de véhicules, chauffeur affecté)
+* `GET /api/ambulances/vehicles/drivers/` (Ambulanciers de son service, avec leur véhicule)
+* `POST /api/ambulances/vehicles/<id>/availability/` (En service / hors service, véhicules de son service)
 * `GET/POST /api/ambulances/missions/` (Création et régulation des missions)
 * `POST /api/ambulances/missions/<id>/assign/` & `/cancel/`
 * `GET /api/lits/capacities/nearest/` (Orientation vers hôpitaux libres)
@@ -167,9 +169,14 @@ La sécurité de Jappo Dundu repose sur un modèle hybride rigoureux :
 * **Limites** : La liste des véhicules ne renvoie que **son** ambulance (pas l'annuaire de la flotte). Seul le conducteur de l'ambulance affectée peut faire avancer une mission ; l'annulation relève de la régulation.
 
 #### Endpoints DRF Clés :
-* `GET /api/ambulances/missions/my-missions/` (Missions en cours)
+* `GET /api/ambulances/vehicles/mine/` (Son ambulance)
+* `GET /api/ambulances/missions/?active=true` (Mission en cours ; `active=false` : historique)
 * `POST /api/ambulances/missions/<id>/status/` (Mise à jour du statut)
-* `POST /api/ambulances/vehicles/<id>/location/` (Ping GPS en temps réel)
+* `GET /api/ambulances/missions/<id>/destinations/` (Hôpitaux proches avec lits d'urgence libres)
+* `POST /api/ambulances/vehicles/<id>/position/` (Ping GPS en temps réel)
+* `POST /api/ambulances/vehicles/<id>/availability/` (En service / hors service)
+
+Dans l'application mobile, un compte ambulancier ouvre directement l'écran de sa mission (et non l'espace donneur). Il reçoit une notification push à chaque mission affectée ou annulée.
 * `GET /api/lits/capacities/nearest/` (Recherche lits d'urgence)
 
 ---

@@ -418,3 +418,49 @@ class MissionStatsTests(AmbulanceFixturesMixin, TestCase):
             api_client(self.dispatcher).get(f'{MISSIONS}stats/', {'days': 0}).status_code, 400
         )
         self.assertEqual(api_client(self.driver).get(f'{MISSIONS}stats/').status_code, 403)
+
+
+class FleetAdministrationTests(AmbulanceFixturesMixin, TestCase):
+    """Administrateur des ambulances : disponibilité et chauffeurs de son service uniquement."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.other_base = make_facility("SAMU Thiès", facility_type='ambulance_service', north_km=60)
+        cls.manager = make_user('chef_flotte', Role.AMBULANCE_MANAGER, facility=cls.base)
+        cls.base_driver = make_user('moussa', Role.AMBULANCE_DRIVER, facility=cls.base)
+        cls.foreign_driver = make_user('ibou', Role.AMBULANCE_DRIVER, facility=cls.other_base)
+        cls.foreign = make_ambulance('TH-0001-AA', cls.other_base, north_km=60)
+
+    def test_manager_sets_availability_of_own_service_only(self):
+        client = api_client(self.manager)
+        response = client.post(f'{VEHICLES}{self.near.pk}/availability/', {'status': 'out_of_service'}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['status'], 'out_of_service')
+        response = client.post(f'{VEHICLES}{self.foreign.pk}/availability/', {'status': 'out_of_service'}, format='json')
+        self.assertEqual(response.status_code, 403)
+        # Un autre ambulancier ne touche pas au véhicule d'un collègue.
+        response = api_client(self.other_driver).post(
+            f'{VEHICLES}{self.near.pk}/availability/', {'status': 'out_of_service'}, format='json'
+        )
+        self.assertIn(response.status_code, (403, 404))
+
+    def test_drivers_listing_is_scoped_to_the_service(self):
+        Ambulance.objects.filter(pk=self.broken.pk).update(driver=self.base_driver)
+        rows = api_client(self.manager).get(f'{VEHICLES}drivers/').data
+        self.assertEqual([row['full_name'] for row in rows], [self.base_driver.get_full_name() or 'moussa'])
+        self.assertEqual(rows[0]['ambulance'], {'id': self.broken.pk, 'plate_number': 'DK-0004-AA'})
+        # L'administrateur général voit tous les ambulanciers.
+        self.assertEqual(len(api_client(self.admin).get(f'{VEHICLES}drivers/').data), 4)
+        self.assertEqual(api_client(self.driver).get(f'{VEHICLES}drivers/').status_code, 403)
+
+    def test_manager_assigns_only_drivers_of_the_service(self):
+        client = api_client(self.manager)
+        response = client.patch(f'{VEHICLES}{self.far.pk}/', {'driver_id': self.base_driver.pk}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['driver']['id'], self.base_driver.pk)
+        response = client.patch(f'{VEHICLES}{self.far.pk}/', {'driver_id': self.foreign_driver.pk}, format='json')
+        self.assertEqual(response.status_code, 403)
+        response = client.patch(f'{VEHICLES}{self.far.pk}/', {'driver_id': None}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNone(response.data['driver'])

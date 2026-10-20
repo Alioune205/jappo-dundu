@@ -24,6 +24,7 @@ export const QK = {
   // SAMU
   ambulancesList: ['ambulances-list'],
   ambulancesFleet: ['ambulances-fleet'],
+  ambulanceDrivers: ['ambulance-drivers'],
   missionsActive: ['missions-active'],
   missionsAll: ['missions-all'],
   missionStats: ['mission-stats'],

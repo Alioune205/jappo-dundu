@@ -56,6 +56,13 @@ const hasAny = (roles: Role[], allowed: Role[]) => allowed.some((role) => roles.
 /** L'utilisateur administre-t-il ce domaine ? */
 export const canManage = (roles: Role[], domain: Domain) => hasAny(roles, DOMAIN_ROLES[domain])
 
+/**
+ * Administration de la flotte (ajout, modification, chauffeurs, disponibilité) :
+ * admin et administrateur des ambulances (backend : CanEditFleet). Le
+ * personnel hospitalier régule les missions sans gérer les véhicules.
+ */
+export const canEditFleet = (roles: Role[]) => hasAny(roles, ['admin', 'ambulance_manager'])
+
 /** L'utilisateur peut-il consulter ce domaine ? */
 export const canView = (roles: Role[], domain: Domain) =>
   canManage(roles, domain) || hasAny(roles, READ_ONLY_ROLES[domain])
