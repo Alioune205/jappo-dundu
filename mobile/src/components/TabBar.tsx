@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
+import { useRouter } from 'expo-router'
 import type { BottomTabBarProps } from 'expo-router/js-tabs'
 import * as Haptics from 'expo-haptics'
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
@@ -23,7 +24,9 @@ const BUBBLE = 52
  * claire glisse derrière l'onglet actif. Le badge des Alertes compte les
  * demandes sans réponse.
  */
-export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
+export function TabBar(props: BottomTabBarProps & { navigation?: any }) {
+  const { state, descriptors, insets, emitter, navigateToTab, navigation } = props
+  const router = useRouter()
   const { colors } = useTheme()
   const [width, setWidth] = useState(0)
   const routes = state.routes.filter((route) => !HIDDEN.has(route.name))
@@ -40,10 +43,41 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
 
   const bubbleStyle = useAnimatedStyle(() => ({ transform: [{ translateX: offset.value }] }))
 
+  const handlePress = (route: (typeof routes)[number], focused: boolean) => {
+    const event = (emitter ?? navigation)?.emit?.({
+      type: 'tabPress',
+      target: route.key,
+      canPreventDefault: true,
+    })
+
+    if (!focused && !event?.defaultPrevented) {
+      try {
+        Haptics.selectionAsync()
+      } catch {
+        // Ignorer si les haptics ne sont pas supportés dans le navigateur
+      }
+
+      if (typeof navigateToTab === 'function') {
+        navigateToTab(route.key)
+      } else if (navigation?.navigate) {
+        navigation.navigate(route.name, route.params)
+      } else {
+        router.navigate(`/${route.name}` as any)
+      }
+    }
+  }
+
+  const handleLongPress = (route: (typeof routes)[number]) => {
+    ;(emitter ?? navigation)?.emit?.({
+      type: 'tabLongPress',
+      target: route.key,
+    })
+  }
+
   return (
     <View style={[styles.wrap, { backgroundColor: colors.canvas, paddingBottom: Math.max(insets.bottom, space.md) }]}>
       <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={[styles.bar, { backgroundColor: colors.brand }]}>
-        {tab > 0 && activeIndex >= 0 && <Animated.View style={[styles.bubble, bubbleStyle]} />}
+        {tab > 0 && activeIndex >= 0 && <Animated.View pointerEvents="none" style={[styles.bubble, bubbleStyle]} />}
         {routes.map((route) => {
           const { options } = descriptors[route.key]
           const focused = route.key === activeKey
@@ -55,17 +89,11 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
               accessibilityRole="tab"
               accessibilityState={{ selected: focused }}
               accessibilityLabel={badge ? `${label}, ${badge} en attente` : label}
-              onPress={() => {
-                const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true })
-                if (!focused && !event.defaultPrevented) {
-                  Haptics.selectionAsync()
-                  navigation.navigate(route.name, route.params)
-                }
-              }}
-              onLongPress={() => navigation.emit({ type: 'tabLongPress', target: route.key })}
+              onPress={() => handlePress(route, focused)}
+              onLongPress={() => handleLongPress(route)}
               style={[styles.tab, !focused && styles.idle]}
             >
-              <View>
+              <View pointerEvents="none">
                 <Icon name={ICONS[route.name] ?? 'pulse'} size={22} color="onBrand" strokeWidth={focused ? 2.1 : 1.8} />
                 {badge ? (
                   <View style={[styles.badge, { backgroundColor: colors.onBrand, borderColor: colors.brand }]}>

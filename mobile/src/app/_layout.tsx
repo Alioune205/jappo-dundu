@@ -9,6 +9,7 @@ import { useFonts } from 'expo-font'
 import { SplashHandoff } from '@/components/SplashHandoff'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { OnboardingProvider, useOnboarding } from '@/context/OnboardingContext'
+import { ThemeProvider } from '@/context/ThemeContext'
 import { configureNotificationHandler } from '@/lib/push'
 import '@/lib/webStyles'
 import { useTheme } from '@/theme'
@@ -41,14 +42,16 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <OnboardingProvider>
-          <AuthProvider>
-            {/* Polices indisponibles : on continue avec celles du système plutôt que de bloquer. */}
-            <RootNavigator fontsReady={fontsLoaded || !!fontError} />
-          </AuthProvider>
-        </OnboardingProvider>
-      </QueryClientProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <OnboardingProvider>
+            <AuthProvider>
+              {/* Polices indisponibles : on continue avec celles du système plutôt que de bloquer. */}
+              <RootNavigator fontsReady={fontsLoaded || !!fontError} />
+            </AuthProvider>
+          </OnboardingProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   )
 }

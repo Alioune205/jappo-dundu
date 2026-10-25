@@ -116,7 +116,7 @@ function AlertBridge({ donor }: { donor: DonorProfile }) {
   const pathname = usePathname()
   const location = useDeviceLocation()
   const canQuery = !!location.coords || (donor.latitude != null && donor.longitude != null)
-  const nearby = useNearby(location.coords, { enabled: canQuery && donor.is_available, live: false })
+  const nearby = useNearby(location.coords, { enabled: canQuery && donor.is_available && donor.is_eligible, live: false })
   const respond = useRespond()
   const [dismissed, setDismissed] = useState<ReadonlySet<number>>(() => new Set())
 
