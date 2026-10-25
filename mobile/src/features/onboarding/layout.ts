@@ -27,9 +27,9 @@ export function onboardingLayout(width: number, height: number, insets: { top: n
   const compact = height < 720
   const topBar = insets.top + TOP_BAR
   const controlsBottom = insets.bottom + 12
-  // La photo prend tout ce que le texte et les contrôles laissent, sans dépasser le 3:4.
+  // La photo prend ce que le texte et les contrôles laissent, sans tronquer les textes.
   const available = height - controlsBottom - CONTROLS - (compact ? COPY_COMPACT : COPY)
-  const photoHeight = Math.round(Math.max(260, Math.min(available, width * (4 / 3))))
+  const photoHeight = Math.round(Math.max(200, Math.min(available, width * (4 / 3))))
   return {
     topBar,
     photoHeight,

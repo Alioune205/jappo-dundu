@@ -103,8 +103,8 @@ function AlertOverlay({ active, reduceMotion }: Props) {
           <Text style={styles.muted}>maintenant</Text>
         </View>
         <Text style={styles.title}>Urgence vitale — groupe O+</Text>
-        <Text style={styles.muted} numberOfLines={1}>
-          CHU de Fann · 2,4 km · 3 poches
+        <Text style={styles.muted}>
+          CHU de Fann · 2,4 km · 3 poches nécessaires
         </Text>
       </View>
     </Animated.View>
