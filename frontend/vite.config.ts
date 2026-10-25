@@ -25,6 +25,8 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       strictPort: true,
+      host: true,
+      allowedHosts: true,
       proxy: {
         '/api': { target: backend, changeOrigin: true },
         '/ws': { target: backend.replace(/^http/, 'ws'), ws: true, changeOrigin: true },

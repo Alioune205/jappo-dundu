@@ -38,6 +38,43 @@ export const DONOR_CONDITIONS = [
   'Femmes : 4 mois entre deux dons, 3 dons par an au plus',
 ]
 
+export interface DonationDrive {
+  id: string
+  title: string
+  date: string
+  time: string
+  location: string
+  city: string
+  target: string
+  organizer: string
+  tag: string
+}
+
+export const CNTS_DONATION_DRIVES: DonationDrive[] = [
+  {
+    id: 'ucad-2026',
+    title: 'Grande Collecte Universitaire UCAD',
+    date: 'Samedi 31 Octobre 2026',
+    time: 'De 08h30 à 16h00 (Journée continue)',
+    location: 'Campus UCAD II · Devant le Pavillon A, Dakar',
+    city: 'Dakar',
+    target: 'Objectif : 250 poches pour les urgences',
+    organizer: 'Organisé par le CNTS & la Croix-Rouge Sénégalaise',
+    tag: 'Collecte Prioritaire',
+  },
+  {
+    id: 'place-nation-2026',
+    title: 'Collecte Citoyenne Place de la Nation',
+    date: 'Mercredi 4 Novembre 2026',
+    time: 'De 09h00 à 17h00 (Sans interruption)',
+    location: 'Place de la Nation (Obélisque de Colobane), Dakar',
+    city: 'Dakar',
+    target: 'Objectif : 180 poches pour les maternités',
+    organizer: 'Bus mobile CNTS Sénégal',
+    tag: 'Bus Mobile CNTS',
+  },
+]
+
 /**
  * Contenu du QR code de la carte : le code aléatoire du donneur (jamais son
  * identifiant interne, qui permettrait de parcourir l'annuaire). Le centre de

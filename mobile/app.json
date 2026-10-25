@@ -2,6 +2,7 @@
   "expo": {
     "name": "Jappo Dundu",
     "slug": "jappo-dundu",
+    "owner": "alioune205",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "jappodundu",

@@ -1,5 +1,15 @@
-import React from 'react'
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
+import React, { useEffect, useRef, useState } from 'react'
+import {
+  Image,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Animated, { FadeInDown } from 'react-native-reanimated'
@@ -8,7 +18,13 @@ import { Icon, type IconName } from '@/components/ui/Icon'
 import { Text } from '@/components/ui/Text'
 import { useAuth } from '@/context/AuthContext'
 import { URGENCY, sortRequests, units } from '@/features/alerts/format'
-import { DONOR_CONDITIONS, LIVES_PER_DONATION, WHY_DONATE } from '@/features/donor/content'
+import {
+  CNTS_DONATION_DRIVES,
+  DONOR_CONDITIONS,
+  LIVES_PER_DONATION,
+  WHY_DONATE,
+  type DonationDrive,
+} from '@/features/donor/content'
 import { recoveryProgress } from '@/features/history/timeline'
 import { deadline, formatDate } from '@/lib/dates'
 import { formatDistance, useDeviceLocation } from '@/lib/location'
@@ -16,6 +32,9 @@ import { useDonor, useHistory, useNearby } from '@/lib/queries'
 import { isActiveSos, useMySos } from '@/lib/sos'
 import { fonts, motion, radius, space, useTheme } from '@/theme'
 import type { DonorProfile, NearbyRequest } from '@/types/api'
+
+const HERO_DONATION = require('../../../../assets/hero_donation.jpg')
+const IMPACT_MATERNITY = require('../../../../assets/impact_maternity.jpg')
 
 const enter = (step: number) => FadeInDown.duration(motion.slow).delay(step * motion.stagger).easing(motion.easeOut)
 
@@ -68,7 +87,6 @@ function Home({ donor }: { donor: DonorProfile }) {
   const location = useDeviceLocation()
   const canQuery = !!location.coords || (donor.latitude != null && donor.longitude != null)
   const nearby = useNearby(location.coords, { enabled: canQuery, live: false })
-  const requests = sortRequests(nearby.data ?? []).slice(0, 5)
 
   const donations = history.data?.donations.length ?? 0
   const recordedLast = history.data?.donations[0]?.donated_on ?? null
@@ -150,30 +168,49 @@ function Home({ donor }: { donor: DonorProfile }) {
           </View>
         </Animated.View>
 
-        {/* Demandes en cours */}
+        {/* Bannière visuelle campagne nationale */}
+        <Animated.View entering={enter(2.5)}>
+          <Pressable
+            onPress={() => router.navigate('/centers')}
+            accessibilityRole="button"
+            accessibilityLabel="Campagne nationale du don de sang. Trouver un centre de collecte"
+            style={({ pressed }) => [
+              styles.campaignCard,
+              { backgroundColor: colors.surface, borderColor: colors.line, opacity: pressed ? 0.95 : 1 },
+            ]}
+          >
+            <View style={styles.campaignImageWrapper}>
+              <Image source={HERO_DONATION} style={styles.campaignImage} resizeMode="cover" />
+              <View style={[styles.campaignBadge, { backgroundColor: colors.brand }]}>
+                <Text style={styles.campaignBadgeText}>CAMPAGNE NATIONALE · CNTS</Text>
+              </View>
+            </View>
+            <View style={styles.campaignBody}>
+              <Text variant="heading">
+                Votre sang est une force vitale
+              </Text>
+              <Text variant="caption" tone="muted" style={styles.campaignDescription}>
+                Chaque don sauve jusqu’à 3 vies à Dakar et dans les régions. Les banques de sang de nos hôpitaux comptent sur votre solidarité.
+              </Text>
+              <View style={styles.campaignActionRow}>
+                <Text variant="label" tone="brand">
+                  Trouver un centre de collecte proche
+                </Text>
+                <Icon name="route" size={16} color="brand" />
+              </View>
+            </View>
+          </Pressable>
+        </Animated.View>
+
+        {/* Journées de don de sang organisées par le CNTS (défilement automatique & interactif) */}
         <Animated.View entering={enter(3)}>
-          <SectionTitle title="Demandes en cours" action="Voir tout" onAction={() => router.navigate('/alerts')} />
-          {!canQuery ? (
-            <EmptyCard text="Partagez votre position pour voir les demandes des hôpitaux proches." action="Activer" onPress={() => router.navigate('/alerts')} />
-          ) : requests.length === 0 ? (
-            <EmptyCard text={nearby.isLoading ? 'Recherche des demandes proches…' : 'Aucune demande compatible autour de vous pour le moment. Merci de rester disponible.'} />
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel} decelerationRate="fast" snapToInterval={CARD_WIDTH + space.md}>
-              {requests.map((request, index) => (
-                <RequestTile
-                  key={request.id}
-                  request={request}
-                  highlighted={index === 0}
-                  onPress={() => router.navigate({ pathname: '/alerts', params: { request: String(request.id) } })}
-                />
-              ))}
-            </ScrollView>
-          )}
+          <DrivesCarousel />
         </Animated.View>
 
         {/* Pourquoi donner */}
         <Animated.View entering={enter(4)} style={styles.section}>
           <SectionTitle title="Pourquoi donner son sang ?" />
+
           <View style={styles.why}>
             {WHY_DONATE.map((item) => (
               <View key={item.title} style={[styles.whyCard, { backgroundColor: colors.surface, borderColor: colors.line }]}>
@@ -213,51 +250,212 @@ function Home({ donor }: { donor: DonorProfile }) {
   )
 }
 
-const CARD_WIDTH = 260
-
-function RequestTile({ request, highlighted, onPress }: { request: NearbyRequest; highlighted: boolean; onPress: () => void }) {
+function DrivesCarousel() {
   const { colors } = useTheme()
-  const urgency = URGENCY[request.urgency]
-  const answered = request.my_response === 'accepted'
+  const router = useRouter()
+  const { width } = useWindowDimensions()
+  const cardWidth = Math.min(width - space.xl * 2, 420)
+  const scrollRef = useRef<any>(null)
+  const [activeSlide, setActiveSlide] = useState(0)
+  const isInteracting = useRef(false)
+
+  // Défilement automatique toutes les 7 secondes pour laisser le temps de lire
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (isInteracting.current) return
+      setActiveSlide((prev) => {
+        const next = (prev + 1) % CNTS_DONATION_DRIVES.length
+        scrollRef.current?.scrollTo({
+          x: next * (cardWidth + space.md),
+          animated: true,
+        })
+        return next
+      })
+    }, 7000)
+    return () => clearInterval(timer)
+  }, [cardWidth])
+
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x = e.nativeEvent.contentOffset.x
+    const idx = Math.round(x / (cardWidth + space.md))
+    if (idx >= 0 && idx < CNTS_DONATION_DRIVES.length && idx !== activeSlide) {
+      setActiveSlide(idx)
+    }
+  }
+
+  const scrollToIndex = (index: number) => {
+    setActiveSlide(index)
+    scrollRef.current?.scrollTo({
+      x: index * (cardWidth + space.md),
+      animated: true,
+    })
+  }
+
+  return (
+    <View style={styles.section}>
+      <SectionTitle
+        title="Journées de don du CNTS"
+        action="Centres fixes"
+        onAction={() => router.navigate('/centers')}
+      />
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.carousel}
+        decelerationRate="fast"
+        snapToInterval={cardWidth + space.md}
+        snapToAlignment="start"
+        scrollEventThrottle={32}
+        onScroll={onScroll}
+        onTouchStart={() => {
+          isInteracting.current = true
+        }}
+        onTouchEnd={() => {
+          setTimeout(() => {
+            isInteracting.current = false
+          }, 5000)
+        }}
+      >
+        {CNTS_DONATION_DRIVES.map((drive, index) => (
+          <DriveTile
+            key={drive.id}
+            drive={drive}
+            width={cardWidth}
+            highlighted={index === activeSlide}
+            onAction={() => router.navigate('/centers')}
+          />
+        ))}
+      </ScrollView>
+
+      {/* Barre d'indicateurs et navigation */}
+      <View style={styles.dotsRow}>
+        <Pressable
+          onPress={() => scrollToIndex((activeSlide - 1 + CNTS_DONATION_DRIVES.length) % CNTS_DONATION_DRIVES.length)}
+          accessibilityRole="button"
+          accessibilityLabel="Journée précédente"
+          hitSlop={8}
+          style={[styles.arrowButton, { borderColor: colors.line, backgroundColor: colors.surface }]}
+        >
+          <Icon name="arrowLeft" size={14} color="muted" />
+        </Pressable>
+
+        <View style={styles.pillsGroup}>
+          {CNTS_DONATION_DRIVES.map((drive, idx) => (
+            <Pressable
+              key={drive.id}
+              onPress={() => scrollToIndex(idx)}
+              accessibilityRole="button"
+              accessibilityLabel={`Aller à la journée ${drive.title}`}
+              hitSlop={8}
+              style={[
+                styles.dotPill,
+                {
+                  backgroundColor: idx === activeSlide ? colors.brand : colors.lineStrong,
+                  width: idx === activeSlide ? 28 : 8,
+                },
+              ]}
+            />
+          ))}
+        </View>
+
+        <Pressable
+          onPress={() => scrollToIndex((activeSlide + 1) % CNTS_DONATION_DRIVES.length)}
+          accessibilityRole="button"
+          accessibilityLabel="Journée suivante"
+          hitSlop={8}
+          style={[styles.arrowButton, { borderColor: colors.line, backgroundColor: colors.surface }]}
+        >
+          <Icon name="arrow" size={14} color="muted" />
+        </Pressable>
+      </View>
+    </View>
+  )
+}
+
+function DriveTile({
+  drive,
+  width,
+  highlighted,
+  onAction,
+}: {
+  drive: DonationDrive
+  width: number
+  highlighted: boolean
+  onAction: () => void
+}) {
+  const { colors } = useTheme()
   return (
     <View
       style={[
         styles.tile,
-        { backgroundColor: highlighted ? colors.surface : colors.brandSoft, borderColor: highlighted ? colors.line : 'transparent' },
+        {
+          width,
+          backgroundColor: colors.surface,
+          borderColor: highlighted ? colors.brand : colors.line,
+        },
       ]}
     >
       <View style={styles.tileHead}>
-        <Text variant="heading" numberOfLines={1} style={styles.flex}>
-          {request.facility.name}
-        </Text>
-        <View style={[styles.groupChip, { backgroundColor: colors.brand }]}>
-          <Text style={[styles.groupChipText, { color: colors.onBrand }]}>{formatGroup(request.blood_group)}</Text>
+        <View style={styles.flex}>
+          <Text style={styles.driveTitle}>
+            {drive.title}
+          </Text>
+          <Text variant="caption" tone="brand" style={styles.driveDate}>
+            📅 {drive.date}
+          </Text>
+        </View>
+        <View style={[styles.groupChip, { backgroundColor: colors.brandSoft }]}>
+          <Text style={[styles.groupChipText, { color: colors.brand }]}>{drive.tag}</Text>
         </View>
       </View>
-      <View style={styles.tileRow}>
-        <Icon name="calendar" size={15} color="muted" />
-        <Text variant="caption" tone="muted" numberOfLines={1}>
-          {request.needed_by ? deadline(request.needed_by) : 'Dès que possible'} · {units(request.units_remaining)}
-        </Text>
+
+      <View style={[styles.driveInfoBox, { backgroundColor: colors.raised, borderColor: colors.line }]}>
+        <View style={styles.tileRow}>
+          <Icon name="clock" size={15} color="brand" />
+          <Text variant="caption" tone="fg" style={styles.tileRowText}>
+            {drive.time}
+          </Text>
+        </View>
+
+        <View style={styles.tileRow}>
+          <Icon name="pin" size={15} color="brand" />
+          <Text variant="caption" tone="fg" style={styles.tileRowText}>
+            {drive.location}
+          </Text>
+        </View>
+
+        <View style={styles.tileRow}>
+          <Icon name="award" size={15} color="brand" />
+          <Text variant="caption" tone="muted" style={styles.tileRowText}>
+            {drive.target}
+          </Text>
+        </View>
+
+        <View style={styles.tileRow}>
+          <Icon name="shield" size={15} color="ok" />
+          <Text variant="caption" tone="muted" style={styles.tileRowText}>
+            {drive.organizer}
+          </Text>
+        </View>
       </View>
-      <View style={styles.tileRow}>
-        <Icon name="pin" size={15} color="muted" />
-        <Text variant="caption" tone="muted" numberOfLines={1} style={styles.flex}>
-          {request.facility.city}
-          {request.distance_km != null ? ` · ${formatDistance(request.distance_km)}` : ''}
-        </Text>
-        <Text variant="caption" tone={urgency.tone} style={styles.urgency}>
-          {urgency.label}
-        </Text>
-      </View>
+
       <Pressable
-        onPress={onPress}
+        onPress={onAction}
         accessibilityRole="button"
-        accessibilityLabel={`${answered ? 'Voir ma participation' : 'Je participe'} : ${request.facility.name}`}
-        style={({ pressed }) => [styles.cta, { backgroundColor: answered ? colors.ok : colors.fg, opacity: pressed ? 0.85 : 1 }]}
+        accessibilityLabel={`Voir le lieu pour ${drive.title}`}
+        style={({ pressed }) => [
+          styles.cta,
+          {
+            backgroundColor: highlighted ? colors.brand : colors.raised,
+            borderWidth: 1,
+            borderColor: highlighted ? colors.brand : colors.line,
+            opacity: pressed ? 0.88 : 1,
+          },
+        ]}
       >
-        <Text variant="label" style={{ color: colors.canvas }}>
-          {answered ? 'On vous attend' : 'Je participe'}
+        <Text variant="label" tone={highlighted ? 'onBrand' : 'fg'}>
+          Voir le lieu & itinéraire →
         </Text>
       </Pressable>
     </View>
@@ -386,14 +584,70 @@ const styles = StyleSheet.create({
   section: { gap: 0 },
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: space.md },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  carousel: { gap: space.md, paddingRight: space.xl },
-  tile: { width: CARD_WIDTH, padding: space.lg, borderRadius: 20, borderWidth: 1, gap: space.sm },
-  tileHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  tileRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  urgency: { fontFamily: fonts.medium },
-  groupChip: { borderRadius: radius.pill, paddingHorizontal: space.sm, paddingVertical: 2 },
-  groupChipText: { fontFamily: fonts.semibold, fontSize: 13, lineHeight: 18 },
-  cta: { marginTop: space.xs, height: 40, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  carousel: {
+    paddingVertical: space.xs,
+    gap: space.md,
+  },
+  tile: {
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    padding: space.lg,
+    gap: space.sm,
+  },
+  tileHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: space.sm,
+  },
+  driveTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  driveDate: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 3,
+  },
+  groupChip: {
+    paddingHorizontal: space.sm,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    alignSelf: 'flex-start',
+  },
+  groupChipText: {
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  driveInfoBox: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: space.md,
+    gap: space.xs + 3,
+    marginTop: space.xs,
+  },
+  tileRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.sm,
+  },
+  tileRowText: {
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
+  },
+  cta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.xs,
+    paddingVertical: space.md,
+    borderRadius: radius.pill,
+    marginTop: space.xs,
+  },
   why: { gap: space.sm },
   whyCard: { flexDirection: 'row', gap: space.md, padding: space.lg, borderRadius: radius.lg, borderWidth: 1 },
   whyIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
@@ -401,4 +655,71 @@ const styles = StyleSheet.create({
   conditionRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   source: { marginTop: space.sm },
   empty: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.lg, borderRadius: radius.lg, borderWidth: 1 },
+  campaignCard: {
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  campaignImageWrapper: {
+    height: 190,
+    width: '100%',
+    position: 'relative',
+  },
+  campaignImage: {
+    width: '100%',
+    height: '100%',
+  },
+  campaignBadge: {
+    position: 'absolute',
+    top: space.md,
+    left: space.md,
+    paddingHorizontal: space.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+  },
+  campaignBadgeText: {
+    color: '#ffffff',
+    fontFamily: fonts.semibold,
+    fontSize: 10,
+    letterSpacing: 0.8,
+  },
+  campaignBody: {
+    padding: space.lg,
+    gap: space.xs,
+  },
+  campaignDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  campaignActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    marginTop: space.sm,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.md,
+    marginTop: space.md,
+  },
+  pillsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dotPill: {
+    height: 6,
+    borderRadius: 3,
+  },
+  arrowButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 })

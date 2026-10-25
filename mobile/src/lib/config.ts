@@ -5,7 +5,14 @@
  * téléphone, ex. http://192.168.1.20:8000 en Wi-Fi local (pas « localhost »,
  * qui désigne le téléphone lui-même), https://jappodundu.sn en production.
  */
-export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/+$/, '')
+function getBaseUrl(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin
+  }
+  return process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
+}
+
+export const API_URL = getBaseUrl().replace(/\/+$/, '')
 
 /** Adresse WebSocket correspondante (http → ws, https → wss). */
 export const WS_URL = API_URL.replace(/^http/, 'ws')

@@ -55,6 +55,10 @@ def find_matching_donors(blood_request, *, radius_km=None, limit=20, today=None)
         Donor.objects.eligible(today)
         .filter(blood_group__in=compatible_donor_groups(blood_request.blood_group))
         .exclude(responses__blood_request=blood_request)
+        .exclude(
+            responses__status=DonorResponse.Status.ACCEPTED,
+            responses__blood_request__status=BloodRequest.Status.OPEN,
+        )
         .select_related('user')
     )
     return nearest(
