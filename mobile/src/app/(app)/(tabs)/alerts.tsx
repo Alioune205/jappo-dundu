@@ -69,22 +69,27 @@ function Alerts({ donor }: { donor: DonorProfile }) {
   const nearby = useNearby(location.coords, { enabled: canQuery, live })
   const requests = useMemo(() => sortRequests(nearby.data ?? []), [nearby.data])
 
-  // Badge de l'onglet : demandes sans réponse.
-  const pending = pendingCount(nearby.data)
+  // Règles CNTS : pas de badge ni de vibration si le donneur ne peut pas donner
+  // (délai médical non écoulé, indisponible ou déjà engagé ailleurs).
+  const engaged = nearby.data?.some((r) => r.my_response === 'accepted') ?? false
+  const canAlert = donor.is_available && donor.is_eligible && !engaged
+
+  // Badge de l'onglet : demandes sans réponse uniquement si le donneur est apte à donner.
+  const pending = canAlert ? pendingCount(nearby.data) : 0
   useEffect(() => {
     navigation.setOptions({ tabBarBadge: pending || undefined })
   }, [navigation, pending])
 
-  // Nouvelle demande apparue pendant que l'écran est ouvert : vibration discrète.
+  // Nouvelle demande apparue pendant que l'écran est ouvert : vibration uniquement si apte à donner.
   const knownIds = useRef<Set<number> | null>(null)
   useEffect(() => {
     if (!nearby.data) return
     const ids = new Set(nearby.data.map((request) => request.id))
-    if (knownIds.current && [...ids].some((id) => !knownIds.current!.has(id))) {
+    if (canAlert && knownIds.current && [...ids].some((id) => !knownIds.current!.has(id))) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
     }
     knownIds.current = ids
-  }, [nearby.data])
+  }, [nearby.data, canAlert])
 
   // Position du profil tenue à jour si le donneur l'a partagée et s'est déplacé.
   const syncedLocation = useRef(false)
