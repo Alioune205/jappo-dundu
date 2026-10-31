@@ -112,6 +112,18 @@ def create_account(*, username, password, role, profile=None, **user_fields):
     return user
 
 
+# Version des conditions d'utilisation et de la politique de confidentialité
+# affichées dans l'application (à incrémenter à chaque modification du texte).
+TERMS_VERSION = '2026-10'
+
+
+def record_terms_acceptance(user, version=TERMS_VERSION):
+    """Horodate l'acceptation des conditions (preuve du consentement)."""
+    from django.utils import timezone
+
+    UserProfile.objects.filter(user=user).update(terms_accepted_at=timezone.now(), terms_version=version)
+
+
 def register_citizen(*, username, password, phone_number, region, **user_fields):
     """Inscription publique : le compte obtient le rôle ``donor``."""
     return create_account(

@@ -37,6 +37,8 @@ export interface RegisterInput {
   phone_number: string
   region: RegionCode
   email?: string
+  /** Case « J'accepte les conditions » cochée : horodatée par le serveur. */
+  accept_terms?: boolean
 }
 
 export interface FacilitySummary {

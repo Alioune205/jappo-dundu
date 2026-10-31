@@ -10,6 +10,7 @@ import { Tabs } from '@/components/ui/Tabs'
 import type { AdminUser, Facility } from '@/types/api'
 import { FacilitiesTable } from './facilities/FacilitiesTable'
 import { UsersTable } from './facilities/UsersTable'
+import { AuditLogPanel } from './facilities/AuditLogPanel'
 import { FacilityFormModal } from './facilities/FacilityFormModal'
 import { UserFormModal } from './facilities/UserFormModal'
 import { QK } from '@/lib/queryKeys'
@@ -106,6 +107,8 @@ export const FacilitiesManagement: React.FC = () => {
           onRoleChange={setUserRole}
         />
       )}
+
+      {isAdmin && <AuditLogPanel />}
 
       <FacilityFormModal isOpen={openModal === 'facilities'} onClose={() => setOpenModal(null)} />
       <UserFormModal isOpen={openModal === 'users'} onClose={() => setOpenModal(null)} />

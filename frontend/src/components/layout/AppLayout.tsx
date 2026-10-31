@@ -6,6 +6,7 @@ import { Header } from './Header'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useFallbackPolling } from '@/lib/useFallbackPolling'
 import { useAuth } from '@/context/AuthContext'
+import { useIdleLogout } from '@/lib/useIdleLogout'
 import { canOpen, primaryRoleLabel } from '@/lib/access'
 
 /** Page hors du rôle (URL saisie à la main, ancien favori). */
@@ -16,8 +17,8 @@ const AccessDenied: React.FC<{ roleLabel: string }> = ({ roleLabel }) => (
     </span>
     <h1 className="mt-4 text-xl font-bold text-fg">Module non accessible</h1>
     <p className="mt-2 text-sm text-muted">
-      Ce module ne relève pas de votre rôle ({roleLabel}). Contactez l'administrateur général si vous pensez
-      que c'est une erreur.
+      Ce module ne relève pas de votre rôle ({roleLabel}). Contactez l'administrateur général si vous pensez que c'est
+      une erreur.
     </p>
     <Link
       to="/"
@@ -30,9 +31,11 @@ const AccessDenied: React.FC<{ roleLabel: string }> = ({ roleLabel }) => (
 
 export const AppLayout: React.FC = () => {
   const { pathname } = useLocation()
-  const { roles } = useAuth()
+  const { roles, logout } = useAuth()
   // Flux temps réel coupé : relevé périodique des données affichées.
   useFallbackPolling()
+  // Poste partagé : déconnexion après une longue inactivité (avertissement 2 min avant).
+  const idleWarning = useIdleLogout(logout)
 
   return (
     <div className="flex h-full bg-canvas text-fg">
@@ -40,6 +43,14 @@ export const AppLayout: React.FC = () => {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Header />
+        {idleWarning && (
+          <div
+            role="alert"
+            className="border-b border-warning/40 bg-warning/10 px-4 py-2 text-center text-xs font-semibold text-fg"
+          >
+            Sans activité, vous serez déconnecté dans moins de 2 minutes. Touchez l’écran pour rester connecté.
+          </div>
+        )}
         <main className="min-h-0 flex-1 overflow-y-auto px-4 py-8 lg:px-10">
           {/* Une panne de module laisse la navigation et l'en-tête utilisables. */}
           <div className="mx-auto w-full max-w-[1320px]">

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Alert } from '@/components/ui/Alert'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { EmergencyAccessPanel, TwoFactorPanel } from './profile/SecurityPanels'
 import { formatDateTime } from '@/lib/format'
 
 export const Profile: React.FC = () => {
@@ -234,6 +235,9 @@ export const Profile: React.FC = () => {
             </div>
           </form>
         </section>
+
+        <TwoFactorPanel />
+        <EmergencyAccessPanel />
       </div>
     </div>
   )

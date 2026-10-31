@@ -10,7 +10,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
-  login: (username: string, password: string) => Promise<void>
+  login: (username: string, password: string, otp?: string) => Promise<void>
   logout: () => Promise<void>
   refreshProfile: () => Promise<unknown>
   hasRole: (...roles: Role[]) => boolean
@@ -93,11 +93,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return unsubscribe
   }, [fetchProfile])
 
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string, otp?: string) => {
     setIsLoading(true)
     setError(null)
     try {
-      const data = await api.post<LoginResponse>('/api/auth/token/', { username, password })
+      const data = await api.post<LoginResponse>('/api/auth/token/', { username, password, ...(otp ? { otp } : {}) })
       session.setTokens(data.access, data.refresh)
       setTokenUser(data.user)
       if (!canUseWeb(rolesOf(data.user))) {

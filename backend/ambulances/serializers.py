@@ -288,6 +288,11 @@ class MissionSerializer(serializers.ModelSerializer):
         if profile is None:
             return None
         donor = getattr(obj.created_by, 'donor', None)
+        request = self.context.get('request')
+        if request is not None:
+            from security import audit
+
+            audit.record(request, 'sos.caller_card', obj, mission_id=obj.pk)
         return {
             'blood_group': getattr(donor, 'blood_group', None),
             'allergies': profile.allergies,

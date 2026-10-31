@@ -15,6 +15,8 @@ Auteur : El Hadji Massogui Diop
 import re
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import (
@@ -57,7 +59,13 @@ def resolve_login(identifier):
 
 
 class JappoDunduTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Sérialiseur de connexion : claims de rôles + profil dans la réponse."""
+    """Sérialiseur de connexion : claims de rôles + profil dans la réponse.
+
+    Double authentification activée : le code à 6 chiffres (``otp``) est exigé
+    après le mot de passe ; sans lui, 401 avec ``code: "otp_required"``.
+    """
+
+    otp = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     @classmethod
     def get_token(cls, user):
@@ -71,7 +79,9 @@ class JappoDunduTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         attrs[self.username_field] = resolve_login(attrs.get(self.username_field))
+        otp_code = attrs.pop('otp', '')
         data = super().validate(attrs)
+        check_second_factor(self.user, otp_code)
         roles = get_user_roles(self.user)
         data['user'] = {
             'id': self.user.pk,
@@ -84,6 +94,23 @@ class JappoDunduTokenObtainPairSerializer(TokenObtainPairSerializer):
             'groups': list(self.user.groups.values_list('name', flat=True)),
         }
         return data
+
+
+def check_second_factor(user, code):
+    """Vérifie le code TOTP d'un compte qui a activé la double authentification."""
+    from .models import TwoFactor
+    from .otp import verify
+
+    two_factor = TwoFactor.objects.filter(user=user, confirmed_at__isnull=False).first()
+    if two_factor is None:
+        return
+    if not code:
+        # Le code figure dans le corps : le client affiche alors le champ du code.
+        raise AuthenticationFailed({'detail': "Code de double authentification requis.", 'code': 'otp_required'})
+    step = verify(two_factor.secret, code, last_used_step=two_factor.last_used_step)
+    if step is None:
+        raise AuthenticationFailed({'detail': "Code de double authentification invalide ou expiré.", 'code': 'otp_invalid'})
+    TwoFactor.objects.filter(pk=two_factor.pk).update(last_used_step=step)
 
 
 class JappoDunduTokenObtainPairView(TokenObtainPairView):

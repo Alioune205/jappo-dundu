@@ -16,7 +16,7 @@ describe('Login', () => {
     expect(screen.getByLabelText('Identifiant')).toHaveValue('cnts.dakar')
 
     fireEvent.click(screen.getByRole('button', { name: /Se connecter/ }))
-    await waitFor(() => expect(auth.login).toHaveBeenCalledWith('cnts.dakar', 'Password123!'))
+    await waitFor(() => expect(auth.login).toHaveBeenCalledWith('cnts.dakar', 'Password123!', undefined))
   })
 
   it('affiche ou masque le mot de passe, et signale les champs vides', () => {

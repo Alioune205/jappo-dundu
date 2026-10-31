@@ -16,6 +16,7 @@ approvisionne les hôpitaux de la région.
 Auteur : Ibrahima Khalilou Diallo
 """
 
+from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import BasePermission
 
@@ -52,19 +53,34 @@ def regional_scope(user, domain, facility):
     return None
 
 
+def emergency_facility_ids(user, domain):
+    """Établissements ouverts à l'utilisateur par un accès d'urgence en cours (security)."""
+    from django.utils import timezone
+
+    from security.models import EmergencyAccess
+
+    return set(
+        EmergencyAccess.objects.filter(
+            user=user, domain=Domain(domain).value, revoked_at=None, expires_at__gt=timezone.now()
+        ).values_list('facility_id', flat=True)
+    )
+
+
 def in_scope(user, domain, facility_obj):
     """L'établissement ``facility_obj`` est-il dans le périmètre de l'utilisateur ?"""
     if is_admin(user):
         return True
     if not manages(user, domain):
         return False
-    own = user_facility(user)
-    if own is None or facility_obj is None:
+    if facility_obj is None:
         return False
-    if facility_obj.pk == own.pk:
+    own = user_facility(user)
+    if own is not None and facility_obj.pk == own.pk:
         return True
-    region = regional_scope(user, domain, own)
-    return region is not None and facility_obj.region == region
+    region = regional_scope(user, domain, own) if own is not None else None
+    if region is not None and facility_obj.region == region:
+        return True
+    return facility_obj.pk in emergency_facility_ids(user, domain)
 
 
 def facility_for_write(user, requested=None, *, domain, field='facility_id'):
@@ -97,12 +113,14 @@ def scope_to_facility(queryset, user, domain, field='facility'):
     if not manages(user, domain):
         return queryset.none()
     own = user_facility(user)
+    granted = emergency_facility_ids(user, domain)
     if own is None:
-        return queryset.none()
+        return queryset.filter(**{f'{field}_id__in': granted}) if granted else queryset.none()
     region = regional_scope(user, domain, own)
-    if region is not None:
-        return queryset.filter(**{f'{field}__region': region})
-    return queryset.filter(**{f'{field}_id': own.pk})
+    scope = Q(**{f'{field}__region': region}) if region is not None else Q(**{f'{field}_id': own.pk})
+    if granted:
+        scope |= Q(**{f'{field}_id__in': granted})
+    return queryset.filter(scope)
 
 
 class _FacilityDomainPermission(BasePermission):

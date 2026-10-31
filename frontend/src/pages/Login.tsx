@@ -46,6 +46,8 @@ export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [capsLock, setCapsLock] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [needOtp, setNeedOtp] = useState(false)
+  const [otp, setOtp] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -60,9 +62,16 @@ export const Login: React.FC = () => {
     setIsSubmitting(true)
     setErrorMsg(null)
     try {
-      await login(username, password)
+      await login(username, password, needOtp ? otp : undefined)
       navigate('/', { replace: true })
     } catch (err: unknown) {
+      // Double authentification activée : le code à 6 chiffres est demandé après le mot de passe.
+      const code = (err as { data?: { code?: string } })?.data?.code
+      if (code === 'otp_required') {
+        setNeedOtp(true)
+        setErrorMsg(null)
+        return
+      }
       const message = err instanceof Error ? err.message : 'Impossible de vous connecter. Vérifiez vos identifiants.'
       setErrorMsg(message)
     } finally {
@@ -229,6 +238,29 @@ export const Login: React.FC = () => {
                 </p>
               )}
             </div>
+
+            {needOtp && (
+              <div>
+                <label htmlFor="otp" className="mb-2 block text-sm font-semibold text-fg">
+                  Code de votre application d’authentification
+                </label>
+                <input
+                  id="otp"
+                  name="otp"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  required
+                  autoFocus
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                  className={`${fieldClass} num tracking-[0.4em]`}
+                  placeholder="000000"
+                />
+                <p className="mt-2 text-xs text-muted">Double authentification activée sur ce compte.</p>
+              </div>
+            )}
 
             <button
               type="submit"

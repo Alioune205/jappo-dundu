@@ -38,6 +38,7 @@ from rest_framework.views import APIView
 
 from geo.distance import GeoPoint
 from ml.constants import BLOOD_GROUP_CODES, REGION_CODES
+from security import audit
 from security.permissions import ManagesBlood
 from security.roles import Domain, Role
 from users.exceptions import Conflict
@@ -202,6 +203,7 @@ class DonorLookupView(APIView):
             donor = Donor.objects.select_related('user').filter(card_code=code).first()
             if donor is None:
                 raise NotFound("Aucun donneur avec cette carte.")
+            audit.record(request, 'donor.lookup', donor, facility=user_facility(request.user), by='card')
             return Response(DonorLookupSerializer(donor).data)
 
         raw = request.query_params.get('phone_number', '')
@@ -216,6 +218,7 @@ class DonorLookupView(APIView):
         )
         if donor is None:
             raise NotFound("Aucun donneur inscrit avec ce numéro.")
+        audit.record(request, 'donor.lookup', donor, facility=user_facility(request.user), by='phone')
         return Response(DonorLookupSerializer(donor).data)
 
 

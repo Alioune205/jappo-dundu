@@ -158,6 +158,10 @@ class UserProfile(models.Model):
         help_text="Vrai seulement si un fournisseur de confiance a prouvé la possession de l'adresse. "
         "Une connexion sociale n'est rattachée qu'à une adresse vérifiée.",
     )
+    # Consentement explicite (loi n° 2008-12 sur les données personnelles) :
+    # conditions d'utilisation et politique de confidentialité acceptées.
+    terms_accepted_at = models.DateTimeField(null=True, blank=True, verbose_name="Conditions acceptées le")
+    terms_version = models.CharField(max_length=20, blank=True, verbose_name="Version des conditions acceptée")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Créé le")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Modifié le")
 

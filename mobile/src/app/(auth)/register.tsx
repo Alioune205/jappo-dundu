@@ -69,6 +69,7 @@ export default function RegisterScreen() {
         // Identifiant technique = numéro : la connexion se fait avec le téléphone.
         username: digits,
         password: form.password,
+        accept_terms: form.terms,
       })
       router.replace('/donor-setup')
     } catch (err) {

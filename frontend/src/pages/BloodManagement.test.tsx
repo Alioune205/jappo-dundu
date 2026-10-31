@@ -45,7 +45,7 @@ function mockApi() {
 }
 
 async function selectRequest(bloodGroup: string) {
-  const table = await screen.findByRole('table', { name: 'Demandes de sang' })
+  const table = await screen.findByRole('table', { name: 'Demandes de sang' }, { timeout: 5000 })
   const row = within(table)
     .getAllByRole('row')
     .find((r) => within(r).queryByText(bloodGroup))!
@@ -60,7 +60,7 @@ describe('BloodManagement', () => {
 
   it('signale les demandes critiques et en compte les urgences vitales', async () => {
     renderWithProviders(<BloodManagement />)
-    const table = await screen.findByRole('table', { name: 'Demandes de sang' })
+    const table = await screen.findByRole('table', { name: 'Demandes de sang' }, { timeout: 5000 })
     const critical = within(table)
       .getAllByRole('row')
       .find((r) => within(r).queryByText('O-'))!

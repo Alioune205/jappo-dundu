@@ -498,6 +498,12 @@ class RegisterSerializer(serializers.Serializer):
     last_name = serializers.CharField(max_length=150)
     phone_number = PhoneNumberField()
     region = serializers.ChoiceField(choices=REGIONS)
+    accept_terms = serializers.BooleanField(
+        required=False,
+        default=False,
+        write_only=True,
+        help_text="Conditions d'utilisation et politique de confidentialité acceptées (horodaté).",
+    )
 
     def validate_username(self, value):
         if User.objects.filter(username__iexact=value).exists():
@@ -528,12 +534,16 @@ class RegisterSerializer(serializers.Serializer):
         return attrs
 
     def create(self, validated_data):
+        accepted = validated_data.pop('accept_terms', False)
         try:
-            return services.register_citizen(**validated_data)
+            user = services.register_citizen(**validated_data)
         except IntegrityError as exc:
             raise serializers.ValidationError(
                 "Nom d'utilisateur ou téléphone déjà utilisé."
             ) from exc
+        if accepted:
+            services.record_terms_acceptance(user)
+        return user
 
 
 class PasswordChangeSerializer(serializers.Serializer):
