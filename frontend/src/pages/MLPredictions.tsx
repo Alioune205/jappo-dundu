@@ -15,6 +15,7 @@ import { BLOOD_GROUPS, REGIONS, RISK_LEVELS, toneOf } from '@/lib/constants'
 import { formatDate, formatNumber, formatPercent } from '@/lib/format'
 import type { Prediction, ModelInfo, PredictionJob } from '@/types/api'
 import { QK } from '@/lib/queryKeys'
+import { RecommendationsPanel } from './ml/RecommendationsPanel'
 
 /** Intervalle de suivi d'un calcul de prévision en arrière-plan (ms). */
 const JOB_POLL_MS = 1500
@@ -135,6 +136,8 @@ export const MLPredictions: React.FC = () => {
           </Button>
         }
       />
+
+      <RecommendationsPanel />
 
       {model && syntheticShare != null && syntheticShare > 0 && (
         <Alert tone="warning" title="Modèle de démonstration : données simulées">

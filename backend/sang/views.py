@@ -58,6 +58,7 @@ from users.services import add_role
 from users.validators import normalize_phone_number
 
 from . import alerts, gamification, services, stocks
+from .campaigns import launch_campaign
 from .cards import normalize_card_code
 from .compatibility import compatible_donor_groups, compatible_recipient_groups
 from .models import (
@@ -753,3 +754,27 @@ class BloodDriveViewSet(viewsets.ModelViewSet):
             self.request.user, serializer.validated_data.pop('organizer', None), domain=Domain.BLOOD, field='organizer_id'
         )
         serializer.save(organizer=organizer, created_by=self.request.user)
+
+
+class CampaignView(APIView):
+    """Appel préventif aux donneurs : POST /api/sang/campaigns/ {"region", "blood_group", "message"}
+
+    Administrateur du sang (CNTS : sa région) ou administrateur général.
+    """
+
+    permission_classes = [CanManageBlood]
+
+    def post(self, request):
+        region = choice_param(request.data, 'region', REGION_CODES)
+        blood_group = choice_param(request.data, 'blood_group', BLOOD_GROUP_CODES)
+        if not region or not blood_group:
+            raise ValidationError({'region': ["Région et groupe obligatoires."]})
+        if not is_admin(request.user):
+            own = user_facility(request.user)
+            if own is None or own.region != region:
+                raise PermissionDenied("Vous ne lancez des campagnes que dans votre région.")
+        message = str(request.data.get('message', ''))[:255]
+        campaign, count = launch_campaign(
+            region=region, blood_group=blood_group, created_by=request.user, message=message
+        )
+        return Response({'id': campaign.pk, 'notified_donors': count}, status=status.HTTP_201_CREATED)

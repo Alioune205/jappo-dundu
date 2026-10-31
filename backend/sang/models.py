@@ -662,3 +662,21 @@ class BloodDrive(models.Model):
 
     def __str__(self):
         return f"{self.title} — {self.starts_at:%d/%m/%Y}"
+
+
+class DonorCampaign(models.Model):
+    """Appel préventif aux donneurs d'un groupe dans une région (avant une pénurie prévue)."""
+
+    region = models.CharField(max_length=50, choices=REGIONS, verbose_name="Région")
+    blood_group = models.CharField(max_length=3, choices=BLOOD_GROUPS, verbose_name="Groupe")
+    message = models.CharField(max_length=255, blank=True, verbose_name="Message")
+    recipients = models.ManyToManyField(Donor, related_name='campaigns', blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Campagne d'appel aux donneurs"
+        verbose_name_plural = "Campagnes d'appel aux donneurs"
+        ordering = ['-created_at']

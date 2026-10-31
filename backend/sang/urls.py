@@ -9,6 +9,7 @@ from rest_framework.routers import SimpleRouter
 
 from .views import (
     BadgeListView,
+    CampaignView,
     BloodDriveViewSet,
     BloodRequestViewSet,
     BloodStockViewSet,
@@ -39,5 +40,6 @@ urlpatterns = [
     path('donors/lookup/', DonorLookupView.as_view(), name='donor-lookup'),
     path('badges/', BadgeListView.as_view(), name='badge-list'),
     path('compatibility/', CompatibilityView.as_view(), name='compatibility'),
+    path('campaigns/', CampaignView.as_view(), name='campaigns'),
     *router.urls,
 ]

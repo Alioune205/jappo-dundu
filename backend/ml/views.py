@@ -26,6 +26,7 @@ from users.models import HealthFacility
 from users.permissions import in_scope, is_admin, regional_scope, user_facility
 
 from .constants import BLOOD_GROUPS, BLOOD_GROUP_CODES, REGIONS, REGION_CODES, REGION_LABELS
+from .actions import recommendations
 from .models import BloodStockRecord, MLModelMetadata, PredictionResult
 from .serializers import (
     BloodStockAdjustmentSerializer,
@@ -637,3 +638,15 @@ class BloodStockCurrentSummaryView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class RecommendationsView(APIView):
+    """Actions proposées pour les risques de pénurie des 14 prochains jours.
+
+    GET /api/ml/recommendations/  (périmètre de l'administrateur du sang)
+    """
+
+    permission_classes = [ManagesBlood]
+
+    def get(self, request):
+        return Response(recommendations(stock_scope(request.user)))

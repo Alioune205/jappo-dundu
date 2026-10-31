@@ -14,6 +14,7 @@ from .views import (
     BloodStockListView,
     ModelInfoView,
     PredictionByRegionView,
+    RecommendationsView,
     PredictionListView,
     PredictOnDemandView,
     PredictionJobView,
@@ -22,6 +23,7 @@ from .views import (
 app_name = 'ml'
 
 urlpatterns = [
+    path('recommendations/', RecommendationsView.as_view(), name='recommendations'),
     path(
         'predictions/',
         PredictionListView.as_view(),
