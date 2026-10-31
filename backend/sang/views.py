@@ -62,6 +62,7 @@ from .cards import normalize_card_code
 from .compatibility import compatible_donor_groups, compatible_recipient_groups
 from .models import (
     Badge,
+    BloodDrive,
     BloodRequest,
     BloodStock,
     BloodSupplyOrder,
@@ -73,6 +74,7 @@ from .models import (
 )
 from .serializers import (
     BadgeSerializer,
+    BloodDriveSerializer,
     BloodRequestSerializer,
     BloodStockSerializer,
     BloodSupplyOrderSerializer,
@@ -718,3 +720,36 @@ class BloodSupplyOrderViewSet(
     def cancel(self, request, pk=None):
         order = stocks.cancel_order(self._order_for('requester'))
         return Response(self.get_serializer(order).data)
+
+
+class BloodDriveViewSet(viewsets.ModelViewSet):
+    """Collectes mobiles.
+
+    GET    /api/sang/drives/ ?region=dakar   à venir (tout compte connecté : application)
+    POST   /api/sang/drives/                 administrateur du sang (son centre)
+    PATCH  /api/sang/drives/<id>/ ; DELETE   l'organisateur
+    """
+
+    serializer_class = BloodDriveSerializer
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            return [IsAuthenticated()]
+        return [CanManageBlood()]
+
+    def get_queryset(self):
+        queryset = BloodDrive.objects.select_related('organizer')
+        if self.action in ('list', 'retrieve'):
+            queryset = queryset.filter(ends_at__gte=timezone.now())
+            region = choice_param(self.request.query_params, 'region', REGION_CODES)
+            if region:
+                queryset = queryset.filter(region=region)
+            return queryset
+        return scope_to_facility(queryset, self.request.user, Domain.BLOOD, field='organizer')
+
+    def perform_create(self, serializer):
+        organizer = facility_for_write(
+            self.request.user, serializer.validated_data.pop('organizer', None), domain=Domain.BLOOD, field='organizer_id'
+        )
+        serializer.save(organizer=organizer, created_by=self.request.user)

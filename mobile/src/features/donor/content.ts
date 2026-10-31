@@ -50,30 +50,37 @@ export interface DonationDrive {
   tag: string
 }
 
-export const CNTS_DONATION_DRIVES: DonationDrive[] = [
-  {
-    id: 'ucad-2026',
-    title: 'Grande Collecte Universitaire UCAD',
-    date: 'Samedi 31 Octobre 2026',
-    time: 'De 08h30 à 16h00 (Journée continue)',
-    location: 'Campus UCAD II · Devant le Pavillon A, Dakar',
-    city: 'Dakar',
-    target: 'Objectif : 250 poches pour les urgences',
-    organizer: 'Organisé par le CNTS & la Croix-Rouge Sénégalaise',
-    tag: 'Collecte Prioritaire',
-  },
-  {
-    id: 'place-nation-2026',
-    title: 'Collecte Citoyenne Place de la Nation',
-    date: 'Mercredi 4 Novembre 2026',
-    time: 'De 09h00 à 17h00 (Sans interruption)',
-    location: 'Place de la Nation (Obélisque de Colobane), Dakar',
-    city: 'Dakar',
-    target: 'Objectif : 180 poches pour les maternités',
-    organizer: 'Bus mobile CNTS Sénégal',
-    tag: 'Bus Mobile CNTS',
-  },
-]
+/** Collecte publiée par un centre (GET /api/sang/drives/). */
+export interface ApiBloodDrive {
+  id: number
+  title: string
+  location: string
+  city: string
+  starts_at: string
+  ends_at: string
+  target_units: number | null
+  notes: string
+  organizer: { name: string }
+}
+
+const dayFormat = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Africa/Dakar' })
+const hourFormat = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Dakar' })
+
+/** Collecte de l'API mise en forme pour la carte de l'accueil. */
+export function toDonationDrive(drive: ApiBloodDrive): DonationDrive {
+  const day = dayFormat.format(new Date(drive.starts_at))
+  return {
+    id: String(drive.id),
+    title: drive.title,
+    date: day.charAt(0).toUpperCase() + day.slice(1),
+    time: `De ${hourFormat.format(new Date(drive.starts_at))} à ${hourFormat.format(new Date(drive.ends_at))}`,
+    location: drive.location,
+    city: drive.city,
+    target: drive.target_units ? `Objectif : ${drive.target_units} poches` : drive.notes,
+    organizer: `Organisé par ${drive.organizer.name}`,
+    tag: 'Collecte',
+  }
+}
 
 /**
  * Contenu du QR code de la carte : le code aléatoire du donneur (jamais son

@@ -49,6 +49,8 @@ export interface FacilitySummary {
   latitude: number | null
   longitude: number | null
   phone_number?: string | null
+  /** Horaires d'ouverture déclarés par l'établissement. */
+  opening_hours?: string
 }
 
 export type FacilityType = 'hospital' | 'health_center' | 'clinic' | 'blood_bank' | 'ambulance_service'

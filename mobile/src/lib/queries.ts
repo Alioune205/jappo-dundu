@@ -21,6 +21,7 @@ import type {
   Paginated,
   ResponseStatus,
 } from '@/types/api'
+import { toDonationDrive, type ApiBloodDrive } from '@/features/donor/content'
 import { api, ApiError } from './api'
 import { distanceKm, type Coords } from './location'
 // Import circulaire sans risque : preciseCoords n'est appelé qu'à l'exécution.
@@ -32,6 +33,7 @@ export const QK = {
   history: ['history'] as const,
   centers: ['centers'] as const,
   gamification: ['gamification'] as const,
+  drives: ['drives'] as const,
   // Ambulancier (lib/missions.ts)
   ambulance: ['ambulance'] as const,
   missions: ['missions'] as const,
@@ -112,6 +114,16 @@ export function useNearby(coords: Coords | null, { enabled, live }: { enabled: b
     if (enabled && coords && (!previous || distanceKm(previous, coords) > MOVE_KM)) refetch()
   }, [coords, enabled, refetch])
   return query
+}
+
+/** Collectes à venir publiées par les centres (l'accueil les présente). */
+export function useBloodDrives() {
+  return useQuery({
+    queryKey: QK.drives,
+    queryFn: async () =>
+      (await api.get<Paginated<ApiBloodDrive>>('/api/sang/drives/')).results.map(toDonationDrive),
+    staleTime: 10 * 60_000,
+  })
 }
 
 /**

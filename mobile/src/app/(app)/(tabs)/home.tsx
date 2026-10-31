@@ -19,7 +19,6 @@ import { Text } from '@/components/ui/Text'
 import { useAuth } from '@/context/AuthContext'
 import { URGENCY, sortRequests, units } from '@/features/alerts/format'
 import {
-  CNTS_DONATION_DRIVES,
   DONOR_CONDITIONS,
   LIVES_PER_DONATION,
   WHY_DONATE,
@@ -28,7 +27,7 @@ import {
 import { recoveryProgress } from '@/features/history/timeline'
 import { deadline, formatDate } from '@/lib/dates'
 import { formatDistance, useDeviceLocation } from '@/lib/location'
-import { useDonor, useHistory, useNearby } from '@/lib/queries'
+import { useBloodDrives, useDonor, useHistory, useNearby } from '@/lib/queries'
 import { isActiveSos, useMySos } from '@/lib/sos'
 import { fonts, motion, radius, space, useTheme } from '@/theme'
 import type { DonorProfile, NearbyRequest } from '@/types/api'
@@ -251,6 +250,12 @@ function Home({ donor }: { donor: DonorProfile }) {
 }
 
 function DrivesCarousel() {
+  const { data: drives = [] } = useBloodDrives()
+  if (drives.length === 0) return null
+  return <DrivesSlides drives={drives} />
+}
+
+function DrivesSlides({ drives }: { drives: DonationDrive[] }) {
   const { colors } = useTheme()
   const router = useRouter()
   const { width } = useWindowDimensions()
@@ -264,7 +269,7 @@ function DrivesCarousel() {
     const timer = setInterval(() => {
       if (isInteracting.current) return
       setActiveSlide((prev) => {
-        const next = (prev + 1) % CNTS_DONATION_DRIVES.length
+        const next = (prev + 1) % drives.length
         scrollRef.current?.scrollTo({
           x: next * (cardWidth + space.md),
           animated: true,
@@ -273,12 +278,12 @@ function DrivesCarousel() {
       })
     }, 7000)
     return () => clearInterval(timer)
-  }, [cardWidth])
+  }, [cardWidth, drives.length])
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const x = e.nativeEvent.contentOffset.x
     const idx = Math.round(x / (cardWidth + space.md))
-    if (idx >= 0 && idx < CNTS_DONATION_DRIVES.length && idx !== activeSlide) {
+    if (idx >= 0 && idx < drives.length && idx !== activeSlide) {
       setActiveSlide(idx)
     }
   }
@@ -317,7 +322,7 @@ function DrivesCarousel() {
           }, 5000)
         }}
       >
-        {CNTS_DONATION_DRIVES.map((drive, index) => (
+        {drives.map((drive, index) => (
           <DriveTile
             key={drive.id}
             drive={drive}
@@ -331,7 +336,7 @@ function DrivesCarousel() {
       {/* Barre d'indicateurs et navigation */}
       <View style={styles.dotsRow}>
         <Pressable
-          onPress={() => scrollToIndex((activeSlide - 1 + CNTS_DONATION_DRIVES.length) % CNTS_DONATION_DRIVES.length)}
+          onPress={() => scrollToIndex((activeSlide - 1 + drives.length) % drives.length)}
           accessibilityRole="button"
           accessibilityLabel="Journée précédente"
           hitSlop={8}
@@ -341,7 +346,7 @@ function DrivesCarousel() {
         </Pressable>
 
         <View style={styles.pillsGroup}>
-          {CNTS_DONATION_DRIVES.map((drive, idx) => (
+          {drives.map((drive, idx) => (
             <Pressable
               key={drive.id}
               onPress={() => scrollToIndex(idx)}
@@ -360,7 +365,7 @@ function DrivesCarousel() {
         </View>
 
         <Pressable
-          onPress={() => scrollToIndex((activeSlide + 1) % CNTS_DONATION_DRIVES.length)}
+          onPress={() => scrollToIndex((activeSlide + 1) % drives.length)}
           accessibilityRole="button"
           accessibilityLabel="Journée suivante"
           hitSlop={8}

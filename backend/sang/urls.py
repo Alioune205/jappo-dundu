@@ -9,6 +9,7 @@ from rest_framework.routers import SimpleRouter
 
 from .views import (
     BadgeListView,
+    BloodDriveViewSet,
     BloodRequestViewSet,
     BloodStockViewSet,
     BloodSupplyOrderViewSet,
@@ -27,6 +28,7 @@ router = SimpleRouter()
 router.register('requests', BloodRequestViewSet, basename='blood-request')
 router.register('donations', DonationViewSet, basename='donation')
 router.register('stocks', BloodStockViewSet, basename='blood-stock')
+router.register('drives', BloodDriveViewSet, basename='blood-drive')
 router.register('orders', BloodSupplyOrderViewSet, basename='blood-order')
 
 urlpatterns = [

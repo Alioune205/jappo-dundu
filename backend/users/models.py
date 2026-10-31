@@ -84,6 +84,12 @@ class HealthFacility(models.Model):
         verbose_name="Plateau technique",
         help_text="Codes de CAPABILITIES : équipements et spécialités disponibles.",
     )
+    opening_hours = models.CharField(
+        max_length=120,
+        blank=True,
+        verbose_name="Horaires d'ouverture",
+        help_text="ex. Lun–Ven 8 h–17 h, sam. 8 h–13 h",
+    )
     on_call_phone = models.CharField(
         max_length=13,
         blank=True,

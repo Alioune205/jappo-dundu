@@ -25,6 +25,7 @@ from .models import (
     MAX_UNITS_PER_REQUEST,
     Badge,
     BloodRequest,
+    BloodDrive,
     BloodStock,
     BloodSupplyOrder,
     Component,
@@ -663,3 +664,40 @@ class OrderAnswerSerializer(serializers.Serializer):
     """Réponse du fournisseur : précisions (transport) ou motif de refus."""
 
     note = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+
+
+class BloodDriveSerializer(serializers.ModelSerializer):
+    """Collecte publiée par un centre ; lue par l'application des donneurs."""
+
+    organizer = HealthFacilitySummarySerializer(read_only=True)
+    organizer_id = serializers.PrimaryKeyRelatedField(
+        source='organizer', queryset=HealthFacility.objects.all(), write_only=True, required=False
+    )
+    region_display = serializers.CharField(source='get_region_display', read_only=True)
+
+    class Meta:
+        model = BloodDrive
+        fields = [
+            'id',
+            'organizer',
+            'organizer_id',
+            'title',
+            'location',
+            'city',
+            'region',
+            'region_display',
+            'latitude',
+            'longitude',
+            'starts_at',
+            'ends_at',
+            'target_units',
+            'notes',
+        ]
+        read_only_fields = ['id']
+
+    def validate(self, attrs):
+        starts = attrs.get('starts_at', getattr(self.instance, 'starts_at', None))
+        ends = attrs.get('ends_at', getattr(self.instance, 'ends_at', None))
+        if starts and ends and ends <= starts:
+            raise serializers.ValidationError({'ends_at': ["La fin doit suivre le début."]})
+        return attrs

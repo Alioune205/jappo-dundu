@@ -16,6 +16,7 @@ import { DonationLookupPanel } from './blood/DonationLookupPanel'
 import { CreateRequestModal } from './blood/CreateRequestModal'
 import { StockInventoryPanel } from './blood/StockInventoryPanel'
 import { SupplyOrdersPanel } from './blood/SupplyOrdersPanel'
+import { DrivesPanel } from './blood/DrivesPanel'
 import { QK } from '@/lib/queryKeys'
 
 /** Page « Banque de sang » : liste des demandes, sélection, filtres. */
@@ -107,6 +108,7 @@ export const BloodManagement: React.FC = () => {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <SupplyOrdersPanel />
         <StockInventoryPanel />
+        <DrivesPanel />
       </div>
 
       <CreateRequestModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} />

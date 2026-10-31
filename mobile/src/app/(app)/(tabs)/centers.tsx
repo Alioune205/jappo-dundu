@@ -144,6 +144,11 @@ function CenterRow({ center, index }: { center: NearbyFacility; index: number })
         <Text variant="caption" tone="muted" numberOfLines={1}>
           {center.facility_type_display} · {center.city}
         </Text>
+        {center.opening_hours ? (
+          <Text variant="caption" tone="subtle" numberOfLines={1}>
+            {center.opening_hours}
+          </Text>
+        ) : null}
         <View style={styles.actions}>
           {center.distance_km != null ? (
             <Text variant="caption" numberOfLines={1} style={styles.distance}>

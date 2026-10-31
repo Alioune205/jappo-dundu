@@ -19,7 +19,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from geo.fields import coordinates_constraint, latitude_field, longitude_field
-from ml.constants import BLOOD_GROUPS
+from ml.constants import BLOOD_GROUPS, REGIONS
 from users.models import HealthFacility
 
 from . import eligibility
@@ -625,3 +625,36 @@ class BloodSupplyOrder(models.Model):
     @property
     def is_open(self):
         return self.status in self.OPEN_STATUSES
+
+
+class BloodDrive(models.Model):
+    """Collecte mobile ou journée de don publiée par un centre de transfusion."""
+
+    organizer = models.ForeignKey(
+        HealthFacility, on_delete=models.PROTECT, related_name='blood_drives', verbose_name="Organisateur"
+    )
+    title = models.CharField(max_length=120, verbose_name="Titre")
+    location = models.CharField(max_length=255, verbose_name="Lieu")
+    city = models.CharField(max_length=100, verbose_name="Ville")
+    region = models.CharField(max_length=50, choices=REGIONS, verbose_name="Région")
+    latitude = latitude_field(null=True)
+    longitude = longitude_field(null=True)
+    starts_at = models.DateTimeField(verbose_name="Début")
+    ends_at = models.DateTimeField(verbose_name="Fin")
+    target_units = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Objectif (poches)")
+    notes = models.CharField(max_length=255, blank=True, verbose_name="Précisions")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Collecte"
+        verbose_name_plural = "Collectes"
+        ordering = ['starts_at']
+        constraints = [
+            models.CheckConstraint(condition=Q(ends_at__gt=F('starts_at')), name='blood_drive_ends_after_start'),
+        ]
+
+    def __str__(self):
+        return f"{self.title} — {self.starts_at:%d/%m/%Y}"

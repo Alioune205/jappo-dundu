@@ -104,7 +104,7 @@ class FacilityTechnicalSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = HealthFacility
-        fields = ['capabilities', 'on_call_phone']
+        fields = ['capabilities', 'on_call_phone', 'opening_hours']
 
 
 class HealthFacilitySummarySerializer(serializers.ModelSerializer):
@@ -127,6 +127,7 @@ class HealthFacilitySummarySerializer(serializers.ModelSerializer):
             'city',
             'phone_number',
             'on_call_phone',
+            'opening_hours',
             'capabilities',
             'latitude',
             'longitude',
@@ -171,6 +172,7 @@ class HealthFacilitySerializer(serializers.ModelSerializer):
             'address',
             'phone_number',
             'on_call_phone',
+            'opening_hours',
             'capabilities',
             'latitude',
             'longitude',

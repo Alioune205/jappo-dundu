@@ -38,7 +38,8 @@ function mockApi() {
       }
     }
     if (path === '/api/sang/stocks/nearby/') return []
-    if (path === '/api/sang/stocks/' || path === '/api/sang/orders/') return { results: [] }
+    if (['/api/sang/stocks/', '/api/sang/orders/', '/api/sang/drives/'].includes(path)) return { results: [] }
+    if (path.endsWith('/technical/')) return { opening_hours: '' }
     throw new Error(`GET inattendu : ${path}`)
   })
   api.post.mockResolvedValue({})
