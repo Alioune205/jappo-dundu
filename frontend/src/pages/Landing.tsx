@@ -33,6 +33,7 @@ import {
   type ModuleKey,
 } from './landing/content'
 import { useLandingMotion } from './landing/motion'
+import { FULL_FEATURES } from '@/lib/features'
 
 const NAV = [
   { href: '#modules', label: 'Modules' },
@@ -706,10 +707,12 @@ export const Landing: React.FC = () => {
                   Hôpitaux, centres de transfusion et services d’ambulances : envoyez une demande d’adhésion.
                 </p>
                 <div className="mt-6 flex flex-wrap gap-3">
-                  <Link to="/rejoindre" className={`${btnPrimary} h-12 px-6 text-base`}>
-                    Demander l’adhésion
-                    <ArrowRight className="btn-arrow h-5 w-5" aria-hidden="true" />
-                  </Link>
+                  {FULL_FEATURES && (
+                    <Link to="/rejoindre" className={`${btnPrimary} h-12 px-6 text-base`}>
+                      Demander l’adhésion
+                      <ArrowRight className="btn-arrow h-5 w-5" aria-hidden="true" />
+                    </Link>
+                  )}
                   <Link to={spaceLink.to} className={`${btnOnDark} h-12 px-6 text-base`}>
                     {spaceLink.label}
                   </Link>

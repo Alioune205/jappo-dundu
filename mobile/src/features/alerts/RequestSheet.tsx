@@ -15,6 +15,7 @@ import { useOnMyWay, useRespond } from '@/lib/queries'
 import { motion, radius, space, useTheme } from '@/theme'
 import type { DonorProfile, NearbyRequest } from '@/types/api'
 import { callFacility, openDirections, units, URGENCY } from './format'
+import { FULL_FEATURES } from '@/lib/features'
 
 interface RequestSheetProps {
   /** Demande affichée ; `null` : introuvable (clôturée ou hors de portée). */
@@ -141,7 +142,7 @@ function SheetBody({ request, donor }: { request: NearbyRequest; donor: DonorPro
               <ActionButton icon="phone" label="Appeler" onPress={() => callFacility(facility.phone_number!)} />
             ) : null}
           </View>
-          {onMyWay.data ? (
+          {!FULL_FEATURES ? null : onMyWay.data ? (
             <Text variant="label" tone="ok">
               L’hôpital sait que vous arrivez
               {onMyWay.data.eta_at
@@ -163,16 +164,20 @@ function SheetBody({ request, donor }: { request: NearbyRequest; donor: DonorPro
               {onMyWay.error instanceof Error ? onMyWay.error.message : 'Envoi impossible.'}
             </Text>
           ) : null}
-          <Pressable onPress={() => shareRequest()} accessibilityRole="button" hitSlop={8}>
-            <Text variant="label" tone="brand">
-              Partager à un proche du même groupe
-            </Text>
-          </Pressable>
-          <Pressable onPress={() => router.push({ pathname: '/pre-donation' })} accessibilityRole="button" hitSlop={8}>
-            <Text variant="label" tone="brand">
-              Vérifier si je peux donner aujourd’hui
-            </Text>
-          </Pressable>
+          {FULL_FEATURES ? (
+            <>
+              <Pressable onPress={() => shareRequest()} accessibilityRole="button" hitSlop={8}>
+                <Text variant="label" tone="brand">
+                  Partager à un proche du même groupe
+                </Text>
+              </Pressable>
+              <Pressable onPress={() => router.push({ pathname: '/pre-donation' })} accessibilityRole="button" hitSlop={8}>
+                <Text variant="label" tone="brand">
+                  Vérifier si je peux donner aujourd’hui
+                </Text>
+              </Pressable>
+            </>
+          ) : null}
           <Pressable
             onPress={() => (confirmCancel ? send('cancelled') : setConfirmCancel(true))}
             disabled={respond.isPending}

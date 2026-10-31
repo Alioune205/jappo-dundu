@@ -23,6 +23,7 @@ import { openSettings, useDeviceLocation } from '@/lib/location'
 import { usePushPermission } from '@/lib/push'
 import { useDonor, useUpdateDonor } from '@/lib/queries'
 import { fonts, motion, radius, space, useTheme, type ThemeMode } from '@/theme'
+import { FULL_FEATURES } from '@/lib/features'
 
 /** « +221778889900 » → « +221 77 888 99 00 » (numéros sénégalais) ; autres formats inchangés. */
 function formatPhone(phone: string | null) {
@@ -181,13 +182,15 @@ export default function ProfileScreen() {
                 onPress={() => router.push('/badges')}
                 actionLabel="Voir"
               />
-              <Row
-                icon="shield"
-                title="Fiche d’urgence"
-                value="Allergies, traitements et personnes à prévenir"
-                onPress={() => router.push({ pathname: '/emergency-card' })}
-                actionLabel="Ouvrir"
-              />
+              {FULL_FEATURES ? (
+                <Row
+                  icon="shield"
+                  title="Fiche d’urgence"
+                  value="Allergies, traitements et personnes à prévenir"
+                  onPress={() => router.push({ pathname: '/emergency-card' })}
+                  actionLabel="Ouvrir"
+                />
+              ) : null}
             </Card>
           </Animated.View>
 

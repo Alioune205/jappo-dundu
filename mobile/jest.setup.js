@@ -1,4 +1,6 @@
 // Environnement de test : modules natifs remplacés par leurs simulations officielles.
+// Les tests couvrent toutes les fonctions, y compris celles masquées par défaut.
+process.env.EXPO_PUBLIC_FULL_FEATURES = 'true'
 // SDK 58 (Reanimated 4.7, Worklets 0.13) : les simulations officielles
 // remplacent les modules natifs ; setUpTests() initialise le module natif.
 jest.mock('react-native-worklets', () => require('react-native-worklets/lib/module/mock'))

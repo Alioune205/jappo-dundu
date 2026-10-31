@@ -13,6 +13,7 @@ import { motion, radius, space, useTheme } from '@/theme'
 import type { Mission } from '@/types/api'
 import { BilanCard } from './BilanCard'
 import { currentTarget, nextAction, PRIORITY, stepIndex, STEPS } from './format'
+import { FULL_FEATURES } from '@/lib/features'
 
 interface MissionPanelProps {
   mission: Mission
@@ -118,7 +119,7 @@ export function MissionPanel({ mission, now, busy, error, onAdvance, onChooseDes
         />
       ) : null}
 
-      {mission.status === 'on_site' || mission.status === 'transporting' ? <BilanCard mission={mission} now={now} /> : null}
+      {FULL_FEATURES && (mission.status === 'on_site' || mission.status === 'transporting') ? <BilanCard mission={mission} now={now} /> : null}
 
       {mission.status === 'on_site' ? (
         <Pressable

@@ -44,6 +44,7 @@ import type {
   Mission,
   NearbyBedFacility,
 } from '@/types/api'
+import { FULL_FEATURES } from '@/lib/features'
 
 const VITAL = new Set(BED_CATEGORIES.filter((c) => c.vital).map((c) => c.value))
 const CATEGORY_ORDER = BED_CATEGORIES.map((c) => c.value)
@@ -179,7 +180,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         }
       />
 
-      <TensionBanner facility={facility} />
+      {FULL_FEATURES && <TensionBanner facility={facility} />}
 
       {saturatedVital.length > 0 && (
         <Alert tone="danger" title="Service vital saturé">
@@ -394,7 +395,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                         <DestinationStatusBadge mission={m} />
                       )}
                       <PrealertActions mission={m} />
-                      <BilanSummary mission={m} now={now} />
+                      {FULL_FEATURES && <BilanSummary mission={m} now={now} />}
                     </li>
                   )
                 })}
@@ -404,7 +405,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
 
           <TransferPanel facility={facility} services={services} />
 
-          <TechnicalPanel facility={facility} />
+          {FULL_FEATURES && <TechnicalPanel facility={facility} />}
         </div>
       </div>
 
@@ -549,7 +550,7 @@ const TransferPanel: React.FC<{
                   <p className="num text-base font-semibold leading-tight text-ok">{f.available_beds}</p>
                   <p className="text-2xs text-muted">libres</p>
                 </div>
-                {sent === f.id ? (
+                {!FULL_FEATURES ? null : sent === f.id ? (
                   <span className="text-2xs font-semibold text-ok">Transfert demandé</span>
                 ) : (
                   <Button

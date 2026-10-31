@@ -29,6 +29,7 @@ import {
 import { HoldButton } from '@/components/ui/HoldButton'
 import { useNow } from '@/lib/useNow'
 import { motion, radius, space, useTheme } from '@/theme'
+import { FULL_FEATURES } from '@/lib/features'
 
 /**
  * Urgence médicale : le citoyen envoie sa position et la nature de
@@ -191,11 +192,13 @@ function SendForm({ last }: { last: SosAlert | null }) {
         loading={send.isPending}
       />
       <Button label={`Appeler le SAMU · ${SAMU_NUMBER}`} variant="secondary" onPress={callSamu} />
-      <Pressable onPress={() => router.push({ pathname: '/emergency-card' })} accessibilityRole="button" style={styles.withdraw}>
-        <Text variant="label" tone="brand">
-          Ma fiche d’urgence (allergies, contacts)
-        </Text>
-      </Pressable>
+      {FULL_FEATURES ? (
+        <Pressable onPress={() => router.push({ pathname: '/emergency-card' })} accessibilityRole="button" style={styles.withdraw}>
+          <Text variant="label" tone="brand">
+            Ma fiche d’urgence (allergies, contacts)
+          </Text>
+        </Pressable>
+      ) : null}
       <Text variant="caption" tone="subtle" style={styles.center}>
         Votre position précise n’est envoyée qu’au SAMU, pour cette alerte.
       </Text>

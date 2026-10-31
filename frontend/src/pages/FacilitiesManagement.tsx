@@ -16,6 +16,7 @@ import { ApplicationsPanel } from './facilities/ApplicationsPanel'
 import { FacilityFormModal } from './facilities/FacilityFormModal'
 import { UserFormModal } from './facilities/UserFormModal'
 import { QK } from '@/lib/queryKeys'
+import { FULL_FEATURES } from '@/lib/features'
 
 type Tab = 'facilities' | 'users'
 
@@ -110,9 +111,9 @@ export const FacilitiesManagement: React.FC = () => {
         />
       )}
 
-      {isAdmin && <ApplicationsPanel />}
-      {isAdmin && <InteropPanel />}
-      {isAdmin && <AuditLogPanel />}
+      {FULL_FEATURES && isAdmin && <ApplicationsPanel />}
+      {FULL_FEATURES && isAdmin && <InteropPanel />}
+      {FULL_FEATURES && isAdmin && <AuditLogPanel />}
 
       <FacilityFormModal isOpen={openModal === 'facilities'} onClose={() => setOpenModal(null)} />
       <UserFormModal isOpen={openModal === 'users'} onClose={() => setOpenModal(null)} />

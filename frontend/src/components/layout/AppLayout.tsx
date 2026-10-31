@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useIdleLogout } from '@/lib/useIdleLogout'
 import { CriticalAlertsBanner } from './CriticalAlertsBanner'
 import { canOpen, primaryRoleLabel } from '@/lib/access'
+import { FULL_FEATURES } from '@/lib/features'
 
 /** Page hors du rôle (URL saisie à la main, ancien favori). */
 const AccessDenied: React.FC<{ roleLabel: string }> = ({ roleLabel }) => (
@@ -48,7 +49,7 @@ export const AppLayout: React.FC = () => {
         <div className="print:hidden">
           <Header />
         </div>
-        <CriticalAlertsBanner />
+        {FULL_FEATURES && <CriticalAlertsBanner />}
         {idleWarning && (
           <div
             role="alert"

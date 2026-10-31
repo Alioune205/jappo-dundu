@@ -27,6 +27,7 @@ import { BilanSummary, CapabilityChips, DestinationStatusBadge } from './Mission
 import { isActiveMission } from './missionUtils'
 import { TriageInstructions } from './TriageInstructions'
 import { useTriageProtocol } from './useTriage'
+import { FULL_FEATURES } from '@/lib/features'
 
 /** Rayon de recherche (km) des ambulances et des lits, comme l'affectation automatique de la page. */
 const DISPATCH_RADIUS_KM = 60
@@ -57,7 +58,11 @@ export const DispatchModal: React.FC<DispatchModalProps> = ({ mission, onClose }
   </Modal>
 )
 
-const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: () => void }> = ({ missionId, fallback, onDone }) => {
+const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: () => void }> = ({
+  missionId,
+  fallback,
+  onDone,
+}) => {
   const queryClient = useQueryClient()
   const now = useNow(30_000)
   const [error, setError] = useState<string | null>(null)
@@ -79,7 +84,8 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
     queryClient.invalidateQueries({ queryKey: QK.bedReservations })
     queryClient.invalidateQueries({ queryKey: QK.bedCapacities })
   }
-  const fail = (fallbackMessage: string) => (err: unknown) => setError(err instanceof Error ? err.message : fallbackMessage)
+  const fail = (fallbackMessage: string) => (err: unknown) =>
+    setError(err instanceof Error ? err.message : fallbackMessage)
 
   const active = isActiveMission(mission)
 
@@ -100,7 +106,10 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
         </Badge>
         <span>Déclenchée {formatRelative(mission.created_at, now)}</span>
         {mission.eta_at && (
-          <span className="font-semibold text-fg" title={mission.eta_source === 'osrm' ? 'Durée par la route' : 'Durée estimée'}>
+          <span
+            className="font-semibold text-fg"
+            title={mission.eta_source === 'osrm' ? 'Durée par la route' : 'Durée estimée'}
+          >
             · Arrivée {mission.status === 'transporting' ? 'à l’hôpital' : 'sur place'} {formatEta(mission.eta_at, now)}
           </span>
         )}
@@ -116,8 +125,8 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
           . Rappelez la personne avant d’envoyer une ambulance.
           {mission.caller_history && mission.caller_history.cancelled_by_regulation > 0 && (
             <span className="mt-1 block text-xs font-semibold text-warning">
-              Attention : {mission.caller_history.cancelled_by_regulation} alerte(s) de cet appelant annulée(s) par
-              la régulation en {mission.caller_history.days} jours.
+              Attention : {mission.caller_history.cancelled_by_regulation} alerte(s) de cet appelant annulée(s) par la
+              régulation en {mission.caller_history.days} jours.
             </span>
           )}
         </p>
@@ -125,7 +134,7 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
         mission.description && <p className="text-sm text-fg">{mission.description}</p>
       )}
 
-      {mission.incident_summary && (
+      {FULL_FEATURES && mission.incident_summary && (
         <p className="rounded-lg border border-critical/40 bg-critical/5 px-4 py-2 text-xs text-fg">
           <span className="font-semibold text-critical">Incident #{mission.incident_summary.id}</span> ·{' '}
           {mission.incident_summary.victims} victimes · {mission.incident_summary.assigned}/
@@ -135,7 +144,7 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
         </p>
       )}
 
-      {mission.caller_card && (
+      {FULL_FEATURES && mission.caller_card && (
         <section className="rounded-lg border border-info/40 bg-info/5 px-4 py-3 text-xs" aria-label="Fiche d’urgence">
           <h3 className="font-semibold uppercase tracking-wide text-muted">Fiche d’urgence de l’appelant</h3>
           <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1">
@@ -167,15 +176,17 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
         </section>
       )}
 
-      {mission.triage_assessment && <TriageSummary mission={mission} />}
+      {FULL_FEATURES && mission.triage_assessment && <TriageSummary mission={mission} />}
 
-      <BilanSummary mission={mission} now={now} />
+      {FULL_FEATURES && <BilanSummary mission={mission} now={now} />}
 
       {mission.source === 'sos' && mission.status === 'pending' && (
         <QualifySos mission={mission} onSaved={refresh} onError={fail('Enregistrement impossible.')} />
       )}
 
-      {(mission.status === 'pending' || mission.status === 'assigned') && <LocationLinkButton mission={mission} />}
+      {FULL_FEATURES && (mission.status === 'pending' || mission.status === 'assigned') && (
+        <LocationLinkButton mission={mission} />
+      )}
 
       {mission.status === 'pending' ? (
         <AmbulancePicker mission={mission} onAssigned={refresh} onError={fail('Affectation impossible.')} />
@@ -183,7 +194,8 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
         <section className="rounded-lg border border-line px-4 py-3">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Ambulance</h3>
           <p className="mt-1 text-sm text-fg">
-            <span className="num font-semibold">{mission.ambulance.plate_number}</span> · {mission.ambulance.ambulance_type_display}
+            <span className="num font-semibold">{mission.ambulance.plate_number}</span> ·{' '}
+            {mission.ambulance.ambulance_type_display}
             {mission.ambulance.driver ? ` · ${mission.ambulance.driver.full_name}` : ' · sans chauffeur'}
           </p>
         </section>
@@ -191,7 +203,13 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
 
       {active && <DestinationPicker mission={mission} onReserved={refresh} onError={fail('Réservation impossible.')} />}
 
-      {active && <CancelMission mission={mission} onCancelled={() => (refresh(), onDone())} onError={fail('Annulation impossible.')} />}
+      {active && (
+        <CancelMission
+          mission={mission}
+          onCancelled={() => (refresh(), onDone())}
+          onError={fail('Annulation impossible.')}
+        />
+      )}
     </div>
   )
 }
@@ -226,7 +244,13 @@ const LocationLinkButton: React.FC<{ mission: Mission }> = ({ mission }) => {
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
       />
-      <Button size="sm" variant="secondary" isLoading={send.isPending} disabled={!phone.trim()} onClick={() => send.mutate()}>
+      <Button
+        size="sm"
+        variant="secondary"
+        isLoading={send.isPending}
+        disabled={!phone.trim()}
+        onClick={() => send.mutate()}
+      >
         Envoyer le lien
       </Button>
     </section>
@@ -259,7 +283,8 @@ const QualifySos: React.FC<{ mission: Mission; onSaved: () => void; onError: (er
   const [priority, setPriority] = useState<Urgency>(mission.priority)
   const [description, setDescription] = useState(mission.description)
   const [address, setAddress] = useState(mission.pickup_address)
-  const changed = priority !== mission.priority || description !== mission.description || address !== mission.pickup_address
+  const changed =
+    priority !== mission.priority || description !== mission.description || address !== mission.pickup_address
   const save = useMutation({
     mutationFn: () =>
       api.patch<Mission>(`/api/ambulances/missions/${mission.id}/`, {
@@ -353,12 +378,15 @@ const AmbulancePicker: React.FC<{ mission: Mission; onAssigned: () => void; onEr
                 <p className="truncate text-xs text-muted">
                   <Navigation className="mr-1 inline h-3 w-3" aria-hidden="true" />
                   {amb.travel_minutes !== null && (
-                    <span className="font-semibold text-fg" title={amb.travel_source === 'osrm' ? 'Par la route' : 'Estimation'}>
+                    <span
+                      className="font-semibold text-fg"
+                      title={amb.travel_source === 'osrm' ? 'Par la route' : 'Estimation'}
+                    >
                       ~{Math.round(amb.travel_minutes)} min ·{' '}
                     </span>
                   )}
                   {formatDistance(amb.distance_km)} · {amb.facility?.name}
-                  {amb.readiness && !amb.readiness.ready && (
+                  {FULL_FEATURES && amb.readiness && !amb.readiness.ready && (
                     <span className="ml-1 font-semibold text-warning" title={amb.readiness.issues.join(', ')}>
                       · {amb.readiness.issues[0]}
                     </span>
@@ -409,8 +437,12 @@ const DestinationPicker: React.FC<{ mission: Mission; onReserved: () => void; on
   const { data: reservations = [] } = useQuery<BedReservation[]>({
     queryKey: [...QK.bedReservations, 'mission', mission.id],
     queryFn: async () =>
-      (await api.get<{ results: BedReservation[] }>('/api/lits/reservations/', { mission: mission.id, status: 'active' }))
-        .results || [],
+      (
+        await api.get<{ results: BedReservation[] }>('/api/lits/reservations/', {
+          mission: mission.id,
+          status: 'active',
+        })
+      ).results || [],
   })
   const held = reservations[0]
 
@@ -461,25 +493,27 @@ const DestinationPicker: React.FC<{ mission: Mission; onReserved: () => void; on
         </Select>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Plateau technique requis">
-        <span className="mr-1 text-2xs text-muted">Il faut :</span>
-        {CAPABILITIES.map((c) => {
-          const on = required.includes(c.value)
-          return (
-            <button
-              key={c.value}
-              type="button"
-              aria-pressed={on}
-              onClick={() => setRequired((list) => (on ? list.filter((v) => v !== c.value) : [...list, c.value]))}
-              className={`cursor-pointer rounded-md border px-2 py-0.5 text-2xs transition-colors ${
-                on ? 'border-brand bg-brand text-on-brand' : 'border-line text-muted hover:text-fg'
-              }`}
-            >
-              {c.label}
-            </button>
-          )
-        })}
-      </div>
+      {FULL_FEATURES && (
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Plateau technique requis">
+          <span className="mr-1 text-2xs text-muted">Il faut :</span>
+          {CAPABILITIES.map((c) => {
+            const on = required.includes(c.value)
+            return (
+              <button
+                key={c.value}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setRequired((list) => (on ? list.filter((v) => v !== c.value) : [...list, c.value]))}
+                className={`cursor-pointer rounded-md border px-2 py-0.5 text-2xs transition-colors ${
+                  on ? 'border-brand bg-brand text-on-brand' : 'border-line text-muted hover:text-fg'
+                }`}
+              >
+                {c.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {isLoading ? (
         <p className="text-xs text-muted">Recherche des lits libres…</p>
@@ -515,7 +549,7 @@ const DestinationPicker: React.FC<{ mission: Mission; onReserved: () => void; on
                   {facility.freshness !== 'fresh' && (
                     <FreshnessBadge freshness={facility.freshness} confirmedAt={facility.confirmed_at} now={now} />
                   )}
-                  <CapabilityChips codes={facility.capabilities} highlight={required} />
+                  {FULL_FEATURES && <CapabilityChips codes={facility.capabilities} highlight={required} />}
                 </div>
                 <Button
                   size="sm"
@@ -562,7 +596,9 @@ const CancelMission: React.FC<{ mission: Mission; onCancelled: () => void; onErr
     return (
       <div className="border-t border-line pt-3">
         <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
-          {mission.source === 'sos' && mission.status === 'pending' ? 'Fausse alerte ou sans suite…' : 'Annuler la mission…'}
+          {mission.source === 'sos' && mission.status === 'pending'
+            ? 'Fausse alerte ou sans suite…'
+            : 'Annuler la mission…'}
         </Button>
       </div>
     )

@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/Alert'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { EmergencyAccessPanel, TwoFactorPanel } from './profile/SecurityPanels'
 import { formatDateTime } from '@/lib/format'
+import { FULL_FEATURES } from '@/lib/features'
 
 export const Profile: React.FC = () => {
   const { user, refreshProfile, roles } = useAuth()
@@ -236,8 +237,8 @@ export const Profile: React.FC = () => {
           </form>
         </section>
 
-        <TwoFactorPanel />
-        <EmergencyAccessPanel />
+        {FULL_FEATURES && <TwoFactorPanel />}
+        {FULL_FEATURES && <EmergencyAccessPanel />}
       </div>
     </div>
   )

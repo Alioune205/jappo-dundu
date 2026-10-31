@@ -11,6 +11,7 @@ import type { BloodRequest, DonorMatch, DonorResponse } from '@/types/api'
 import { responseTone } from './bloodStats'
 import { QK } from '@/lib/queryKeys'
 import { StockSourcing } from './StockSourcing'
+import { FULL_FEATURES } from '@/lib/features'
 
 interface RequestDetailPanelProps {
   request: BloodRequest
@@ -125,7 +126,7 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
 
       {request.notes && <p className="border-b border-line px-5 py-3 text-xs text-muted">{request.notes}</p>}
 
-      {request.status === 'open' && <StockSourcing request={request} />}
+      {FULL_FEATURES && request.status === 'open' && <StockSourcing request={request} />}
 
       {request.status === 'open' && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5">
@@ -218,7 +219,7 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
                     <Badge tone={responseTone(resp.status)} size="sm">
                       {resp.status_display}
                     </Badge>
-                    {resp.status === 'accepted' && !resp.arrived_at && (
+                    {FULL_FEATURES && resp.status === 'accepted' && !resp.arrived_at && (
                       <Button
                         variant="ghost"
                         size="sm"

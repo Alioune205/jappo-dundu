@@ -11,6 +11,7 @@ import { QK } from '@/lib/queryKeys'
 import { TriageInstructions } from './TriageInstructions'
 import { TriageQuestions } from './TriageQuestions'
 import { useTriageAssessment, useTriageProtocol } from './useTriage'
+import { FULL_FEATURES } from '@/lib/features'
 
 const EMPTY_MISSION: MissionInput = {
   priority: 'urgent',
@@ -36,7 +37,11 @@ export const NewMissionModal: React.FC<NewMissionModalProps> = ({ isOpen, onClos
     isOpen={isOpen}
     onClose={onClose}
     title="Nouvelle mission"
-    description="Posez les questions du tri : la priorité se propose seule, les consignes s'affichent."
+    description={
+      FULL_FEATURES
+        ? "Posez les questions du tri : la priorité se propose seule, les consignes s'affichent."
+        : "L'ambulance disponible la plus proche du lieu est affectée automatiquement."
+    }
     maxWidth="xl"
   >
     {isOpen && (
@@ -110,10 +115,15 @@ const NewMissionForm: React.FC<{ onCancel: () => void; onCreated: (mission: Miss
         </Alert>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr]">
-        <TriageQuestions protocol={protocol} answers={answers} onChange={setAnswers} assessment={assessment} />
-        <TriageInstructions codes={Object.keys(answers).length > 0 ? (assessment?.instructions ?? []) : []} protocol={protocol} />
-      </div>
+      {FULL_FEATURES && (
+        <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr]">
+          <TriageQuestions protocol={protocol} answers={answers} onChange={setAnswers} assessment={assessment} />
+          <TriageInstructions
+            codes={Object.keys(answers).length > 0 ? (assessment?.instructions ?? []) : []}
+            protocol={protocol}
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <Select

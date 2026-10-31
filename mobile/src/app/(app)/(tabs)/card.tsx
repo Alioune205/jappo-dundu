@@ -11,6 +11,7 @@ import { cardQrPayload } from '@/features/donor/content'
 import { formatDate } from '@/lib/dates'
 import { useDonor, useHistory } from '@/lib/queries'
 import { fonts, motion, radius, space, useTheme } from '@/theme'
+import { FULL_FEATURES } from '@/lib/features'
 
 const enter = (step: number) => FadeInDown.duration(motion.slow).delay(step * motion.stagger).easing(motion.easeOut)
 
@@ -100,7 +101,7 @@ export default function CardScreen() {
         </View>
       </Animated.View>
 
-      {donations > 0 ? (
+      {FULL_FEATURES && donations > 0 ? (
         <Animated.View entering={enter(3)} style={[styles.info, { backgroundColor: colors.surface, borderColor: colors.line }]}>
           <Icon name="heart" size={20} color="brand" />
           <View style={styles.flex}>
@@ -114,6 +115,7 @@ export default function CardScreen() {
         </Animated.View>
       ) : null}
 
+      {FULL_FEATURES ? (
       <Animated.View entering={enter(4)} style={[styles.info, { backgroundColor: colors.surface, borderColor: colors.line }]}>
         <Icon name="user" size={20} color="brand" />
         <View style={styles.flex}>
@@ -138,6 +140,7 @@ export default function CardScreen() {
           </Pressable>
         </View>
       </Animated.View>
+      ) : null}
     </ScrollView>
   )
 }

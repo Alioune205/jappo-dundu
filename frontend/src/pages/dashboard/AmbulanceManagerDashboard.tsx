@@ -18,6 +18,7 @@ import { DispatchModal } from '@/pages/ambulances/DispatchModal'
 import { SosAlerts } from '@/pages/ambulances/SosAlerts'
 import type { Ambulance, AmbulanceStatus, FacilitySummary, Mission, MissionStats } from '@/types/api'
 import { DemandPanel } from './DemandPanel'
+import { FULL_FEATURES } from '@/lib/features'
 
 /** Une mission en attente depuis plus longtemps est signalée. */
 const PENDING_ALERT_MINUTES = 5
@@ -278,7 +279,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         </div>
       </section>
 
-      <DemandPanel />
+      {FULL_FEATURES && <DemandPanel />}
 
       <DispatchModal mission={dispatching} onClose={() => setDispatching(null)} />
     </div>

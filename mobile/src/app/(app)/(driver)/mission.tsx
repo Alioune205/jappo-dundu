@@ -28,6 +28,7 @@ import { useAmbulanceTracking } from '@/lib/tracking'
 import { useNow } from '@/lib/useNow'
 import { radius, space, useTheme } from '@/theme'
 import type { Ambulance, AmbulanceAlertEvent, Mission } from '@/types/api'
+import { FULL_FEATURES } from '@/lib/features'
 
 /**
  * Écran de l'ambulancier : son véhicule, la mission que la régulation lui a
@@ -186,7 +187,7 @@ function DriverHome({ ambulance }: { ambulance: Ambulance }) {
                   {availability.error.message}
                 </Text>
               ) : null}
-              {ambulance.status === 'available' ? <ShiftCheckCard ambulanceId={ambulance.id} now={now} /> : null}
+              {FULL_FEATURES && ambulance.status === 'available' ? <ShiftCheckCard ambulanceId={ambulance.id} now={now} /> : null}
             </View>
           ) : null}
 

@@ -18,6 +18,7 @@ import { useDonor, useSaveDonor } from '@/lib/queries'
 import { EMPTY_DONOR, validateDonor, type DonorForm } from '@/lib/validation'
 import { space, useTheme } from '@/theme'
 import type { DonorProfile, Sex } from '@/types/api'
+import { FULL_FEATURES } from '@/lib/features'
 
 /** Registre des groupes rares : recherché dans tout le pays quand un patient en a besoin. */
 const RARE_PHENOTYPES = [
@@ -201,7 +202,7 @@ function DonorFormScreen({ donor, editing }: { donor: DonorProfile | undefined; 
         />
       </Animated.View>
 
-      {!editing ? (
+      {FULL_FEATURES && !editing ? (
         <Animated.View entering={enter(4)}>
           <TextField
             label="Code de parrainage (facultatif)"
@@ -215,6 +216,7 @@ function DonorFormScreen({ donor, editing }: { donor: DonorProfile | undefined; 
         </Animated.View>
       ) : null}
 
+      {FULL_FEATURES ? (
       <Animated.View entering={enter(4)}>
         <SelectField
           label="Groupe rare (facultatif)"
@@ -224,6 +226,7 @@ function DonorFormScreen({ donor, editing }: { donor: DonorProfile | undefined; 
           placeholder="Seulement si le CNTS vous l’a indiqué"
         />
       </Animated.View>
+      ) : null}
 
       <Animated.View entering={enter(4)} style={[styles.toggle, { borderColor: colors.line, backgroundColor: colors.surface }]}>
         <View style={styles.toggleText}>

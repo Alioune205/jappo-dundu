@@ -31,22 +31,14 @@ import type {
   PredictionSummaryRow,
   FacilitySummary,
 } from '@/types/api'
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Cell,
-} from 'recharts'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from 'recharts'
 import { QK } from '@/lib/queryKeys'
 import { AmbulanceManagerDashboard } from './dashboard/AmbulanceManagerDashboard'
 import { BedManagerDashboard } from './dashboard/BedManagerDashboard'
 import { BloodManagerDashboard } from './dashboard/BloodManagerDashboard'
 import { KpiPanel } from './dashboard/KpiPanel'
 import type { Role } from '@/types/api'
+import { FULL_FEATURES } from '@/lib/features'
 
 /** Rôles qui ont une vue dédiée, centrée sur leur établissement. */
 const DOMAIN_DASHBOARDS: Partial<Record<Role, React.FC<{ facility: FacilitySummary }>>> = {
@@ -77,9 +69,10 @@ export const Dashboard: React.FC = () => {
   // Un administrateur d'un seul domaine, rattaché à un établissement, a sa propre
   // vue ; l'administrateur général et les comptes multi-domaines gardent la vue réseau.
   const dedicated = roles.filter((role) => role in DOMAIN_DASHBOARDS)
-  const DomainDashboard = dedicated.length === 1 && !roles.includes('admin') && !roles.includes('hospital_staff')
-    ? DOMAIN_DASHBOARDS[dedicated[0]]
-    : undefined
+  const DomainDashboard =
+    dedicated.length === 1 && !roles.includes('admin') && !roles.includes('hospital_staff')
+      ? DOMAIN_DASHBOARDS[dedicated[0]]
+      : undefined
   if (user?.facility && DomainDashboard) return <DomainDashboard facility={user.facility} />
   return <NetworkDashboard />
 }
@@ -193,26 +186,28 @@ const NetworkDashboard: React.FC = () => {
 
   // Graphique d'occupation des lits par spécialité
   const bedsChartData = bedSummary
-    .reduce((acc, row) => {
-      const existing = acc.find((item) => item.category === row.category_display)
-      if (existing) {
-        existing.total += row.total_beds
-        existing.occupied += row.occupied_beds
-      } else {
-        acc.push({
-          category: row.category_display,
-          total: row.total_beds,
-          occupied: row.occupied_beds,
-          rate: row.total_beds > 0 ? Math.round((row.occupied_beds / row.total_beds) * 100) : 0,
-        })
-      }
-      return acc
-    }, [] as { category: string; total: number; occupied: number; rate: number }[])
+    .reduce(
+      (acc, row) => {
+        const existing = acc.find((item) => item.category === row.category_display)
+        if (existing) {
+          existing.total += row.total_beds
+          existing.occupied += row.occupied_beds
+        } else {
+          acc.push({
+            category: row.category_display,
+            total: row.total_beds,
+            occupied: row.occupied_beds,
+            rate: row.total_beds > 0 ? Math.round((row.occupied_beds / row.total_beds) * 100) : 0,
+          })
+        }
+        return acc
+      },
+      [] as { category: string; total: number; occupied: number; rate: number }[]
+    )
     .sort((a, b) => b.rate - a.rate)
 
   const occupancyTone = globalOccupancy > 0.85 ? 'danger' : globalOccupancy > 0.7 ? 'warning' : 'success'
-  const rateColor = (rate: number) =>
-    rate > 85 ? colors.critical : rate > 70 ? colors.warning : colors.ok
+  const rateColor = (rate: number) => (rate > 85 ? colors.critical : rate > 70 ? colors.warning : colors.ok)
   const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`
   const visibleCards = [seeBeds, seeBlood, seeFleet, seeBlood].filter(Boolean).length
 
@@ -226,24 +221,30 @@ const NetworkDashboard: React.FC = () => {
             : 'Indicateurs temps réel du réseau de santé · Sénégal'
         }
         actions={
-          <div className="flex items-center gap-2">
-            <Link
-              to="/rapport"
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium text-fg hover:bg-raised"
-            >
-              <FileText className="h-4 w-4" aria-hidden="true" /> Rapport
-            </Link>
-            <button
-              type="button"
-              onClick={toggleCrisisMode}
-              aria-pressed={crisisMode}
-              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-navy px-3 text-sm font-semibold text-white hover:opacity-90"
-              title="Plein écran pour un écran mural de salle de crise"
-            >
-              {crisisMode ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
-              {crisisMode ? 'Quitter' : 'Salle de crise'}
-            </button>
-          </div>
+          FULL_FEATURES && (
+            <div className="flex items-center gap-2">
+              <Link
+                to="/rapport"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium text-fg hover:bg-raised"
+              >
+                <FileText className="h-4 w-4" aria-hidden="true" /> Rapport
+              </Link>
+              <button
+                type="button"
+                onClick={toggleCrisisMode}
+                aria-pressed={crisisMode}
+                className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-navy px-3 text-sm font-semibold text-white hover:opacity-90"
+                title="Plein écran pour un écran mural de salle de crise"
+              >
+                {crisisMode ? (
+                  <Minimize2 className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                )}
+                {crisisMode ? 'Quitter' : 'Salle de crise'}
+              </button>
+            </div>
+          )
         }
       />
 
@@ -251,7 +252,8 @@ const NetworkDashboard: React.FC = () => {
         {seeBeds && (
           <Link to="/beds" className="group block rounded-md">
             <StatCard
-              title="Lits disponibles" accent="blue"
+              title="Lits disponibles"
+              accent="blue"
               icon={<BedDouble className="h-5 w-5" />}
               value={formatNumber(totalAvailableBeds)}
               unit={`/ ${formatNumber(totalBeds)}`}
@@ -271,7 +273,8 @@ const NetworkDashboard: React.FC = () => {
         {seeBlood && (
           <Link to="/blood" className="group block rounded-md">
             <StatCard
-              title="Demandes de sang" accent="red"
+              title="Demandes de sang"
+              accent="red"
               icon={<Droplets className="h-5 w-5" />}
               value={bloodRequests.length}
               unit="ouvertes"
@@ -288,7 +291,8 @@ const NetworkDashboard: React.FC = () => {
         {seeFleet && (
           <Link to="/ambulances" className="group block rounded-md">
             <StatCard
-              title="Ambulances disponibles" accent="green"
+              title="Ambulances disponibles"
+              accent="green"
               icon={<AmbulanceIcon className="h-5 w-5" />}
               value={availableAmbulances}
               unit={`/ ${ambulances.length}`}
@@ -308,7 +312,8 @@ const NetworkDashboard: React.FC = () => {
         {seeBlood && (
           <Link to="/ml" className="group block rounded-md">
             <StatCard
-              title="Risques de pénurie" accent="yellow"
+              title="Risques de pénurie"
+              accent="yellow"
               icon={<BrainCircuit className="h-5 w-5" />}
               value={criticalPredictions}
               unit="critiques à 7 j"
@@ -346,7 +351,11 @@ const NetworkDashboard: React.FC = () => {
         <div className="p-2">
           <MapView
             facilities={facilities.filter((f) =>
-              f.facility_type === 'blood_bank' ? layers.bloodBanks : f.facility_type === 'ambulance_service' ? true : layers.hospitals
+              f.facility_type === 'blood_bank'
+                ? layers.bloodBanks
+                : f.facility_type === 'ambulance_service'
+                  ? true
+                  : layers.hospitals
             )}
             ambulances={layers.ambulances ? ambulances : []}
             missions={layers.missions ? activeMissions : []}
@@ -364,7 +373,7 @@ const NetworkDashboard: React.FC = () => {
                 Lits <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
-  
+
             <div className="h-64 w-full px-2 pb-2 pt-3">
               {bedsChartData.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-xs text-muted">
@@ -430,7 +439,7 @@ const NetworkDashboard: React.FC = () => {
                 Tout voir <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
-  
+
             {bloodRequests.length === 0 ? (
               <div className="flex flex-1 items-center justify-center py-12 text-xs text-muted">
                 Aucune demande en attente.
@@ -441,7 +450,9 @@ const NetworkDashboard: React.FC = () => {
                   <tr>
                     <th scope="col">Groupe</th>
                     <th scope="col">Établissement</th>
-                    <th scope="col" className="text-right">Poches</th>
+                    <th scope="col" className="text-right">
+                      Poches
+                    </th>
                     <th scope="col">Urgence</th>
                   </tr>
                 </thead>
@@ -476,7 +487,7 @@ const NetworkDashboard: React.FC = () => {
         )}
       </div>
 
-      <KpiPanel />
+      {FULL_FEATURES && <KpiPanel />}
     </div>
   )
 }

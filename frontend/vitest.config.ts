@@ -15,5 +15,7 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
     restoreMocks: true,
+    // Les tests couvrent toutes les fonctions, y compris celles masquées par défaut.
+    env: { VITE_FULL_FEATURES: 'true' },
   },
 })

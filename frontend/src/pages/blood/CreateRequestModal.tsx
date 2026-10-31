@@ -17,6 +17,7 @@ import type {
   Urgency,
 } from '@/types/api'
 import { QK } from '@/lib/queryKeys'
+import { FULL_FEATURES } from '@/lib/features'
 
 /** Établissements qui peuvent demander du sang (pas les services d'ambulances). */
 const BLOOD_SITE_TYPES = new Set(['hospital', 'health_center', 'clinic', 'blood_bank'])
@@ -78,7 +79,9 @@ const CreateRequestForm: React.FC<{ onDone: () => void }> = ({ onDone }) => {
       }}
     >
       {create.error && (
-        <Alert tone="danger">{create.error instanceof Error ? create.error.message : 'Erreur lors de la création.'}</Alert>
+        <Alert tone="danger">
+          {create.error instanceof Error ? create.error.message : 'Erreur lors de la création.'}
+        </Alert>
       )}
 
       {isAdmin && (
@@ -109,17 +112,19 @@ const CreateRequestForm: React.FC<{ onDone: () => void }> = ({ onDone }) => {
             </option>
           ))}
         </Select>
-        <Select
-          label="Produit"
-          value={form.component}
-          onChange={(e) => set({ component: e.target.value as BloodComponent })}
-        >
-          {COMPONENTS.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-        </Select>
+        {FULL_FEATURES && (
+          <Select
+            label="Produit"
+            value={form.component}
+            onChange={(e) => set({ component: e.target.value as BloodComponent })}
+          >
+            {COMPONENTS.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </Select>
+        )}
         <Input
           label="Poches"
           type="number"
@@ -144,18 +149,20 @@ const CreateRequestForm: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           onChange={(e) => set({ search_radius_km: parseInt(e.target.value, 10) || 20 })}
         />
       </div>
-      <Select
-        label="Phénotype rare (facultatif)"
-        value={form.rare_phenotype ?? ''}
-        onChange={(e) => set({ rare_phenotype: e.target.value as RarePhenotype | '' })}
-      >
-        <option value="">Aucun : donneurs compatibles à proximité</option>
-        {RARE_PHENOTYPES.map((p) => (
-          <option key={p.value} value={p.value}>
-            {p.label} : registre national
-          </option>
-        ))}
-      </Select>
+      {FULL_FEATURES && (
+        <Select
+          label="Phénotype rare (facultatif)"
+          value={form.rare_phenotype ?? ''}
+          onChange={(e) => set({ rare_phenotype: e.target.value as RarePhenotype | '' })}
+        >
+          <option value="">Aucun : donneurs compatibles à proximité</option>
+          {RARE_PHENOTYPES.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label} : registre national
+            </option>
+          ))}
+        </Select>
+      )}
       <Textarea
         label="Précisions cliniques"
         placeholder="ex. bloc opératoire 2, patient polytraumatisé"
