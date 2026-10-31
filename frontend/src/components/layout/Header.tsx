@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router'
-import { Bell, LogOut, Sun, Moon } from 'lucide-react'
+import { Bell, LogOut, Sun, Moon, Sparkles } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { primaryRoleLabel } from '@/lib/access'
 import { useRealtime } from '@/context/RealtimeContext'
@@ -9,6 +9,7 @@ import { formatTime } from '@/lib/format'
 import { notificationPermission, requestNotificationPermission } from '@/lib/browserNotifications'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { FALLBACK_POLL_MS } from '@/lib/useFallbackPolling'
+import { JappoAIAssistant } from '@/components/ai/JappoAIAssistant'
 import type { RealtimeStatus } from '@/context/RealtimeContext'
 
 interface HeaderProps {
@@ -48,6 +49,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const online = useOnlineStatus()
   const { theme, toggleTheme } = useTheme()
   const [showAlertsMenu, setShowAlertsMenu] = useState(false)
+  const [isAiOpen, setIsAiOpen] = useState(false)
   const [currentTime, setCurrentTime] = useState(() => dakarClock.format(new Date()))
   const alertsRef = useRef<HTMLDivElement>(null)
 
@@ -74,121 +76,138 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   }, [showAlertsMenu])
 
   return (
-    <header className="sticky top-0 z-30 flex h-20 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4 lg:px-10">
-      <div className="min-w-0">
-        <p className="truncate text-xl font-bold text-fg">{title ?? pageLabel}</p>
-        <p className="truncate text-sm text-muted">
-          {subtitle ?? (firstName ? `Bon retour, ${firstName}` : 'Bienvenue')}
-        </p>
-      </div>
-
-      <div className="flex items-center gap-1">
-        {/* État de la liaison : dit clairement quand les données ne sont plus en direct. */}
-        <ConnectionStatus online={online} status={status} interruptedSince={interruptedSince} />
-
-        <div className="mr-2 hidden items-baseline gap-1.5 border-l border-line pl-3 sm:flex">
-          <time className="num text-sm font-medium text-fg">{currentTime}</time>
-          <span className="text-2xs text-subtle">Dakar</span>
+    <>
+      <header className="sticky top-0 z-30 flex h-20 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface/95 px-4 backdrop-blur-md lg:px-10">
+        <div className="min-w-0">
+          <p className="truncate text-xl font-bold text-fg">{title ?? pageLabel}</p>
+          <p className="truncate text-sm text-muted">
+            {subtitle ?? (firstName ? `Bon retour, ${firstName}` : 'Bienvenue')}
+          </p>
         </div>
 
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className={iconButton}
-          aria-label={theme === 'dark' ? 'Passer en thème clair' : 'Passer en thème sombre'}
-          title={theme === 'dark' ? 'Thème clair' : 'Thème sombre'}
-        >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </button>
+        <div className="flex items-center gap-1.5">
+          {/* État de la liaison : dit clairement quand les données ne sont plus en direct. */}
+          <ConnectionStatus online={online} status={status} interruptedSince={interruptedSince} />
 
-        <div className="relative" ref={alertsRef}>
+          {/* Bouton Assistant IA (inspiré de la vidéo de référence) */}
           <button
             type="button"
-            onClick={() => setShowAlertsMenu((open) => !open)}
-            className={iconButton}
-            aria-label={unreadCount > 0 ? `Alertes (${unreadCount} non lues)` : 'Alertes'}
-            aria-expanded={showAlertsMenu}
-            aria-haspopup="true"
+            onClick={() => setIsAiOpen(true)}
+            aria-expanded={isAiOpen}
+            aria-haspopup="dialog"
+            className="mr-1 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#0f2547] px-3 text-xs font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-[#16335e] dark:bg-brand dark:hover:bg-brand-strong"
+            title="Ouvrir l’Assistant IA de régulation Jappo Dundu"
           >
-            <Bell className="h-4 w-4" />
-            {unreadCount > 0 && (
-              <span className="num absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-surface">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
+            <Sparkles className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />
+            <span>Assistant IA</span>
           </button>
 
-          {showAlertsMenu && (
-            <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-lg border border-line bg-surface shadow-[var(--shadow-raised)] sm:w-96">
-              <div className="flex items-center justify-between border-b border-line px-3 py-2.5">
-                <span className="eyebrow">
-                  Alertes réseau <span className="num ml-1 text-fg">{alerts.length}</span>
+          <div className="mr-2 hidden items-baseline gap-1.5 border-l border-line pl-3 sm:flex">
+            <time className="num text-sm font-medium text-fg">{currentTime}</time>
+            <span className="text-2xs text-subtle">Dakar</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={iconButton}
+            aria-label={theme === 'dark' ? 'Passer en thème clair' : 'Passer en thème sombre'}
+            title={theme === 'dark' ? 'Thème clair' : 'Thème sombre'}
+          >
+            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+
+          <div className="relative" ref={alertsRef}>
+            <button
+              type="button"
+              onClick={() => setShowAlertsMenu((open) => !open)}
+              className={iconButton}
+              aria-label={unreadCount > 0 ? `Alertes (${unreadCount} non lues)` : 'Alertes'}
+              aria-expanded={showAlertsMenu}
+              aria-haspopup="true"
+            >
+              <Bell className="h-4 w-4" />
+              {unreadCount > 0 && (
+                <span className="num absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-surface">
+                  {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
-                {alerts.length > 0 && (
-                  <div className="flex items-center gap-3 text-xs">
-                    <button type="button" onClick={markAllAsRead} className="cursor-pointer text-muted hover:text-fg">
-                      Tout marquer lu
-                    </button>
-                    <button type="button" onClick={clearAlerts} className="cursor-pointer text-muted hover:text-critical">
-                      Effacer
-                    </button>
-                  </div>
-                )}
+              )}
+            </button>
+
+            {showAlertsMenu && (
+              <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-lg border border-line bg-surface shadow-[var(--shadow-raised)] sm:w-96">
+                <div className="flex items-center justify-between border-b border-line px-3 py-2.5">
+                  <span className="eyebrow">
+                    Alertes réseau <span className="num ml-1 text-fg">{alerts.length}</span>
+                  </span>
+                  {alerts.length > 0 && (
+                    <div className="flex items-center gap-3 text-xs">
+                      <button type="button" onClick={markAllAsRead} className="cursor-pointer text-muted hover:text-fg">
+                        Tout marquer lu
+                      </button>
+                      <button type="button" onClick={clearAlerts} className="cursor-pointer text-muted hover:text-critical">
+                        Effacer
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <SystemNotificationsPrompt />
+                <ul className="max-h-80 divide-y divide-line overflow-y-auto">
+                  {alerts.length === 0 ? (
+                    <li className="px-3 py-6 text-center text-xs text-muted">Aucune alerte en cours.</li>
+                  ) : (
+                    alerts.map((alert) => (
+                      <li key={alert.id} className="relative space-y-0.5 px-3 py-2.5 text-xs">
+                        {!alert.isRead && (
+                          <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-critical" />
+                        )}
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className={`font-medium ${alert.isRead ? 'text-muted' : 'text-fg'}`}>
+                            {alert.title}
+                            {!alert.isRead && <span className="sr-only"> (non lue)</span>}
+                          </span>
+                          <span className="num shrink-0 text-2xs text-subtle">{formatTime(alert.timestamp)}</span>
+                        </div>
+                        <p className="leading-relaxed text-muted">{alert.message}</p>
+                      </li>
+                    ))
+                  )}
+                </ul>
               </div>
+            )}
+          </div>
 
-              <SystemNotificationsPrompt />
-              <ul className="max-h-80 divide-y divide-line overflow-y-auto">
-                {alerts.length === 0 ? (
-                  <li className="px-3 py-6 text-center text-xs text-muted">Aucune alerte en cours.</li>
-                ) : (
-                  alerts.map((alert) => (
-                    <li key={alert.id} className="relative space-y-0.5 px-3 py-2.5 text-xs">
-                      {!alert.isRead && (
-                        <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-critical" />
-                      )}
-                      <div className="flex items-baseline justify-between gap-3">
-                        <span className={`font-medium ${alert.isRead ? 'text-muted' : 'text-fg'}`}>
-                          {alert.title}
-                          {!alert.isRead && <span className="sr-only"> (non lue)</span>}
-                        </span>
-                        <span className="num shrink-0 text-2xs text-subtle">{formatTime(alert.timestamp)}</span>
-                      </div>
-                      <p className="leading-relaxed text-muted">{alert.message}</p>
-                    </li>
-                  ))
-                )}
-              </ul>
-            </div>
-          )}
-        </div>
+          <button
+            type="button"
+            onClick={logout}
+            className={`${iconButton} hover:text-critical`}
+            aria-label="Se déconnecter"
+            title="Se déconnecter"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
 
-        <button
-          type="button"
-          onClick={logout}
-          className={`${iconButton} hover:text-critical`}
-          aria-label="Se déconnecter"
-          title="Se déconnecter"
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
-
-        <Link
-          to="/profile"
-          className="ml-2 flex items-center gap-3 rounded-full py-1 pl-1 transition-colors hover:bg-raised sm:pl-3"
-          title="Mon profil"
-        >
-          <span className="hidden text-right leading-tight md:block">
-            <span className="block text-sm font-semibold text-fg">{user?.facility?.name ?? displayName}</span>
-            <span className="block text-2xs text-brand">
-              {primaryRoleLabel(roles)}
+          <Link
+            to="/profile"
+            className="ml-2 flex items-center gap-3 rounded-full py-1 pl-1 transition-colors hover:bg-raised sm:pl-3"
+            title="Mon profil"
+          >
+            <span className="hidden text-right leading-tight md:block">
+              <span className="block text-sm font-semibold text-fg">{user?.facility?.name ?? displayName}</span>
+              <span className="block text-2xs text-brand">
+                {primaryRoleLabel(roles)}
+              </span>
             </span>
-          </span>
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-[#05244a] text-sm font-semibold text-white shadow-[var(--shadow-panel)]">
-            {initial}
-          </span>
-        </Link>
-      </div>
-    </header>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-[#05244a] text-sm font-semibold text-white shadow-[var(--shadow-panel)]">
+              {initial}
+            </span>
+          </Link>
+        </div>
+      </header>
+
+      <JappoAIAssistant isOpen={isAiOpen} onClose={() => setIsAiOpen(false)} />
+    </>
   )
 }
 

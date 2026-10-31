@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  Activity,
   Ambulance as AmbulanceIcon,
   ArrowRight,
+  BarChart3,
   BedDouble,
   Building2,
   Clock,
@@ -15,18 +17,31 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import { Link } from 'react-router'
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Cell,
+  ReferenceLine,
+} from 'recharts'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { StatCard } from '@/components/ui/StatCard'
+import { RadialGauge } from '@/components/ui/RadialGauge'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MapView } from '@/components/map/MapView'
 import { OccupancyBar } from '@/pages/beds/OccupancyBar'
 import { computeBedStats, occupancyLevel } from '@/pages/beds/bedStats'
 import { BED_CATEGORIES } from '@/lib/constants'
 import { useNow } from '@/lib/useNow'
+import { useThemeColors } from '@/lib/useThemeColors'
 import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
 import { BED_EVENTS, MISSION_EVENTS } from '@/lib/realtimeEvents'
 import { formatDistance, formatEta, formatNumber, formatPercent, formatRelative } from '@/lib/format'
@@ -64,12 +79,13 @@ const MISSION_STEPS = ['Créée', 'Affectée', 'Sur place', 'En route vers vous'
 
 /**
  * Tableau de bord de l'administrateur des lits : son établissement d'abord
- * (services, admissions, patients en approche), puis sa région.
+ * (services, admissions, visualisations capacitaires, patients en approche), puis sa région.
  */
 export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ facility }) => {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const now = useNow()
+  const colors = useThemeColors()
 
   // 1. Services de mon établissement
   const { data: capacities = [], isLoading } = useQuery<BedCapacity[]>({
@@ -123,6 +139,8 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
 
   const services = useMemo(() => [...capacities].sort(byPriority), [capacities])
   const stats = computeBedStats(capacities)
+  const reservedTotal = capacities.reduce((acc, c) => acc + (c.reserved_beds ?? 0), 0)
+  const expectedDischargesTotal = capacities.reduce((acc, c) => acc + (c.expected_discharges ?? 0), 0)
   const tension = services.filter((c) => occupancyLevel(c) !== 'normal')
   const saturatedVital = services.filter((c) => VITAL.has(c.category) && c.available_beds === 0)
   const incoming = missions
@@ -135,13 +153,35 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
   )
 
   // Région : par service, et global
-  const regionByCategory = new Map<BedCategory, BedSummaryRow>(regionSummary.map((r) => [r.category, r]))
+  const regionByCategory = useMemo(
+    () => new Map<BedCategory, BedSummaryRow>(regionSummary.map((r) => [r.category, r])),
+    [regionSummary]
+  )
   const regionTotal = regionSummary.reduce((acc, r) => acc + r.total_beds, 0)
   const regionOccupied = regionSummary.reduce((acc, r) => acc + r.occupied_beds, 0)
   const regionRate = regionTotal > 0 ? regionOccupied / regionTotal : null
   const myRate = stats.globalRate / 100
 
+  // Données du graphique comparatif par service
+  const serviceChartData = useMemo(
+    () =>
+      services.map((c) => {
+        const rate = c.total_beds > 0 ? Math.round((c.occupied_beds / c.total_beds) * 100) : 0
+        const reg = regionByCategory.get(c.category)
+        const regPct = reg?.occupancy_rate != null ? Math.round(reg.occupancy_rate * 100) : null
+        return {
+          service: c.category_display,
+          rate,
+          regionRate: regPct,
+          available: c.available_beds,
+          total: c.total_beds,
+        }
+      }),
+    [services, regionByCategory]
+  )
+
   const rateTone = myRate > 0.85 ? 'danger' : myRate > 0.7 ? 'warning' : 'success'
+  const rateColor = (rate: number) => (rate > 85 ? colors.critical : rate > 70 ? colors.warning : colors.ok)
   const center = useMemo<[number, number] | undefined>(
     () =>
       facility.latitude != null && facility.longitude != null ? [facility.latitude, facility.longitude] : undefined,
@@ -173,7 +213,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         actions={
           <Link
             to="/beds"
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-on-brand hover:bg-brand-strong"
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-on-brand shadow-sm transition-all hover:bg-brand-strong"
           >
             Ouvrir Mes lits <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
@@ -189,11 +229,13 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         </Alert>
       )}
 
-      {/* Indicateurs de mon établissement */}
+      {/* Indicateurs de mon établissement (Bento KPI avec Carte Hero) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Lits libres"
           accent="blue"
+          variant="hero"
+          stagger={0}
           icon={<BedDouble className="h-5 w-5" />}
           value={formatNumber(stats.availableBeds)}
           unit={`/ ${formatNumber(stats.totalBeds)}`}
@@ -207,6 +249,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         <StatCard
           title="Taux d’occupation"
           accent="yellow"
+          stagger={1}
           icon={<Building2 className="h-5 w-5" />}
           value={formatPercent(myRate)}
           trend={regionRate === null ? undefined : `Région : ${formatPercent(regionRate)}`}
@@ -218,6 +261,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         <StatCard
           title="Services en tension"
           accent="red"
+          stagger={2}
           icon={<TriangleAlert className="h-5 w-5" />}
           value={tension.length}
           unit={`/ ${services.length}`}
@@ -233,6 +277,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         <StatCard
           title="Patients en approche"
           accent="green"
+          stagger={3}
           icon={<AmbulanceIcon className="h-5 w-5" />}
           value={incoming.length}
           unit={incoming.length > 1 ? 'ambulances' : 'ambulance'}
@@ -245,15 +290,137 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         />
       </div>
 
+      {/* Section Data Visualization : Occupation par service + Jauge de capacité hospitalière */}
+      {services.length > 0 && (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+          <section
+            className="panel dash-panel-in flex flex-col justify-between xl:col-span-7"
+            style={{ '--stagger': 1 } as React.CSSProperties}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3.5">
+              <div>
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
+                  <BarChart3 className="h-4 w-4 text-accent-blue" aria-hidden="true" />
+                  Taux d’occupation par service
+                </h2>
+                <p className="text-2xs text-muted">
+                  Comparaison temps réel des services de l’établissement (seuil critique à 85 %)
+                </p>
+              </div>
+              <span className="text-2xs text-muted">Unité : % occupés</span>
+            </div>
+
+            <div className="h-56 w-full px-3 pb-2 pt-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={serviceChartData} margin={{ top: 8, right: 12, left: -16, bottom: 20 }}>
+                  <CartesianGrid stroke={colors.line} strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="service"
+                    tick={{ fill: colors.muted }}
+                    tickLine={false}
+                    axisLine={{ stroke: colors.line }}
+                    fontSize={11}
+                    interval={0}
+                    angle={-12}
+                    textAnchor="end"
+                  />
+                  <YAxis
+                    tick={{ fill: colors.muted }}
+                    tickLine={false}
+                    axisLine={false}
+                    fontSize={11}
+                    domain={[0, 100]}
+                    unit="%"
+                  />
+                  <Tooltip
+                    cursor={{ fill: colors.raised }}
+                    contentStyle={{
+                      backgroundColor: colors.surface,
+                      borderColor: colors.lineStrong,
+                      borderRadius: 10,
+                      fontSize: 12,
+                      color: colors.fg,
+                      boxShadow: 'var(--shadow-raised)',
+                    }}
+                    formatter={(val) => [`${val ?? 0} %`, 'Occupation']}
+                  />
+                  <ReferenceLine y={85} stroke={colors.critical} strokeDasharray="4 4" strokeOpacity={0.65} />
+                  <Bar dataKey="rate" radius={[8, 8, 0, 0]} maxBarSize={36}>
+                    {serviceChartData.map((entry) => (
+                      <Cell key={entry.service} fill={rateColor(entry.rate)} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-raised/35 px-5 py-2.5 text-2xs text-muted">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-ok" /> &lt; 70 %
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-warning" /> 70–85 %
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-critical" /> &gt; 85 %
+                </span>
+              </div>
+              {expectedDischargesTotal > 0 && (
+                <span className="num font-medium text-fg">{`${expectedDischargesTotal} sortie(s) prévue(s)`}</span>
+              )}
+            </div>
+          </section>
+
+          <section
+            className="panel dash-panel-in flex flex-col justify-between xl:col-span-5"
+            style={{ '--stagger': 2 } as React.CSSProperties}
+          >
+            <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+              <div>
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
+                  <Activity className="h-4 w-4 text-accent-green" aria-hidden="true" />
+                  Équilibre capacitaire
+                </h2>
+                <p className="text-2xs text-muted">Répartition des lits de l’établissement</p>
+              </div>
+              <Badge tone={rateTone === 'danger' ? 'danger' : rateTone === 'warning' ? 'warning' : 'success'} size="sm">
+                {myRate > 0.85 ? 'Sous tension' : myRate > 0.7 ? 'Vigilance' : 'Nominal'}
+              </Badge>
+            </div>
+
+            <div className="flex flex-1 flex-col justify-center p-4">
+              <RadialGauge
+                mode="semi"
+                centerValue={formatPercent(myRate)}
+                centerLabel="Occupation globale"
+                segments={[
+                  { label: 'Occupés', value: stats.occupiedBeds, color: rateColor(Math.round(myRate * 100)), unit: 'lits' },
+                  ...(reservedTotal > 0
+                    ? [{ label: 'Réservés', value: reservedTotal, color: colors.info, unit: 'lits' }]
+                    : []),
+                  { label: 'Libres', value: stats.availableBeds, color: colors.ok, unit: 'lits' },
+                ]}
+              />
+            </div>
+
+            <div className="flex items-center justify-between border-t border-line bg-raised/35 px-5 py-2.5 text-2xs text-muted">
+              <span>Capacité totale déclarée</span>
+              <span className="num font-semibold text-fg">{`${stats.totalBeds} lits hospitaliers`}</span>
+            </div>
+          </section>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.6fr_1fr]">
         {/* Mes services : admissions et sorties en un clic */}
-        <section className="panel">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3">
+        <section className="panel dash-panel-in" style={{ '--stagger': 3 } as React.CSSProperties}>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3.5">
             <div>
               <h2 className="text-sm font-semibold text-fg">Mes services</h2>
               <p className="text-xs text-muted">Admettre un patient (+) ou enregistrer sa sortie (−). Réservations : « Mes lits ».</p>
             </div>
-            <Link to="/beds" className="flex items-center gap-1 text-xs text-muted hover:text-fg">
+            <Link to="/beds" className="flex items-center gap-1 text-xs font-medium text-muted hover:text-fg">
               Mes lits <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -280,7 +447,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                 return (
                   <li
                     key={cap.id}
-                    className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 px-5 py-3.5 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto]"
+                    className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 px-5 py-3.5 transition-colors hover:bg-raised/35 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto]"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
@@ -317,7 +484,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                         disabled={busy || cap.occupied_beds === 0}
                         aria-label={`Sortie d’un patient : ${cap.category_display}`}
                         title="Sortie d’un patient"
-                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-line-strong text-fg transition-colors hover:bg-raised disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-line-strong text-fg transition-all hover:scale-105 hover:bg-raised disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <Minus className="h-4 w-4" />
                       </button>
@@ -327,7 +494,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                         disabled={busy || cap.available_beds === 0}
                         aria-label={`Admettre un patient : ${cap.category_display}`}
                         title="Admettre un patient"
-                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-brand text-on-brand transition-colors hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-brand text-on-brand transition-all hover:scale-105 hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <Plus className="h-4 w-4" />
                       </button>
@@ -341,8 +508,8 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
 
         <div className="space-y-6">
           {/* Patients en approche */}
-          <section className="panel">
-            <div className="border-b border-line px-5 py-3">
+          <section className="panel dash-panel-in" style={{ '--stagger': 4 } as React.CSSProperties}>
+            <div className="border-b border-line px-5 py-3.5">
               <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
                 <Siren className="h-4 w-4 text-critical" aria-hidden="true" />
                 Patients en approche
@@ -357,7 +524,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                 {incoming.map((m) => {
                   const step = MISSION_STEP[m.status] ?? 0
                   return (
-                    <li key={m.id} className="space-y-2 px-5 py-3.5">
+                    <li key={m.id} className="space-y-2 px-5 py-3.5 transition-colors hover:bg-raised/35">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-fg">
@@ -379,7 +546,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                         {MISSION_STEPS.map((label, i) => (
                           <li
                             key={label}
-                            className={`h-1 rounded-full ${i <= step ? 'bg-accent-green' : 'bg-raised'}`}
+                            className={`h-1.5 rounded-full transition-colors ${i <= step ? 'bg-accent-green' : 'bg-raised'}`}
                           />
                         ))}
                       </ol>
@@ -409,15 +576,15 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         </div>
       </div>
 
-      <section className="panel">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
+      <section className="panel dash-panel-in overflow-hidden" style={{ '--stagger': 5 } as React.CSSProperties}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
           <h2 className="text-sm font-semibold text-fg">Autour de {facility.name}</h2>
           <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted" aria-label="Légende">
             <li className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm bg-info" /> Établissements
+              <span className="h-2 w-2 rounded-full bg-info" /> Établissements
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm bg-warning" /> Ambulance vers vous
+              <span className="h-2 w-2 rounded-full bg-warning" /> Ambulance vers vous
             </li>
           </ul>
         </div>
@@ -491,8 +658,8 @@ const TransferPanel: React.FC<{
   })
 
   return (
-    <section className="panel">
-      <div className="border-b border-line px-5 py-3">
+    <section className="panel dash-panel-in" style={{ '--stagger': 4 } as React.CSSProperties}>
+      <div className="border-b border-line px-5 py-3.5">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
           <Route className="h-4 w-4 text-muted" aria-hidden="true" />
           Solutions de transfert
@@ -532,7 +699,7 @@ const TransferPanel: React.FC<{
       ) : (
         <ol className="mt-2 divide-y divide-line">
           {others.map((f) => (
-            <li key={f.id} className="flex items-center justify-between gap-3 px-5 py-3 text-xs">
+            <li key={f.id} className="flex items-center justify-between gap-3 px-5 py-3 text-xs transition-colors hover:bg-raised/35">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-fg">{f.name}</p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-muted">

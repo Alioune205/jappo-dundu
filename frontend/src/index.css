@@ -741,3 +741,213 @@
   background: transparent;
   border: 0;
 }
+
+
+/* ============================================================================
+ * SYSTÈME VISUEL & MOTION DESIGN DES TABLEAUX DE BORD (JAPPO DUNDU)
+ * ============================================================================
+ * Inspiration : précision médicale, hiérarchie Bento, cartes Hero contrastées,
+ * jauges radiales, micro-interactions fluides et séquence d'ouverture Jappo IA.
+ * Respect strict de prefers-reduced-motion.
+ */
+
+:root {
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --shadow-hero: 0 18px 38px -10px rgb(15 37 71 / 0.28), 0 4px 12px -2px rgb(15 37 71 / 0.14);
+  --hero-blue: linear-gradient(135deg, #0f2547 0%, #1d4ed8 100%);
+  --hero-red: linear-gradient(135deg, #991b1b 0%, #e4151e 100%);
+  --hero-green: linear-gradient(135deg, #064e3b 0%, #15803d 100%);
+  --hero-yellow: linear-gradient(135deg, #78350f 0%, #b45309 100%);
+  --cmd-dark: linear-gradient(145deg, #0b192f 0%, #0f2547 65%, #16335e 100%);
+}
+
+.dark {
+  --shadow-hero: 0 18px 40px -10px rgb(0 0 0 / 0.65);
+  --hero-blue: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+  --hero-red: linear-gradient(135deg, #450a0a 0%, #b91c1c 100%);
+  --hero-green: linear-gradient(135deg, #022c22 0%, #047857 100%);
+  --hero-yellow: linear-gradient(135deg, #451a03 0%, #92400e 100%);
+  --cmd-dark: linear-gradient(145deg, #070d19 0%, #0f1b31 65%, #172542 100%);
+}
+
+/* Surfaces Hero & Command Tracker */
+.stat-hero-blue {
+  background: var(--hero-blue);
+  color: #ffffff;
+  box-shadow: var(--shadow-hero);
+  border-color: rgb(255 255 255 / 0.14);
+}
+.stat-hero-red {
+  background: var(--hero-red);
+  color: #ffffff;
+  box-shadow: var(--shadow-hero);
+  border-color: rgb(255 255 255 / 0.14);
+}
+.stat-hero-green {
+  background: var(--hero-green);
+  color: #ffffff;
+  box-shadow: var(--shadow-hero);
+  border-color: rgb(255 255 255 / 0.14);
+}
+.stat-hero-yellow {
+  background: var(--hero-yellow);
+  color: #ffffff;
+  box-shadow: var(--shadow-hero);
+  border-color: rgb(255 255 255 / 0.14);
+}
+
+.cmd-tracker-card {
+  background: var(--cmd-dark);
+  color: #f8fafc;
+  box-shadow: var(--shadow-hero);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  position: relative;
+  overflow: hidden;
+}
+.cmd-tracker-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle at 88% 18%, rgb(59 130 246 / 0.22), transparent 55%),
+    repeating-radial-gradient(circle at 110% 110%, rgb(255 255 255 / 0.03) 0, rgb(255 255 255 / 0.03) 1px, transparent 1px, transparent 18px);
+  pointer-events: none;
+}
+
+/* Fond maillé subtil pour l'Assistant IA */
+.ai-mesh-surface {
+  background-color: var(--surface);
+  background-image:
+    radial-gradient(circle at 50% 0%, color-mix(in oklab, var(--brand) 7%, transparent), transparent 58%),
+    radial-gradient(circle at 85% 20%, color-mix(in oklab, var(--accent-blue) 8%, transparent), transparent 50%),
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 28px 28px, 28px 28px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes dash-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes dash-scale {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes bar-grow {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @keyframes ai-drawer-slide {
+    from {
+      opacity: 0;
+      transform: translateX(24px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0) scale(1);
+    }
+  }
+
+  @keyframes ai-orb-breathe {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+      box-shadow: 0 12px 30px -6px rgb(228 21 30 / 0.28), 0 0 0 0 rgb(228 21 30 / 0.18);
+    }
+    50% {
+      transform: translateY(-4px) scale(1.04);
+      box-shadow: 0 18px 36px -6px rgb(37 99 235 / 0.32), 0 0 0 12px rgb(37 99 235 / 0);
+    }
+  }
+
+  @keyframes ai-emblem-intro {
+    0% {
+      opacity: 0;
+      transform: scale(0.65) rotate(-18deg);
+    }
+    60% {
+      opacity: 1;
+      transform: scale(1.08) rotate(4deg);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+    }
+  }
+
+  @keyframes ai-shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .dash-rise {
+    animation: dash-rise 420ms var(--ease-spring) both;
+    animation-delay: calc(var(--stagger, 0) * 55ms);
+  }
+
+  .dash-panel-in {
+    animation: dash-scale 380ms var(--ease-spring) both;
+    animation-delay: calc(var(--stagger, 0) * 65ms);
+  }
+
+  .bar-origin-left {
+    transform-origin: left center;
+    animation: bar-grow 550ms var(--ease-spring) both;
+  }
+
+  .card-interactive {
+    transition:
+      transform 240ms var(--ease-spring),
+      box-shadow 240ms var(--ease-spring),
+      border-color 200ms ease;
+  }
+  .card-interactive:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-raised);
+  }
+
+  .ai-drawer-enter {
+    animation: ai-drawer-slide 320ms var(--ease-spring) both;
+  }
+
+  .ai-orb {
+    animation:
+      ai-emblem-intro 520ms var(--ease-back) both,
+      ai-orb-breathe 3.8s ease-in-out 520ms infinite;
+  }
+
+  .ai-stagger-item {
+    animation: dash-rise 380ms var(--ease-spring) both;
+    animation-delay: calc(var(--ai-step, 0) * 65ms + 80ms);
+  }
+
+  .ai-thinking-bar {
+    background: linear-gradient(90deg, var(--raised) 0%, color-mix(in oklab, var(--brand) 22%, var(--surface)) 50%, var(--raised) 100%);
+    background-size: 200% 100%;
+    animation: ai-shimmer 1.6s linear infinite;
+  }
+}

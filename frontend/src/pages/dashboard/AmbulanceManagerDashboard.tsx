@@ -1,16 +1,29 @@
 import React, { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Ambulance as AmbulanceIcon, ArrowRight, Clock, MapPin, Plus, Siren, Timer, TriangleAlert } from 'lucide-react'
+import {
+  Activity,
+  Ambulance as AmbulanceIcon,
+  ArrowRight,
+  Clock,
+  Gauge,
+  MapPin,
+  Plus,
+  Siren,
+  Timer,
+  TriangleAlert,
+} from 'lucide-react'
 import { Link } from 'react-router'
 import { api } from '@/lib/api'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
+import { RadialGauge } from '@/components/ui/RadialGauge'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MapView } from '@/components/map/MapView'
 import { useNow } from '@/lib/useNow'
 import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
 import { useAmbulancePositions } from '@/lib/useAmbulancePositions'
+import { useThemeColors } from '@/lib/useThemeColors'
 import { MISSION_EVENTS, RealtimeEvent } from '@/lib/realtimeEvents'
 import { formatMinutes, formatRelative } from '@/lib/format'
 import { QK } from '@/lib/queryKeys'
@@ -42,8 +55,11 @@ const minutesSince = (iso: string | null, now: number) => (iso ? (now - new Date
  */
 export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ facility }) => {
   const now = useNow(30_000)
+  const colors = useThemeColors()
 
   const [dispatching, setDispatching] = useState<Mission | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress'>('all')
+
   const { data: missions = [], isLoading } = useQuery<Mission[]>({
     queryKey: QK.missionsActive,
     queryFn: async () =>
@@ -78,6 +94,15 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
   const inProgress = sorted.filter((m) => m.status !== 'pending')
   const waitingTooLong = pending.filter((m) => (minutesSince(m.created_at, now) ?? 0) > PENDING_ALERT_MINUTES)
   const available = fleet.filter((a) => a.status === 'available')
+  const onMissionFleet = fleet.filter((a) => a.status === 'on_mission')
+  const outOfServiceFleet = fleet.filter((a) => a.status === 'out_of_service')
+
+  const filteredMissions = useMemo(() => {
+    if (statusFilter === 'pending') return pending
+    if (statusFilter === 'in_progress') return inProgress
+    return sorted
+  }, [sorted, pending, inProgress, statusFilter])
+
   const fleetSorted = useMemo(
     () => [...fleet].sort((a, b) => a.status.localeCompare(b.status) || a.plate_number.localeCompare(b.plate_number)),
     [fleet]
@@ -85,6 +110,16 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
   const center = useMemo<[number, number] | undefined>(
     () => (facility.latitude != null && facility.longitude != null ? [facility.latitude, facility.longitude] : undefined),
     [facility.latitude, facility.longitude]
+  )
+
+  const fleetAvailPct = fleet.length > 0 ? Math.round((available.length / fleet.length) * 100) : 0
+  const fleetSegments = useMemo(
+    () => [
+      { label: 'Disponibles', value: available.length, color: colors.ok, unit: 'véh.' },
+      { label: 'En mission', value: onMissionFleet.length, color: colors.warning, unit: 'véh.' },
+      { label: 'Hors service', value: outOfServiceFleet.length, color: colors.muted, unit: 'véh.' },
+    ],
+    [available.length, onMissionFleet.length, outOfServiceFleet.length, colors]
   )
 
   return (
@@ -100,7 +135,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         actions={
           <Link
             to="/ambulances"
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-on-brand hover:bg-brand-strong"
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-on-brand shadow-xs transition-all hover:bg-brand-strong"
           >
             <Plus className="h-4 w-4" aria-hidden="true" /> Nouvelle mission
           </Link>
@@ -121,6 +156,8 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         <StatCard
           title="Missions en attente"
           accent="red"
+          variant="hero"
+          stagger={1}
           icon={<Siren className="h-5 w-5" />}
           value={pending.length}
           trend={pending.length > 0 ? 'À affecter' : 'Aucune mission en attente'}
@@ -129,6 +166,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         <StatCard
           title="Missions en cours"
           accent="yellow"
+          stagger={2}
           icon={<TriangleAlert className="h-5 w-5" />}
           value={inProgress.length}
           description="Affectées, sur place ou en transport"
@@ -136,6 +174,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         <StatCard
           title="Ambulances disponibles"
           accent="green"
+          stagger={3}
           icon={<AmbulanceIcon className="h-5 w-5" />}
           value={available.length}
           unit={`/ ${fleet.length}`}
@@ -146,6 +185,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         <StatCard
           title="Délai d’affectation"
           accent="blue"
+          stagger={4}
           icon={<Timer className="h-5 w-5" />}
           value={formatMinutes(stats?.assignment_delay_minutes.median ?? null)}
           trend={
@@ -157,28 +197,136 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         />
       </div>
 
+      {/* Console Chrono SLA & Répartition de la Flotte */}
+      {(fleet.length > 0 || stats != null) && (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.35fr_1fr]">
+          <section className="cmd-tracker-card dash-panel-in flex flex-col justify-between p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="inline-flex items-center gap-1.5 text-2xs font-semibold tracking-wider text-emerald-400 uppercase">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  Chronomètre opérationnel SAMU · 30 jours
+                </p>
+                <h2 className="mt-1 text-base font-bold text-white">Performance de régulation & intervention</h2>
+              </div>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-slate-200">
+                <Activity className="h-3.5 w-3.5 text-emerald-400" aria-hidden="true" />
+                {stats?.missions.by_status?.completed ?? 0} terminée(s)
+              </span>
+            </div>
+
+            <div className="my-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs text-slate-300">Affectation ambulance (médiane)</p>
+                <p className="num mt-1 text-3xl font-bold tracking-tight text-white">
+                  {formatMinutes(stats?.assignment_delay_minutes.median ?? null)}
+                </p>
+                <p className="mt-1 text-2xs text-slate-400">
+                  Moyenne : {formatMinutes(stats?.assignment_delay_minutes.average ?? null)} ·{' '}
+                  {stats?.assignment_delay_minutes.count ?? 0} éch.
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs text-slate-300">Arrivée sur site (médiane)</p>
+                <p className="num mt-1 text-3xl font-bold tracking-tight text-emerald-400">
+                  {formatMinutes(stats?.response_time_minutes.median ?? null)}
+                </p>
+                <p className="mt-1 text-2xs text-slate-400">
+                  Moyenne : {formatMinutes(stats?.response_time_minutes.average ?? null)} ·{' '}
+                  {stats?.response_time_minutes.count ?? 0} éch.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3 text-xs text-slate-300">
+              <span>
+                Équipage prêt en direct : <strong className="num text-white">{available.length}</strong> véhicule(s)
+              </span>
+              <Link
+                to="/ambulances"
+                className="inline-flex items-center gap-1 font-semibold text-emerald-400 hover:text-emerald-300"
+              >
+                Ouvrir le poste de régulation <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          </section>
+
+          <section className="panel dash-panel-in flex flex-col justify-between p-5">
+            <div className="mb-3">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
+                <Gauge className="h-4 w-4 text-brand" aria-hidden="true" />
+                Disponibilité de la flotte
+              </h2>
+              <p className="text-xs text-muted">Répartition opérationnelle des véhicules en temps réel</p>
+            </div>
+            <div className="my-auto py-1">
+              <RadialGauge
+                mode="donut"
+                segments={fleetSegments}
+                centerValue={`${fleetAvailPct}%`}
+                centerLabel="Flotte libre"
+                size={156}
+              />
+            </div>
+          </section>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.4fr_1fr]">
         {/* Missions actives */}
-        <section className="panel">
-          <div className="flex items-center justify-between border-b border-line px-5 py-3">
-            <h2 className="text-sm font-semibold text-fg">
-              Missions actives <span className="num ml-1 font-normal text-muted">{sorted.length}</span>
-            </h2>
-            <Link to="/ambulances" className="flex items-center gap-1 text-xs text-muted hover:text-fg">
+        <section className="panel dash-panel-in overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3.5">
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-semibold text-fg">
+                Missions actives <span className="num ml-1 font-normal text-muted">{sorted.length}</span>
+              </h2>
+              {sorted.length > 0 && (
+                <div className="inline-flex rounded-lg border border-line bg-subtle p-0.5 text-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('all')}
+                    className={`rounded-md px-2 py-0.5 font-medium transition-colors ${
+                      statusFilter === 'all' ? 'bg-surface text-fg shadow-xs' : 'text-muted hover:text-fg'
+                    }`}
+                  >
+                    Toutes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('pending')}
+                    className={`rounded-md px-2 py-0.5 font-medium transition-colors ${
+                      statusFilter === 'pending' ? 'bg-surface text-fg shadow-xs' : 'text-muted hover:text-fg'
+                    }`}
+                  >
+                    Attente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('in_progress')}
+                    className={`rounded-md px-2 py-0.5 font-medium transition-colors ${
+                      statusFilter === 'in_progress' ? 'bg-surface text-fg shadow-xs' : 'text-muted hover:text-fg'
+                    }`}
+                  >
+                    En cours
+                  </button>
+                </div>
+              )}
+            </div>
+            <Link to="/ambulances" className="flex items-center gap-1 text-xs font-medium text-brand hover:underline">
               Réguler <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
           {isLoading ? (
             <p className="px-5 py-10 text-center text-xs text-muted">Chargement des missions…</p>
-          ) : sorted.length === 0 ? (
+          ) : filteredMissions.length === 0 ? (
             <p className="px-5 py-10 text-center text-xs text-muted">Aucune mission active.</p>
           ) : (
             <ul className="divide-y divide-line">
-              {sorted.slice(0, 8).map((m) => {
+              {filteredMissions.slice(0, 8).map((m) => {
                 const step = MISSION_STEP[m.status] ?? 0
                 const late = m.status === 'pending' && (minutesSince(m.created_at, now) ?? 0) > PENDING_ALERT_MINUTES
                 return (
-                  <li key={m.id} className="space-y-2 px-5 py-3.5">
+                  <li key={m.id} className="space-y-2.5 px-5 py-3.5 transition-colors hover:bg-subtle/40">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-fg">{m.description || `Mission n° ${m.id}`}</p>
@@ -195,11 +343,13 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
                         {m.priority_display}
                       </Badge>
                     </div>
-                    <ol className="grid grid-cols-4 gap-1" aria-label={`Étape : ${MISSION_STEPS[step]}`}>
+                    <ol className="grid grid-cols-4 gap-1.5" aria-label={`Étape : ${MISSION_STEPS[step]}`}>
                       {MISSION_STEPS.map((label, i) => (
                         <li
                           key={label}
-                          className={`h-1 rounded-full ${i <= step ? (late ? 'bg-critical' : 'bg-accent-green') : 'bg-raised'}`}
+                          className={`h-1.5 rounded-full transition-colors ${
+                            i <= step ? (late ? 'bg-critical' : 'bg-accent-green') : 'bg-raised'
+                          }`}
                         />
                       ))}
                     </ol>
@@ -218,10 +368,10 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         </section>
 
         {/* Flotte */}
-        <section className="panel h-fit">
-          <div className="border-b border-line px-5 py-3">
+        <section className="panel dash-panel-in h-fit overflow-hidden">
+          <div className="border-b border-line px-5 py-3.5">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
-              <AmbulanceIcon className="h-4 w-4 text-muted" aria-hidden="true" />
+              <AmbulanceIcon className="h-4 w-4 text-brand" aria-hidden="true" />
               Ma flotte <span className="num font-normal text-muted">{fleet.length}</span>
             </h2>
             <p className="text-xs text-muted">État et dernière position GPS de chaque véhicule.</p>
@@ -235,7 +385,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
                 const age = minutesSince(a.location_updated_at, now)
                 const stale = !located || (age !== null && age > STALE_POSITION_MINUTES)
                 return (
-                  <li key={a.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                  <li key={a.id} className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-subtle/40">
                     <div className="min-w-0">
                       <p className="num truncate text-sm font-semibold text-fg">{a.plate_number}</p>
                       <p className={`truncate text-xs ${stale && a.status !== 'out_of_service' ? 'text-warning' : 'text-muted'}`}>
@@ -259,18 +409,18 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         </section>
       </div>
 
-      <section className="panel">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
+      <section className="panel dash-panel-in overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
           <h2 className="text-sm font-semibold text-fg">Carte de la région</h2>
           <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted" aria-label="Légende">
             <li className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm bg-ok" /> Ambulance libre
+              <span className="h-2.5 w-2.5 rounded-full bg-ok" /> Ambulance libre
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm bg-warning" /> En mission
+              <span className="h-2.5 w-2.5 rounded-full bg-warning" /> En mission
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm bg-critical" /> Lieu d’intervention
+              <span className="h-2.5 w-2.5 rounded-full bg-critical" /> Lieu d’intervention
             </li>
           </ul>
         </div>

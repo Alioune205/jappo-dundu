@@ -6,10 +6,13 @@
  * qui désigne le téléphone lui-même), https://jappodundu.sn en production.
  */
 function getBaseUrl(): string {
-  if (typeof window !== 'undefined' && window.location?.origin) {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL
+  }
+  if (typeof window !== 'undefined' && window.location?.origin && window.location.port !== '8081') {
     return window.location.origin
   }
-  return process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8000'
+  return 'http://127.0.0.1:8000'
 }
 
 export const API_URL = getBaseUrl().replace(/\/+$/, '')

@@ -142,6 +142,9 @@ export async function request<T>(path: string, options: RequestOptions = {}, ret
     try {
       data = JSON.parse(text)
     } catch {
+      if (typeof text === 'string' && text.trim().startsWith('<')) {
+        throw new ApiError(response.status || 500, 'Réponse invalide du serveur (HTML reçu au lieu de JSON).')
+      }
       data = text
     }
   }
