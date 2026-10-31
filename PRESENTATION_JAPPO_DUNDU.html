@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jappo Dundu — Présentation</title>
+<style>
+  :root {
+    --bg: #f7f5f2; --surface: #ffffff; --ink: #1d1b19; --muted: #5f5a54; --line: #e4dfd8;
+    --brand: #b3261e; --brand-soft: #fbe9e7; --ok: #2e7d4f; --ok-soft: #e6f4ec; --warn: #8a5a00; --warn-soft: #fff4dc;
+    --code: #f1eee9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161412; --surface: #201d1a; --ink: #f2eee9; --muted: #b0a89f; --line: #37322d;
+      --brand: #ff8a80; --brand-soft: #3a1f1c; --ok: #7fd3a2; --ok-soft: #1c3226; --warn: #f2c46b; --warn-soft: #362a12;
+      --code: #2a2622;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161412; --surface: #201d1a; --ink: #f2eee9; --muted: #b0a89f; --line: #37322d;
+    --brand: #ff8a80; --brand-soft: #3a1f1c; --ok: #7fd3a2; --ok-soft: #1c3226; --warn: #f2c46b; --warn-soft: #362a12;
+    --code: #2a2622;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 920px; margin: 0 auto; padding: 32px 16px 80px; }
+  header.hero { border-bottom: 1px solid var(--line); padding-bottom: 24px; margin-bottom: 8px; }
+  .kicker { color: var(--brand); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 13px; }
+  h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 8px 0 12px; }
+  h2 { font-size: 24px; margin: 48px 0 12px; padding-top: 8px; }
+  h3 { font-size: 18px; margin: 24px 0 8px; }
+  p { margin: 8px 0; }
+  .lead { font-size: 18px; color: var(--muted); max-width: 70ch; }
+  nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; }
+  nav.toc a { text-decoration: none; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 14px; }
+  nav.toc a:hover { border-color: var(--brand); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; margin: 12px 0; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .grid .card { margin: 0; }
+  .card h3 { margin-top: 0; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 6px; padding: 1px 8px; background: var(--brand-soft); color: var(--brand); }
+  .note { border-left: 4px solid var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
+  .good { border-left: 4px solid var(--ok); background: var(--ok-soft); border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .92em; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--code); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 14px; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+  .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 12px 0; }
+  ol.steps > li { counter-increment: s; position: relative; padding: 4px 0 14px 44px; }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: 2px; width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 12px 0; }
+  .flow span { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+  .flow b { color: var(--brand); }
+  .time { float: right; color: var(--muted); font-size: 14px; font-weight: 600; }
+  ul.check { list-style: none; padding: 0; }
+  ul.check li { padding: 4px 0 4px 28px; position: relative; }
+  ul.check li::before { content: "☐"; position: absolute; left: 0; color: var(--brand); }
+  footer { margin-top: 56px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
+  @media print { nav.toc { display: none; } h2 { break-before: auto; } .card, pre { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+
+<header class="hero">
+  <div class="kicker">Jappo Dundu · Version de présentation</div>
+  <h1>Ce qu’on présente, comment l’installer, comment le montrer</h1>
+  <p class="lead">Ce document accompagne la branche <code>version-presentation</code>. Il explique la partie
+  du projet que nous présentons, comment chaque membre de l’équipe l’installe pour la tester, et le
+  déroulé exact de la soutenance.</p>
+  <nav class="toc" aria-label="Sommaire">
+    <a href="#idee">1. L’idée</a>
+    <a href="#perimetre">2. Ce qui est présenté</a>
+    <a href="#masque">3. Ce qui est masqué</a>
+    <a href="#installation">4. Installation</a>
+    <a href="#comptes">5. Comptes</a>
+    <a href="#tests">6. Ce que chacun teste</a>
+    <a href="#deroule">7. Déroulé de la présentation</a>
+    <a href="#jury">8. Questions du jury</a>
+    <a href="#veille">9. Check-list de la veille</a>
+  </nav>
+</header>
+
+<section id="idee">
+  <h2>1. L’idée en une phrase</h2>
+  <p>Au Sénégal, quand une urgence arrive, trois informations manquent au même moment : <strong>où trouver
+  du sang compatible</strong>, <strong>quel hôpital a un lit libre</strong> et <strong>quelle ambulance est la
+  plus proche</strong>. Jappo Dundu réunit ces trois informations sur une seule plateforme, en temps réel.</p>
+  <div class="good"><strong>Message à retenir pour le jury :</strong> on ne remplace pas les hôpitaux, le CNTS
+  ou le SAMU. On les connecte, pour qu’aucune minute ne soit perdue à téléphoner pour chercher une information.</div>
+  <p>La plateforme a trois parties :</p>
+  <div class="grid">
+    <div class="card"><h3>Backend (API)</h3><p>Django. Stocke les données, calcule les distances, envoie les alertes en temps réel.</p></div>
+    <div class="card"><h3>Site web</h3><p>React. Utilisé par les hôpitaux, le CNTS, la régulation SAMU et l’administrateur.</p></div>
+    <div class="card"><h3>Application mobile</h3><p>Expo / React Native. Utilisée par les donneurs, les citoyens (SOS) et les ambulanciers.</p></div>
+  </div>
+</section>
+
+<section id="perimetre">
+  <h2>2. Ce qui est présenté : le cœur du sujet</h2>
+  <p>Cette version n’affiche que l’essentiel. Trois parcours, plus le SOS et le tableau de bord.</p>
+
+  <h3><span class="tag">Module 1</span> Banque de sang</h3>
+  <div class="flow"><span>Le CNTS / l’hôpital crée une demande</span><b>→</b><span>les donneurs compatibles et proches sont alertés</span><b>→</b><span>un donneur accepte</span><b>→</b><span>le don est confirmé</span></div>
+  <p>Le système choisit les donneurs selon le <strong>groupe sanguin compatible</strong>, la
+  <strong>distance</strong> et l’<strong>éligibilité</strong> (délai depuis le dernier don).</p>
+
+  <h3><span class="tag">Module 2</span> Lits d’hôpital</h3>
+  <div class="flow"><span>L’hôpital met à jour ses lits par service</span><b>→</b><span>admissions et sorties</span><b>→</b><span>réservation d’un lit</span><b>→</b><span>la carte nationale se met à jour</span></div>
+  <p>Chaque service (urgences, réanimation, maternité…) affiche ses lits libres. Le tableau de bord voit
+  immédiatement les hôpitaux saturés.</p>
+
+  <h3><span class="tag">Module 3</span> Ambulances (SAMU)</h3>
+  <div class="flow"><span>La régulation crée une mission</span><b>→</b><span>l’ambulance libre la plus proche est affectée</span><b>→</b><span>l’hôpital de destination reçoit une préalerte</span><b>→</b><span>il accepte ou refuse le patient</span><b>→</b><span>l’ambulancier suit la mission sur son téléphone</span></div>
+
+  <h3><span class="tag">Transversal</span> SOS citoyen et tableau de bord national</h3>
+  <p>Depuis l’application, un citoyen envoie un <strong>SOS avec sa position</strong> ; la régulation le reçoit
+  et peut en faire une mission. Le <strong>tableau de bord national</strong> montre sur une carte les lits,
+  les demandes de sang et les ambulances, mis à jour en direct.</p>
+</section>
+
+<section id="masque">
+  <h2>3. Ce qui est masqué (mais pas supprimé)</h2>
+  <p>Le projet complet contient beaucoup plus de fonctions. Pour une présentation claire, elles sont cachées
+  derrière un interrupteur. <strong>Le code est toujours là et les tests les vérifient toujours.</strong></p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Module</th><th>Fonctions masquées</th></tr></thead>
+    <tbody>
+      <tr><td>Sang</td><td>Stocks de poches, commandes entre banques, collectes mobiles, choix du produit (plasma, plaquettes), groupes rares, relance par vagues, suivi « je suis en route »</td></tr>
+      <tr><td>Lits</td><td>Badge de fraîcheur des données, sorties prévues, alerte de saturation, plateau technique, transferts</td></tr>
+      <tr><td>SAMU</td><td>Questionnaire de tri, lien de localisation par SMS, fiche de l’appelant, bilan médical, contrôle du véhicule, prévision de la demande</td></tr>
+      <tr><td>Supervision</td><td>Indicateurs, rapport hebdomadaire, salle de crise, alertes critiques, double authentification, journal d’audit, interopérabilité (FHIR, DHIS2), demandes d’adhésion, recommandations de l’IA</td></tr>
+      <tr><td>Mobile</td><td>Partage, auto-évaluation avant le don, carte d’impact, parrainage, fiche d’urgence, contrôle de prise de poste, bilan</td></tr>
+    </tbody>
+  </table></div>
+  <p>Pour tout réafficher (si le jury demande « que pourrait-on ajouter ? ») :</p>
+  <ul>
+    <li>Site web : ajouter <code>VITE_FULL_FEATURES=true</code> dans <code>frontend/.env.local</code>, puis relancer <code>npm run dev</code>.</li>
+    <li>Mobile : ajouter <code>EXPO_PUBLIC_FULL_FEATURES=true</code> dans <code>mobile/.env</code>, puis relancer Expo.</li>
+  </ul>
+  <div class="note"><strong>Conseil :</strong> ne réactivez pas tout pendant la démonstration. Mentionnez ces fonctions
+  dans la partie « perspectives » ; c’est plus convaincant qu’un écran surchargé.</div>
+</section>
+
+<section id="installation">
+  <h2>4. Installation pour tester</h2>
+  <p><strong>Prérequis :</strong> Git, Python 3.11 ou plus, Node.js 20 ou plus. Pas besoin de PostgreSQL :
+  en local on utilise SQLite. Les commandes sont pour Windows (PowerShell).</p>
+
+  <h3>Étape 1 — Récupérer la branche</h3>
+<pre><code>git clone -b version-presentation https://github.com/Alioune205/jappo-dundu.git
+cd jappo-dundu</code></pre>
+  <p>Si vous avez déjà le dépôt :</p>
+<pre><code>git fetch origin
+git checkout version-presentation
+git pull</code></pre>
+
+  <h3>Étape 2 — Backend (terminal n°1)</h3>
+<pre><code>cd backend
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env</code></pre>
+  <p>Ouvrez <code>backend\.env</code> et modifiez ces lignes :</p>
+<pre><code>DEBUG=True
+DB_ENGINE=django.db.backends.sqlite3
+REDIS_URL=</code></pre>
+  <p>Puis créez la base, chargez les données de démonstration et lancez le serveur :</p>
+<pre><code>python manage.py migrate
+python seed_demo_data.py
+python manage.py runserver 0.0.0.0:8000</code></pre>
+  <p>L’API répond sur <code>http://127.0.0.1:8000</code>. Laissez ce terminal ouvert.</p>
+
+  <h3>Étape 3 — Site web (terminal n°2)</h3>
+<pre><code>cd frontend
+npm install
+npm run dev</code></pre>
+  <p>Ouvrez l’adresse affichée (en général <code>http://localhost:3000</code>).</p>
+
+  <h3>Étape 4 — Application mobile (terminal n°3)</h3>
+<pre><code>cd mobile
+npm install
+copy .env.example .env</code></pre>
+  <p>Dans <code>mobile\.env</code>, mettez l’adresse du backend :</p>
+  <ul>
+    <li>pour tester dans le navigateur : <code>EXPO_PUBLIC_API_URL=http://127.0.0.1:8000</code> puis <code>npx expo start --web</code> ;</li>
+    <li>pour tester sur un téléphone (même Wi-Fi que le PC) : l’IP du PC, par exemple
+      <code>EXPO_PUBLIC_API_URL=http://192.168.1.20:8000</code> (commande <code>ipconfig</code> pour la trouver), puis
+      <code>npx expo start</code> et scannez le QR code avec Expo Go.</li>
+  </ul>
+
+  <h3>Étape 5 — Vérifier que tout fonctionne (facultatif)</h3>
+<pre><code>cd backend   →  python manage.py test --parallel 1
+cd frontend  →  npm test
+cd mobile    →  npm test</code></pre>
+  <div class="note"><strong>Problèmes fréquents :</strong>
+    <ul>
+      <li><em>« Port déjà utilisé »</em> : un autre serveur tourne déjà. Fermez-le ou changez le port
+        (<code>runserver 0.0.0.0:8002</code>, puis <code>VITE_DEV_BACKEND_URL=http://127.0.0.1:8002</code> dans <code>frontend\.env.local</code>).</li>
+      <li><em>Le téléphone ne se connecte pas</em> : vérifiez l’IP, le même Wi-Fi, et que le backend tourne bien avec <code>0.0.0.0</code>.</li>
+      <li><em>« activate » refusé par PowerShell</em> : lancez <code>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</code> une fois.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="comptes">
+  <h2>5. Comptes de démonstration</h2>
+  <p>Mot de passe identique pour tous : <code>Password123!</code></p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Identifiant</th><th>Profil</th><th>Où</th><th>Ce qu’il fait</th></tr></thead>
+    <tbody>
+      <tr><td><code>admin</code></td><td>Administrateur général</td><td>Web</td><td>Voit tout, gère les comptes et les établissements</td></tr>
+      <tr><td><code>dr.diop</code></td><td>Gestionnaire des lits — Hôpital Principal de Dakar</td><td>Web</td><td>Met à jour les lits, répond aux préalertes du SAMU</td></tr>
+      <tr><td><code>cnts.dakar</code></td><td>Gestionnaire du sang — CNTS</td><td>Web</td><td>Crée les demandes de sang, confirme les dons</td></tr>
+      <tr><td><code>samu.regulation</code></td><td>Régulation SAMU</td><td>Web</td><td>Crée les missions, affecte les ambulances, reçoit les SOS</td></tr>
+      <tr><td><code>samu.driver</code></td><td>Ambulancier (Moussa Sall)</td><td>Mobile</td><td>Reçoit et suit ses missions</td></tr>
+      <tr><td><code>awa.ndiaye</code></td><td>Donneuse (groupe O+)</td><td>Mobile</td><td>Reçoit les alertes de don, envoie un SOS</td></tr>
+    </tbody>
+  </table></div>
+  <p>Astuce : ouvrez deux navigateurs différents (ou une fenêtre privée) pour être connecté avec deux comptes en même temps
+  et montrer le temps réel.</p>
+</section>
+
+<section id="tests">
+  <h2>6. Ce que chaque membre teste</h2>
+  <p>Chacun refait son parcours au moins deux fois avant la soutenance et note ce qui bloque.</p>
+  <div class="grid">
+    <div class="card"><h3>Parcours sang</h3>
+      <p><code>cnts.dakar</code> (web) + <code>awa.ndiaye</code> (mobile)</p>
+      <p>Créer une demande O+ → vérifier que l’alerte arrive sur le mobile → accepter → confirmer le don sur le web.</p></div>
+    <div class="card"><h3>Parcours lits</h3>
+      <p><code>dr.diop</code> (web)</p>
+      <p>Changer les lits libres d’un service → enregistrer une admission puis une sortie → vérifier la carte du tableau de bord.</p></div>
+    <div class="card"><h3>Parcours SAMU</h3>
+      <p><code>samu.regulation</code> (web) + <code>dr.diop</code> (web) + <code>samu.driver</code> (mobile)</p>
+      <p>Créer une mission → vérifier l’ambulance affectée → l’hôpital accepte la préalerte → l’ambulancier fait avancer la mission.</p></div>
+    <div class="card"><h3>SOS et tableau de bord</h3>
+      <p><code>awa.ndiaye</code> (mobile) + <code>samu.regulation</code> / <code>admin</code> (web)</p>
+      <p>Envoyer un SOS → le voir arriver côté régulation → observer la carte nationale.</p></div>
+  </div>
+</section>
+
+<section id="deroule">
+  <h2>7. Déroulé de la présentation (≈ 20 minutes)</h2>
+  <p>Répartissez les étapes entre les membres : chacun présente le module qu’il connaît le mieux et répond aux questions dessus.</p>
+  <ol class="steps">
+    <li><span class="time">2 min</span><strong>Le problème.</strong> Une situation concrète : un accidenté arrive, il faut du sang O−, un lit
+      en réanimation et une ambulance. Aujourd’hui : des appels téléphoniques, un à un. Donner un chiffre de contexte si vous en avez un sourcé.</li>
+    <li><span class="time">2 min</span><strong>La solution et l’architecture.</strong> Une diapositive : backend, site web, mobile ; qui utilise quoi
+      (tableau des profils de la section 5).</li>
+    <li><span class="time">4 min</span><strong>Démo 1 — Sang.</strong> Connecté en <code>cnts.dakar</code>, créer une demande O+. Montrer le téléphone
+      de <code>awa.ndiaye</code> qui reçoit l’alerte, accepter, puis confirmer le don sur le web.
+      <em>Phrase clé : « le système ne prévient que les donneurs compatibles, proches et éligibles ».</em></li>
+    <li><span class="time">3 min</span><strong>Démo 2 — Lits.</strong> Connecté en <code>dr.diop</code>, modifier les lits des urgences, enregistrer une
+      admission. Basculer sur le tableau de bord : la carte a changé sans recharger la page.</li>
+    <li><span class="time">4 min</span><strong>Démo 3 — SAMU.</strong> Connecté en <code>samu.regulation</code>, créer une mission. Montrer l’ambulance
+      la plus proche affectée automatiquement. Sur le compte <code>dr.diop</code>, accepter la préalerte. Sur le téléphone de
+      <code>samu.driver</code>, faire avancer la mission.</li>
+    <li><span class="time">2 min</span><strong>SOS citoyen.</strong> Depuis le mobile, envoyer un SOS ; il apparaît côté régulation.</li>
+    <li><span class="time">1 min</span><strong>Tableau de bord national.</strong> Vue d’ensemble pour le ministère / l’administrateur.</li>
+    <li><span class="time">2 min</span><strong>Bilan et perspectives.</strong> Ce qui marche, ce qui reste à valider sur le terrain (avec le CNTS et
+      le SAMU), et les fonctions déjà prototypées (section 3) : stocks, tri médical, interopérabilité.</li>
+  </ol>
+  <div class="note"><strong>Plan B :</strong> enregistrez une vidéo de chaque démo la veille. Si le Wi-Fi ou un serveur tombe,
+  passez la vidéo sans perdre de temps. Préparez aussi des captures d’écran dans les diapositives.</div>
+  <div class="note"><strong>Honnêteté :</strong> dites clairement que la plateforme n’a pas encore été testée avec de vrais
+  utilisateurs et qu’elle n’est pas déployée en production. Si des outils d’IA ont aidé au développement, mentionnez-le
+  comme demandé par l’école. Un jury apprécie la transparence.</div>
+</section>
+
+<section id="jury">
+  <h2>8. Questions probables du jury</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Question</th><th>Piste de réponse</th></tr></thead>
+    <tbody>
+      <tr><td>Comment choisissez-vous les donneurs à alerter ?</td><td>Compatibilité du groupe, distance au point de collecte, délai minimal depuis le dernier don, disponibilité déclarée.</td></tr>
+      <tr><td>Comment trouvez-vous l’ambulance la plus proche ?</td><td>Position des ambulances libres et calcul de distance géographique (GeoDjango / PostGIS en production).</td></tr>
+      <tr><td>Comment le temps réel fonctionne-t-il ?</td><td>WebSockets (Django Channels) pour le web, notifications push Expo pour le mobile.</td></tr>
+      <tr><td>Et la sécurité des données de santé ?</td><td>Chaque profil ne voit que son périmètre (son hôpital, sa région), authentification par jeton, données minimales dans les alertes.</td></tr>
+      <tr><td>Que se passe-t-il si un hôpital ne met pas ses lits à jour ?</td><td>C’est la principale limite : la qualité dépend des saisies. Le projet complet prévoit des rappels automatiques et un indicateur de fraîcheur.</td></tr>
+      <tr><td>Comment l’avez-vous testé ?</td><td>Tests automatisés sur le backend, le web et le mobile ; validation terrain encore à faire.</td></tr>
+      <tr><td>Qui a fait quoi ?</td><td>Chaque membre présente sa partie (backend, web, mobile, données / IA).</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="veille">
+  <h2>9. Check-list de la veille</h2>
+  <ul class="check">
+    <li>Tout le monde est sur la branche <code>version-presentation</code> à jour (<code>git pull</code>).</li>
+    <li>La base est remise à zéro avec les données de démo : supprimer <code>backend\db.sqlite3</code>, puis <code>migrate</code> et <code>python seed_demo_data.py</code>.</li>
+    <li>Les trois serveurs démarrent sur le PC de présentation.</li>
+    <li>Le téléphone de démo est connecté au même réseau et l’application est ouverte sur le bon compte.</li>
+    <li>Les comptes sont déjà connectés dans des onglets séparés (gain de temps).</li>
+    <li>Les vidéos de secours sont sur le PC <em>et</em> sur une clé USB.</li>
+    <li>Une répétition complète chronométrée a été faite (moins de 20 minutes).</li>
+    <li>Chaque membre sait répondre aux questions de son module.</li>
+  </ul>
+</section>
+
+<footer>Jappo Dundu · Branche <code>version-presentation</code> · Document de l’équipe pour les tests et la soutenance.</footer>
+</main>
+</body>
+</html>
