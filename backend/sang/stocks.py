@@ -23,7 +23,9 @@ from django.db.models import F, Sum
 from django.utils import timezone
 
 from geo.search import nearest
+from realtime import escalation
 from realtime.broadcast import broadcast_dashboard
+from realtime.models import CriticalAlert
 from users.exceptions import Conflict
 from users.models import HealthFacility
 
@@ -161,6 +163,8 @@ def expiring_summary(facility_ids=None):
 
 
 def _locked(order):
+    # Toute réponse du fournisseur (ou annulation) clôt l'alerte critique éventuelle.
+    escalation.resolve(CriticalAlert.Kind.BLOOD_ORDER, order)
     return BloodSupplyOrder.objects.select_for_update().select_related('requester', 'supplier').get(pk=order.pk)
 
 
@@ -190,6 +194,15 @@ def create_order(*, requester, supplier, blood_group, component, units, created_
         created_by=created_by,
     )
     _notify_order(order, ORDER_CREATED)
+    if order.urgency == BloodRequest.Urgency.CRITICAL:
+        escalation.raise_alert(
+            CriticalAlert.Kind.BLOOD_ORDER,
+            order,
+            title=f"Commande critique : {order.units} × {order.blood_group}",
+            message=f"{supplier.name} : accepter ou refuser la commande de {requester.name}.",
+            facility=supplier,
+            region=supplier.region,
+        )
     logger.info("Commande %s : %d × %s %s, %s → %s", order.pk, units, blood_group, component, requester.pk, supplier.pk)
     return order
 

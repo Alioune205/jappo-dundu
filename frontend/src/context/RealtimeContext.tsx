@@ -111,6 +111,15 @@ function toAlert(message: RealtimeMessage): Omit<RealtimeAlert, 'id' | 'timestam
         critical: data.event === 'mission_created' && (data.priority === 'critical' || data.source === 'sos'),
       }
     case 'alert_message':
+      if (data.event === 'critical_alert') {
+        return {
+          type: 'general',
+          title: data.title || 'Alerte critique',
+          message: data.message || '',
+          data,
+          critical: true,
+        }
+      }
       return { type: 'general', title: 'Message', message: data.message || '', data }
     default:
       return null

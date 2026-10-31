@@ -30,7 +30,9 @@ from push.services import (
     notify_mission_cancelled,
     notify_sos_assigned,
 )
+from realtime import escalation
 from realtime.broadcast import broadcast_alert, broadcast_dashboard
+from realtime.models import CriticalAlert
 from users.exceptions import Conflict
 from users.models import HealthFacility
 
@@ -277,10 +279,52 @@ def set_availability(ambulance, status):
 # =============================================================
 
 
+def _regulation_of(region):
+    """Service d'ambulances de la région (sa ligne de garde reçoit les relances)."""
+    return (
+        HealthFacility.objects.filter(
+            region=region, is_active=True, facility_type=HealthFacility.FacilityType.AMBULANCE_SERVICE
+        )
+        .order_by('pk')
+        .first()
+    )
+
+
+def raise_mission_alert(mission):
+    """Mission critique ou SOS : la régulation doit la prendre en charge (relance sinon)."""
+    if mission.priority != Mission.Priority.CRITICAL and mission.source != Mission.Source.SOS:
+        return
+    label = "Alerte SOS" if mission.source == Mission.Source.SOS else "Mission critique"
+    escalation.raise_alert(
+        CriticalAlert.Kind.MISSION,
+        mission,
+        title=f"{label} n° {mission.pk}",
+        message=f"Région {mission.get_region_display()} : aucune ambulance affectée.",
+        facility=_regulation_of(mission.region),
+        region=mission.region,
+    )
+
+
+def sync_prealert_alert(mission):
+    """Pré-alerte en attente : l'hôpital de destination doit répondre (relance sinon)."""
+    if mission.is_final or mission.destination_status != Mission.DestinationStatus.PENDING:
+        escalation.resolve(CriticalAlert.Kind.PREALERT, mission)
+        return
+    escalation.raise_alert(
+        CriticalAlert.Kind.PREALERT,
+        mission,
+        title=f"Patient annoncé (mission n° {mission.pk})",
+        message=f"{mission.destination.name} : accepter ou refuser le patient.",
+        facility=mission.destination,
+        region=mission.destination.region,
+    )
+
+
 def create_mission(*, created_by, **data):
     with transaction.atomic():
         mission = Mission.objects.create(created_by=created_by, **data)
         notify_mission(mission, MISSION_CREATED)
+        raise_mission_alert(mission)
     logger.info("Mission %s signalée (%s, %s)", mission.pk, mission.priority, mission.region)
     return mission
 
@@ -339,6 +383,7 @@ def assign(
     mission.assigned_at = timezone.now()
     refresh_eta(mission, force=True)
     mission.save(update_fields=['ambulance', 'status', 'assigned_at', *ETA_FIELDS, 'updated_at'])
+    escalation.resolve(CriticalAlert.Kind.MISSION, mission)
     notify_mission(mission, MISSION_UPDATED)
     notify_ambulance(chosen, AMBULANCE_STATUS)
     # L'ambulancier est prévenu même application fermée ; le citoyen d'une
@@ -379,6 +424,9 @@ def advance(mission, status, *, destination=None, cancellation_reason=''):
         # Lit réservé à l'hôpital de destination : occupé si le patient est remis,
         # libéré si la mission est annulée.
         close_mission_reservation(mission)
+        escalation.resolve(CriticalAlert.Kind.MISSION, mission)
+    if mission.destination_id:
+        sync_prealert_alert(mission)
     if mission.is_final and mission.ambulance_id:
         Ambulance.objects.filter(
             pk=mission.ambulance_id, status=AmbulanceStatus.ON_MISSION
@@ -624,6 +672,7 @@ def create_sos(user, point, *, kind, landmark=''):
             triage=dict(SOS_ANSWERS.get(kind, {})),
         )
         notify_mission(mission, MISSION_CREATED)
+        raise_mission_alert(mission)
         transaction.on_commit(lambda: notify_emergency_contacts(mission))
     logger.info("Alerte SOS %s (%s, %s)", mission.pk, kind, region)
     return mission, True
@@ -653,6 +702,8 @@ def update_mission(mission, **changes):
         refresh_eta(mission, force=True)
     mission.save()
     notify_mission(mission, MISSION_UPDATED)
+    if 'destination' in changes and mission.destination_id:
+        sync_prealert_alert(mission)
     return mission
 
 
@@ -685,6 +736,7 @@ def answer_destination(mission, *, user, accepted, note=''):
             'updated_at',
         ]
     )
+    escalation.resolve(CriticalAlert.Kind.PREALERT, mission, user=user)
     if not accepted:
         reservation = BedReservation.objects.filter(mission=mission, status=BedReservation.Status.ACTIVE).first()
         if reservation is not None:

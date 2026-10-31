@@ -7,6 +7,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useFallbackPolling } from '@/lib/useFallbackPolling'
 import { useAuth } from '@/context/AuthContext'
 import { useIdleLogout } from '@/lib/useIdleLogout'
+import { CriticalAlertsBanner } from './CriticalAlertsBanner'
 import { canOpen, primaryRoleLabel } from '@/lib/access'
 
 /** Page hors du rôle (URL saisie à la main, ancien favori). */
@@ -43,6 +44,7 @@ export const AppLayout: React.FC = () => {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Header />
+        <CriticalAlertsBanner />
         {idleWarning && (
           <div
             role="alert"
