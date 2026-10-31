@@ -23,7 +23,7 @@ export const formatKpi = (value: number | null, unit: string) =>
     ? '—'
     : unit === '%'
       ? `${Math.round(value * 100)} %`
-      : `${formatNumber(value, 1)}${unit ? ` ${unit}` : ''}`
+      : `${formatNumber(value, unit ? 1 : 0)}${unit ? ` ${unit}` : ''}`
 
 export function useKpis(days: number, region?: string) {
   return useQuery<KpiReport>({
