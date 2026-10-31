@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router'
-import { Bell, LogOut, Sun, Moon, Sparkles } from 'lucide-react'
+import { Bell, LogOut, Sun, Moon } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { primaryRoleLabel } from '@/lib/access'
 import { useRealtime } from '@/context/RealtimeContext'
@@ -95,11 +95,10 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
             onClick={() => setIsAiOpen((prev) => !prev)}
             aria-expanded={isAiOpen}
             aria-haspopup="dialog"
-            className="mr-1 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-fg px-3 text-xs font-semibold text-canvas shadow-2xs transition-all hover:opacity-90"
-            title="Ouvrir l’Assistant IA de régulation Jappo Dundu"
+            className="mr-1 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-medium text-fg transition-colors hover:bg-raised"
+            title="Ouvrir l’assistant"
           >
-            <Sparkles className="h-3.5 w-3.5 text-[#3b82f6] dark:text-[#2563eb]" aria-hidden="true" />
-            <span>Assistant IA</span>
+            <span>Assistant</span>
           </button>
 
           <div className="mr-2 hidden items-baseline gap-1.5 border-l border-line pl-3 sm:flex">

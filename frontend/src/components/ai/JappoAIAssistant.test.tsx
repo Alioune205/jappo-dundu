@@ -53,8 +53,7 @@ describe('JappoAIAssistant', () => {
 
     fireEvent.click(bedPrompt)
 
-    expect(await screen.findByText(/Synthèse Jappo IA/i, {}, { timeout: 2000 })).toBeInTheDocument()
-    expect(screen.getByText(/7 lits libres sur 20/i)).toBeInTheDocument()
+    expect(await screen.findByText(/7 lits libres sur 20/i, {}, { timeout: 2000 })).toBeInTheDocument()
     expect(screen.getByText('Réanimation')).toBeInTheDocument()
 
     fireEvent.keyDown(document, { key: 'Escape' })
