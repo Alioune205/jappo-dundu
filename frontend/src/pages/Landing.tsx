@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState } from 'react'
 import { Link } from 'react-router'
 import {
   Activity,
@@ -42,11 +42,32 @@ const NAV = [
   { href: '#faq', label: 'FAQ' },
 ]
 
-/** Identité de chaque module : icône et couleur. */
-const MODULE_STYLE: Record<ModuleKey, { icon: React.ElementType; text: string; soft: string; bar: string }> = {
-  blood: { icon: Droplets, text: 'text-accent-red', soft: 'bg-accent-red/10', bar: 'bg-accent-red' },
-  beds: { icon: BedDouble, text: 'text-accent-blue', soft: 'bg-accent-blue/10', bar: 'bg-accent-blue' },
-  ambulances: { icon: Ambulance, text: 'text-accent-green', soft: 'bg-accent-green/10', bar: 'bg-accent-green' },
+/** Identité de chaque module : icône, couleur et photo. */
+const MODULE_STYLE: Record<
+  ModuleKey,
+  { icon: React.ElementType; text: string; bar: string; photo: string; alt: string }
+> = {
+  blood: {
+    icon: Droplets,
+    text: 'text-accent-red',
+    bar: 'bg-accent-red',
+    photo: 'module-sang',
+    alt: 'Une infirmière range des poches de sang dans un réfrigérateur de banque de sang',
+  },
+  beds: {
+    icon: BedDouble,
+    text: 'text-accent-blue',
+    bar: 'bg-accent-blue',
+    photo: 'module-lits',
+    alt: 'Une soignante prépare un lit dans une chambre d’hôpital lumineuse',
+  },
+  ambulances: {
+    icon: Ambulance,
+    text: 'text-accent-green',
+    bar: 'bg-accent-green',
+    photo: 'module-ambulance',
+    alt: 'Une ambulance roule dans une avenue de Dakar',
+  },
 }
 
 const AUDIENCE_ICONS = [Smartphone, Building2, Radio, Users]
@@ -88,19 +109,45 @@ const SectionHeader: React.FC<{
   </div>
 )
 
-/** Photo de la page (WebP, JPEG de secours). Crédits : public/images/landing/CREDITS.md. */
-const Photo: React.FC<{ name: string; alt: string; className?: string }> = ({ name, alt, className = '' }) => (
-  <picture>
-    <source srcSet={`/images/landing/${name}.webp`} type="image/webp" />
+/** Formats essayés dans l'ordre pour chaque photo. */
+const PHOTO_FORMATS = ['webp', 'jpg']
+
+/**
+ * Photo de la page (WebP, puis JPEG). Si aucun fichier n'existe encore, un
+ * fond bleu nuit quadrillé avec un pictogramme prend sa place : jamais d'image
+ * cassée. Liste des photos et prompts de génération :
+ * public/images/landing/PROMPTS.md ; crédits : CREDITS.md.
+ */
+const Photo: React.FC<{
+  name: string
+  alt: string
+  className?: string
+  icon?: React.ElementType
+  eager?: boolean
+}> = ({ name, alt, className = '', icon: Icon = Activity, eager = false }) => {
+  const [attempt, setAttempt] = useState(0)
+  if (attempt >= PHOTO_FORMATS.length) {
+    return (
+      <div
+        role="img"
+        aria-label={alt}
+        className={`flex h-full w-full items-center justify-center bg-navy bg-[radial-gradient(circle_at_70%_20%,color-mix(in_oklab,var(--brand)_28%,transparent),transparent_60%)] ${className}`}
+      >
+        <Icon className="h-12 w-12 text-white/20" aria-hidden="true" />
+      </div>
+    )
+  }
+  return (
     <img
-      src={`/images/landing/${name}.jpg`}
+      src={`/images/landing/${name}.${PHOTO_FORMATS[attempt]}`}
       alt={alt}
-      loading="lazy"
+      loading={eager ? 'eager' : 'lazy'}
       decoding="async"
+      onError={() => setAttempt((n) => n + 1)}
       className={`h-full w-full object-cover ${className}`}
     />
-  </picture>
-)
+  )
+}
 
 /** Activité récente affichée dans l'aperçu (décorative). */
 const MOCK_ACTIVITY = [
@@ -117,7 +164,7 @@ const MOCK_KPIS = [
 
 /** Aperçu du tableau de bord (décoratif) : indicateurs, carte et activité. */
 const ProductMock: React.FC = () => (
-  <div aria-hidden="true" data-hero-mock className="relative">
+  <div aria-hidden="true" className="relative">
     <div className="overflow-hidden rounded-xl border border-white/10 bg-surface shadow-[0_40px_80px_-24px_rgb(0_0_0/0.55)]">
       {/* Barre de fenêtre */}
       <div className="flex items-center gap-2 border-b border-line bg-raised px-4 py-2.5">
@@ -189,9 +236,61 @@ const ProductMock: React.FC = () => (
         </ul>
       </div>
     </div>
+  </div>
+)
+
+/** Visuel de l'accroche : une photo et les informations que la plateforme fait circuler. */
+const HeroVisual: React.FC = () => (
+  <div data-hero-mock className="relative mx-auto w-full max-w-xl lg:max-w-none">
+    <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-white/10 shadow-[0_40px_80px_-24px_rgb(0_0_0/0.6)] lg:aspect-[5/4]">
+      <Photo
+        name="hero"
+        eager
+        icon={Ambulance}
+        alt="Une équipe de secours sénégalaise prend en charge un patient devant une ambulance"
+        className="absolute inset-0 object-[55%_50%]"
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-gradient-to-t from-navy/70 via-transparent to-transparent"
+      />
+      {/* Mission en cours, sur la photo. */}
+      <div
+        aria-hidden="true"
+        className="absolute bottom-5 left-5 hidden items-center gap-3 sm:flex rounded-xl border border-white/15 bg-navy/70 px-4 py-3 text-white backdrop-blur-md"
+      >
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-green">
+          <Ambulance className="h-4.5 w-4.5" />
+        </span>
+        <span>
+          <span className="block text-sm font-semibold">Ambulance DK-5120 · en route</span>
+          <span className="block text-xs text-on-navy-muted">Lit réservé · CHU de Fann · 6 min</span>
+        </span>
+      </div>
+    </div>
+
+    {/* Lits disponibles, comme sur le tableau de bord. */}
+    <div
+      aria-hidden="true"
+      className="absolute -left-3 top-6 hidden w-48 rounded-xl border border-line bg-surface p-3.5 shadow-[var(--shadow-raised)] sm:block lg:-left-10"
+    >
+      <div className="flex items-center justify-between text-2xs font-medium text-muted">
+        Lits libres · Dakar
+        <span className="flex items-center gap-1 font-semibold text-accent-green">
+          <span className="live-pulse h-1.5 w-1.5 rounded-full bg-accent-green" /> Direct
+        </span>
+      </div>
+      <div className="num mt-1 flex items-baseline gap-2">
+        <span className="text-2xl font-bold text-fg">78</span>
+        <span className="text-2xs text-accent-blue">+3 ce matin</span>
+      </div>
+    </div>
 
     {/* Alerte telle que le donneur la reçoit sur son téléphone. */}
-    <div className="hero-notif absolute -bottom-12 -right-2 w-64 rounded-xl border border-line bg-surface p-3.5 shadow-[var(--shadow-raised)] sm:-right-6">
+    <div
+      aria-hidden="true"
+      className="hero-notif absolute -bottom-10 -right-2 w-64 rounded-xl border border-line bg-surface p-3.5 shadow-[var(--shadow-raised)] sm:-right-6"
+    >
       <div className="flex items-center gap-2 text-2xs font-semibold text-brand">
         <Bell className="h-3.5 w-3.5" /> Jappo Dundu · maintenant
       </div>
@@ -305,7 +404,7 @@ export const Landing: React.FC = () => {
                 ))}
               </ul>
             </div>
-            <ProductMock />
+            <HeroVisual />
           </div>
         </section>
 
@@ -344,22 +443,27 @@ export const Landing: React.FC = () => {
                     key={module.key}
                     data-reveal
                     style={stagger(index)}
-                    className="lift relative overflow-hidden rounded-xl border border-line bg-surface p-8 shadow-[var(--shadow-panel)]"
+                    className="lift relative flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-panel)]"
                   >
-                    <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1 ${style.bar}`} />
-                    <span className={`lift-icon flex h-12 w-12 items-center justify-center rounded-lg ${style.soft}`}>
-                      <Icon className={`h-6 w-6 ${style.text}`} aria-hidden="true" />
-                    </span>
-                    <h3 className="mt-6 text-xl font-bold text-fg">{module.name}</h3>
-                    <p className={`mt-1 text-sm font-semibold ${style.text}`}>{module.tagline}</p>
-                    <ul className="mt-6 space-y-3 border-t border-line pt-6">
-                      {module.features.map((feature) => (
-                        <li key={feature} className="flex gap-3 text-sm leading-relaxed text-muted">
-                          <Check className={`mt-0.5 h-4 w-4 shrink-0 ${style.text}`} aria-hidden="true" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="relative aspect-[16/10] overflow-hidden">
+                      <Photo name={style.photo} alt={style.alt} icon={Icon} className="absolute inset-0" />
+                      <span aria-hidden="true" className={`absolute inset-x-0 bottom-0 h-1 ${style.bar}`} />
+                    </div>
+                    <div className="relative px-8 pb-8">
+                      <span className="lift-icon -mt-6 flex h-12 w-12 items-center justify-center rounded-lg border border-line bg-surface shadow-[var(--shadow-panel)]">
+                        <Icon className={`h-6 w-6 ${style.text}`} aria-hidden="true" />
+                      </span>
+                      <h3 className="mt-5 text-xl font-bold text-fg">{module.name}</h3>
+                      <p className={`mt-1 text-sm font-semibold ${style.text}`}>{module.tagline}</p>
+                      <ul className="mt-6 space-y-3 border-t border-line pt-6">
+                        {module.features.map((feature) => (
+                          <li key={feature} className="flex gap-3 text-sm leading-relaxed text-muted">
+                            <Check className={`mt-0.5 h-4 w-4 shrink-0 ${style.text}`} aria-hidden="true" />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </article>
                 )
               })}
@@ -377,7 +481,12 @@ export const Landing: React.FC = () => {
                 intro="Un accident sur la route : voici comment les trois modules se relaient, minute par minute."
               />
               <div data-reveal="photo" className="relative mt-10 aspect-[4/3] overflow-hidden rounded-xl">
-                <Photo name="need" alt="Une ambulance en intervention de nuit" className="absolute inset-0" />
+                <Photo
+                  name="urgence"
+                  icon={Radio}
+                  alt="Une régulatrice du SAMU coordonne une intervention depuis la salle de régulation"
+                  className="absolute inset-0 object-[80%_50%]"
+                />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-navy/90 to-transparent p-6 pt-20">
                   <p className="text-lg font-semibold text-white">
                     25 minutes, trois modules, une seule chaîne de secours.
@@ -447,21 +556,33 @@ export const Landing: React.FC = () => {
         {/* Pilotage */}
         <section className="relative overflow-hidden bg-navy py-24 text-on-navy">
           <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-0" />
-          <div className="relative mx-auto max-w-7xl px-5">
-            <SectionHeader invert eyebrow="Pilotage" title="Voir, anticiper, protéger" />
-            <div className="mt-14 grid gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10 md:grid-cols-3">
-              {PILOTING.map((item, index) => {
-                const Icon = PILOTING_ICONS[index]
-                return (
-                  <div key={item.title} data-reveal style={stagger(index)} className="bg-navy p-8">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-white/10">
-                      <Icon className="h-5 w-5 text-amber" aria-hidden="true" />
-                    </span>
-                    <h3 className="mt-5 text-lg font-bold text-white">{item.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-on-navy-muted">{item.text}</p>
-                  </div>
-                )
-              })}
+          <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 lg:grid-cols-[1.1fr_0.9fr]">
+            <div data-reveal className="order-2 lg:order-1">
+              <ProductMock />
+            </div>
+            <div className="order-1 lg:order-2">
+              <SectionHeader
+                invert
+                eyebrow="Pilotage"
+                title="Voir, anticiper, protéger"
+                intro="Un tableau de bord par rôle : l’essentiel du réseau sur un seul écran."
+              />
+              <ul className="mt-10 space-y-7">
+                {PILOTING.map((item, index) => {
+                  const Icon = PILOTING_ICONS[index]
+                  return (
+                    <li key={item.title} data-reveal style={stagger(index)} className="flex gap-5">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/10">
+                        <Icon className="h-5 w-5 text-amber" aria-hidden="true" />
+                      </span>
+                      <div>
+                        <h3 className="text-lg font-bold text-white">{item.title}</h3>
+                        <p className="mt-1.5 text-sm leading-relaxed text-on-navy-muted">{item.text}</p>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
           </div>
         </section>
@@ -501,7 +622,11 @@ export const Landing: React.FC = () => {
 
             <div className="flex flex-col gap-6">
               <div data-reveal="photo" className="aspect-[16/10] overflow-hidden rounded-xl">
-                <Photo name="donate" alt="Un bras pendant un don de sang" className="object-[50%_22%]" />
+                <Photo
+                  name="don"
+                  icon={Droplets}
+                  alt="Une jeune donneuse sourit pendant son don de sang, accompagnée d’une infirmière"
+                />
               </div>
               <div data-reveal className="rounded-xl border border-line bg-surface">
                 <div className="flex items-baseline justify-between gap-4 border-b border-line px-6 py-4">
@@ -656,7 +781,7 @@ export const Landing: React.FC = () => {
             <a href={SOURCE.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
               cnts.gouv.sn
             </a>
-            {`, consulté le ${SOURCE.consulted}. Photos : `}
+            {`, consulté le ${SOURCE.consulted}. Images d’illustration ; photo « mère et nouveau-né » : `}
             <a
               href="https://unsplash.com/license"
               target="_blank"
