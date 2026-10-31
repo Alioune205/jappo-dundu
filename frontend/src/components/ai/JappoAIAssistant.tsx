@@ -4,9 +4,9 @@ import {
   Ambulance as AmbulanceIcon,
   ArrowRight,
   BedDouble,
-  BrainCircuit,
   CheckCircle2,
   Droplets,
+  Plus,
   RotateCcw,
   Send,
   Sparkles,
@@ -68,13 +68,23 @@ interface ChatMessage {
 interface QuickPrompt {
   id: string
   title: string
-  subtitle: string
   icon: React.ReactNode
-  accentClass: string
+  badgeBg: string
   query: string
 }
 
 let hasPlayedInitialIntro = false
+
+const GENERIC_NAMES = new Set([
+  'responsable',
+  'admin',
+  'administrateur',
+  'gestionnaire',
+  'regulateur',
+  'régulateur',
+  'user',
+  'utilisateur',
+])
 
 const timeFmt = new Intl.DateTimeFormat('fr-SN', {
   hour: '2-digit',
@@ -84,8 +94,9 @@ const timeFmt = new Intl.DateTimeFormat('fr-SN', {
 
 /**
  * Assistant IA de régulation Jappo Dundu.
- * Séquence d'ouverture chorégraphiée au premier accès, puis transition rapide
- * lors des réouvertures. Analyse exclusivement les données réelles du réseau.
+ * Design épuré inspiré de FlowAI : panneau flottant à droite, médaillon 3D
+ * central sur réticule discret, accueil aligné à gauche, suggestions compactes
+ * en une ligne et boîte de saisie à deux niveaux sans contour criard.
  */
 export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onClose }) => {
   const { user, roles } = useAuth()
@@ -102,7 +113,9 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
   const seeBlood = canView(roles, 'blood')
   const seeBeds = canView(roles, 'beds')
   const seeFleet = canManage(roles, 'ambulances')
-  const firstName = user?.first_name || user?.full_name?.split(' ')[0] || user?.username || 'Régulateur'
+
+  const rawFirst = (user?.first_name || user?.full_name?.split(' ')[0] || '').trim()
+  const hasPersonalName = rawFirst.length > 1 && !GENERIC_NAMES.has(rawFirst.toLowerCase())
 
   const reducedMotion =
     typeof window !== 'undefined' &&
@@ -111,8 +124,6 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
 
   const introStage: 'emblem' | 'ready' = hasPlayedInitialIntro || reducedMotion || introReady ? 'ready' : 'emblem'
 
-  // Séquence d'ouverture : 520ms au premier accès (sauf si prefers-reduced-motion),
-  // puis ouverture directe lors des retours suivants.
   useEffect(() => {
     if (!isOpen) return
 
@@ -121,19 +132,18 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
         hasPlayedInitialIntro = true
         setIntroReady(true)
         inputRef.current?.focus()
-      }, 520)
+      }, 480)
       return () => clearTimeout(timer)
     } else {
       hasPlayedInitialIntro = true
       const timer = setTimeout(() => {
         setIntroReady(true)
         inputRef.current?.focus()
-      }, 60)
+      }, 50)
       return () => clearTimeout(timer)
     }
   }, [isOpen, reducedMotion])
 
-  // Fermeture sur Échap
   useEffect(() => {
     if (!isOpen) return
     const onKey = (e: KeyboardEvent) => {
@@ -143,7 +153,6 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
     return () => document.removeEventListener('keydown', onKey)
   }, [isOpen, onClose])
 
-  // Défilement automatique vers le dernier message
   useEffect(() => {
     if (scrollRef.current && typeof scrollRef.current.scrollTo === 'function') {
       scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -156,9 +165,8 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
     {
       id: 'global',
       title: 'Synthèse des urgences prioritaires',
-      subtitle: 'Point de situation immédiat sur votre périmètre',
-      icon: <Sparkles className="h-4 w-4" />,
-      accentClass: 'bg-brand/10 text-brand',
+      icon: <Sparkles className="h-3.5 w-3.5" />,
+      badgeBg: 'bg-[#e11d48]/12 text-[#e11d48] dark:bg-[#fb7185]/15 dark:text-[#fb7185]',
       query: 'Quelles sont les urgences prioritaires et tensions actuelles ?',
     },
     ...(seeBeds
@@ -166,9 +174,8 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
           {
             id: 'beds',
             title: 'Lits & services hospitaliers en tension',
-            subtitle: 'Taux d’occupation, réanimation et lits libres',
-            icon: <BedDouble className="h-4 w-4" />,
-            accentClass: 'bg-accent-blue/12 text-accent-blue',
+            icon: <BedDouble className="h-3.5 w-3.5" />,
+            badgeBg: 'bg-[#2563eb]/12 text-[#2563eb] dark:bg-[#60a5fa]/15 dark:text-[#60a5fa]',
             query: 'Quel est l’état des lits disponibles et des services en tension ?',
           },
         ]
@@ -178,9 +185,8 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
           {
             id: 'blood',
             title: 'Demandes de sang & risques CQR à 7 j',
-            subtitle: 'Urgences vitales et groupes sanguins critiques',
-            icon: <Droplets className="h-4 w-4" />,
-            accentClass: 'bg-accent-red/12 text-accent-red',
+            icon: <Droplets className="h-3.5 w-3.5" />,
+            badgeBg: 'bg-[#d97706]/12 text-[#d97706] dark:bg-[#fbbf24]/15 dark:text-[#fbbf24]',
             query: 'Analyse les demandes de sang ouvertes et les pénuries prévues à 7 jours.',
           },
         ]
@@ -190,9 +196,8 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
           {
             id: 'fleet',
             title: 'Flotte SAMU & missions en attente',
-            subtitle: 'Véhicules disponibles et interventions actives',
-            icon: <AmbulanceIcon className="h-4 w-4" />,
-            accentClass: 'bg-accent-green/12 text-accent-green',
+            icon: <AmbulanceIcon className="h-3.5 w-3.5" />,
+            badgeBg: 'bg-[#059669]/12 text-[#059669] dark:bg-[#34d399]/15 dark:text-[#34d399]',
             query: 'Quel est l’état de la flotte d’ambulances et des missions SAMU ?',
           },
         ]
@@ -252,7 +257,6 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
     const q = rawQuery.toLowerCase()
     const ctx = await gatherLiveContext()
 
-    // Calculs Lits
     const bedRows =
       ctx.facilityCapacities.length > 0
         ? ctx.facilityCapacities.map((c) => ({
@@ -275,7 +279,6 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
     const globalBedRate = totalBeds > 0 ? (totalBeds - availBeds) / totalBeds : 0
     const tenseBeds = [...bedRows].filter((r) => r.rate >= 0.85 || r.available === 0).sort((a, b) => b.rate - a.rate)
 
-    // Calculs Sang & ML
     const openReqs = ctx.bloodRequests
     const criticalReqs = openReqs.filter((r) => r.urgency === 'critical')
     const missingUnits = openReqs.reduce((s, r) => s + r.units_remaining, 0)
@@ -284,12 +287,10 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
         ? ctx.predictionSummary.reduce((s, p) => s + p.critical_count, 0)
         : ctx.regionPredictions.filter((p) => p.risk_level === 'CRITICAL').length
 
-    // Calculs Flotte
     const totalAmb = ctx.ambulances.length
     const availAmb = ctx.ambulances.filter((a) => a.status === 'available').length
     const pendingMissions = ctx.activeMissions.filter((m) => m.status === 'pending')
 
-    // 1. Question orientée LITS
     if (q.includes('lit') || q.includes('réa') || q.includes('service') || q.includes('occupation')) {
       return {
         summary:
@@ -307,12 +308,12 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
             tone: availBeds === 0 ? 'danger' : 'info',
           },
           {
-            label: 'Taux d’occupation',
+            label: 'Occupation',
             value: formatPercent(globalBedRate),
             tone: globalBedRate > 0.85 ? 'danger' : globalBedRate > 0.7 ? 'warning' : 'success',
           },
           {
-            label: 'Services en tension',
+            label: 'En tension',
             value: `${tenseBeds.length}`,
             tone: tenseBeds.length > 0 ? 'danger' : 'success',
           },
@@ -344,28 +345,27 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
       }
     }
 
-    // 2. Question orientée SANG / PÉNURIES ML
     if (q.includes('sang') || q.includes('pénurie') || q.includes('poche') || q.includes('donneur') || q.includes('groupe')) {
       return {
         summary: `${openReqs.length} demande(s) de sang ouverte(s) (${formatNumber(missingUnits)} poches requises), dont ${criticalReqs.length} en urgence vitale. Le modèle quantile CQR signale ${critPredCount} risque(s) critique(s) de pénurie à 7 jours.`,
         metrics: [
           {
-            label: 'Demandes ouvertes',
+            label: 'Demandes',
             value: `${openReqs.length}`,
             tone: criticalReqs.length > 0 ? 'danger' : 'info',
           },
           {
-            label: 'Urgences vitales',
+            label: 'Vitales',
             value: `${criticalReqs.length}`,
             tone: criticalReqs.length > 0 ? 'danger' : 'success',
           },
           {
-            label: 'Risques CQR (7 j)',
-            value: `${critPredCount} critique(s)`,
+            label: 'Risques CQR',
+            value: `${critPredCount} crit.`,
             tone: critPredCount > 0 ? 'danger' : 'success',
           },
         ],
-        tableHeaders: ['Groupe', 'Établissement', 'Besoin restant'],
+        tableHeaders: ['Groupe', 'Établissement', 'Besoin'],
         tableRows: openReqs.slice(0, 5).map((r) => ({
           col1: r.blood_group,
           col2: r.facility?.name || 'Établissement',
@@ -387,13 +387,12 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
       }
     }
 
-    // 3. Question orientée AMBULANCES / SAMU
     if (q.includes('ambulance') || q.includes('samu') || q.includes('mission') || q.includes('flotte')) {
       return {
         summary: `${availAmb} ambulance(s) disponible(s) sur ${totalAmb} dans la flotte. ${ctx.activeMissions.length} mission(s) active(s) en cours, dont ${pendingMissions.length} en attente d’affectation.`,
         metrics: [
           {
-            label: 'Flotte disponible',
+            label: 'Flotte libre',
             value: `${availAmb} / ${totalAmb}`,
             tone: availAmb <= 1 ? 'warning' : 'success',
           },
@@ -403,12 +402,12 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
             tone: 'info',
           },
           {
-            label: 'En attente d’affectation',
+            label: 'En attente',
             value: `${pendingMissions.length}`,
             tone: pendingMissions.length > 0 ? 'danger' : 'success',
           },
         ],
-        tableHeaders: ['Mission', 'Lieu de prise en charge', 'Statut'],
+        tableHeaders: ['Mission', 'Prise en charge', 'Priorité'],
         tableRows: ctx.activeMissions.slice(0, 5).map((m) => ({
           col1: m.description || `Mission #${m.id}`,
           col2: m.pickup_address || '—',
@@ -426,7 +425,6 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
       }
     }
 
-    // 4. Synthèse globale multi-domaines
     const priorities: string[] = []
     if (seeBeds && tenseBeds.length > 0) {
       priorities.push(`${tenseBeds.length} service(s) hospitalier(s) en tension (> 85 % d’occupation).`)
@@ -459,8 +457,8 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
         ...(seeBlood
           ? [
               {
-                label: 'Demandes de sang',
-                value: `${openReqs.length} (${criticalReqs.length} vitale${criticalReqs.length > 1 ? 's' : ''})`,
+                label: 'Sang ouvert',
+                value: `${openReqs.length} (${criticalReqs.length} vit.)`,
                 tone: (criticalReqs.length > 0 ? 'danger' : 'success') as AssistantMetric['tone'],
               },
             ]
@@ -468,7 +466,7 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
         ...(seeFleet
           ? [
               {
-                label: 'Ambulances prêtes',
+                label: 'SAMU prêt',
                 value: `${availAmb} / ${totalAmb}`,
                 tone: (availAmb <= 1 ? 'warning' : 'success') as AssistantMetric['tone'],
               },
@@ -496,9 +494,9 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
     setMessages((prev) => [...prev, userMsg])
     setInput('')
     setIsThinking(true)
-    setThinkingLabel('Analyse des indicateurs temps réel en cours…')
+    setThinkingLabel('Analyse des indicateurs temps réel…')
 
-    const delay = reducedMotion ? 20 : 280
+    const delay = reducedMotion ? 20 : 260
     const [responseBlock] = await Promise.all([
       buildAnalyticalResponse(trimmed),
       new Promise((resolve) => setTimeout(resolve, delay)),
@@ -517,7 +515,7 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-black/35 backdrop-blur-[2px] transition-opacity"
+      className="fixed inset-0 z-50 flex justify-end bg-slate-950/15 transition-opacity dark:bg-black/35"
       role="dialog"
       aria-modal="true"
       aria-label="Jappo IA — Assistant de régulation"
@@ -525,25 +523,16 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <aside className="ai-drawer-enter ai-mesh-surface relative flex h-full w-full max-w-[460px] flex-col border-l border-line-strong bg-surface shadow-[var(--shadow-hero)] sm:my-3 sm:mr-3 sm:h-[calc(100%-1.5rem)] sm:rounded-2xl sm:border">
-        {/* En-tête de l'assistant */}
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-surface/90 px-5 py-3.5 backdrop-blur-md sm:rounded-t-2xl">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-[#0f2547] text-white shadow-sm">
-              <Sparkles className="h-4 w-4" aria-hidden="true" />
+      <aside className="ai-drawer-enter ai-panel-surface relative flex h-full w-full flex-col overflow-hidden sm:mt-14 sm:mr-4 sm:mb-4 sm:h-[calc(100%-4.5rem)] sm:max-w-[400px] sm:rounded-2xl">
+        {/* Barre supérieure minimaliste (style FlowAI) */}
+        <header className="flex h-11 shrink-0 items-center justify-between border-b border-line/80 bg-subtle/60 px-4">
+          <div className="flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-fg text-canvas shadow-2xs">
+              <Sparkles className="h-3 w-3" aria-hidden="true" />
             </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-fg">Jappo IA</h2>
-                <span className="inline-flex items-center gap-1 rounded-full bg-ok/12 px-2 py-0.5 text-[10px] font-semibold text-ok">
-                  <span className="live-pulse h-1.5 w-1.5 rounded-full bg-ok" aria-hidden="true" />
-                  En direct
-                </span>
-              </div>
-              <p className="text-2xs text-muted">
-                Assistant d’aide à la régulation · {primaryRoleLabel(roles)}
-              </p>
-            </div>
+            <h2 className="text-xs font-bold tracking-tight text-fg">
+              Jappo IA <span className="font-normal text-muted">Assistant</span>
+            </h2>
           </div>
 
           <div className="flex items-center gap-1">
@@ -551,8 +540,8 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
               <button
                 type="button"
                 onClick={() => setMessages([])}
-                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors hover:bg-raised hover:text-fg"
-                title="Réinitialiser la conversation"
+                className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-fg"
+                title="Nouvelle conversation"
                 aria-label="Réinitialiser la conversation"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -561,240 +550,258 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors hover:bg-raised hover:text-fg"
+              className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-fg"
               aria-label="Fermer l’assistant IA"
               title="Fermer (Échap)"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
         </header>
 
-        {/* Corps : Séquence d'ouverture & Conversation */}
-        <div ref={scrollRef} className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
-          {/* Médaillon central animé (inspiré de la vidéo de référence) */}
-          <div
-            className={`flex flex-col items-center text-center transition-all duration-500 ${
-              introStage === 'emblem' ? 'py-16' : messages.length > 0 ? 'py-2' : 'py-5'
-            }`}
-          >
-            <div className="ai-orb relative flex h-16 w-16 items-center justify-center rounded-full bg-surface ring-1 ring-line-strong">
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-tr from-brand/20 via-accent-blue/20 to-transparent blur-md"
-              />
-              <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#0f2547] via-[#1d4ed8] to-brand text-white shadow-md">
-                <BrainCircuit className="h-6 w-6" aria-hidden="true" />
-              </span>
+        {/* Corps du panneau */}
+        {messages.length === 0 ? (
+          <div className="flex flex-1 flex-col justify-between overflow-y-auto px-4 py-4">
+            {/* Scène supérieure : Médaillon 3D sur réticule géométrique ultra-discret */}
+            <div
+              className={`ai-orb-stage flex flex-1 items-center justify-center transition-all duration-500 ${
+                introStage === 'emblem' ? 'min-h-[240px]' : 'min-h-[155px]'
+              }`}
+            >
+              <div className="ai-orb ai-orb-medallion relative flex h-14 w-14 items-center justify-center rounded-full">
+                <Sparkles className="h-6 w-6 text-[#2563eb] dark:text-[#60a5fa]" aria-hidden="true" />
+              </div>
             </div>
 
-            {introStage === 'ready' && messages.length === 0 && (
-              <div className="ai-stagger-item mt-4 max-w-sm space-y-1.5" style={{ '--ai-step': 0 } as React.CSSProperties}>
-                <h3 className="text-base font-bold text-fg">Bonjour {firstName}, comment puis-je vous aider ?</h3>
-                <p className="text-xs leading-relaxed text-muted">
-                  J’analyse en temps réel les capacités hospitalières, les stocks sanguins, les prévisions quantiles CQR
-                  et la flotte SAMU de votre périmètre.
-                </p>
+            {/* Section inférieure : Accueil aligné à gauche + Actions rapides en une ligne */}
+            {introStage === 'ready' && (
+              <div className="space-y-3.5 pt-2">
+                <div className="ai-stagger-item space-y-1 text-left" style={{ '--ai-step': 0 } as React.CSSProperties}>
+                  <h3 className="text-[15px] font-bold tracking-tight text-fg">
+                    {hasPersonalName ? `Bonjour ${rawFirst} !` : 'Bonjour !'}
+                  </h3>
+                  <p className="text-xs leading-relaxed text-muted">
+                    Posez vos questions sur les capacités hospitalières, les réserves de sang, les prévisions CQR ou la
+                    flotte SAMU de votre périmètre.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5" aria-label="Suggestions d’analyse">
+                  {quickPrompts.map((item, idx) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => submitQuery(item.query)}
+                      style={{ '--ai-step': idx + 1 } as React.CSSProperties}
+                      className="ai-stagger-item group flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-line/70 bg-subtle/60 px-3 py-2 text-left transition-all hover:border-line-strong hover:bg-raised"
+                    >
+                      <span
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${item.badgeBg}`}
+                      >
+                        {item.icon}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-fg group-hover:text-brand">
+                        {item.title}
+                      </span>
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-subtle opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
-
-          {/* Suggestions d'actions rapides (affichées à l'accueil de l'assistant) */}
-          {introStage === 'ready' && messages.length === 0 && (
-            <div className="space-y-2" aria-label="Suggestions d’analyse">
-              <p className="eyebrow px-1 text-2xs uppercase tracking-wider">Analyses rapides disponibles</p>
-              {quickPrompts.map((item, idx) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => submitQuery(item.query)}
-                  style={{ '--ai-step': idx + 1 } as React.CSSProperties}
-                  className="ai-stagger-item card-interactive group flex w-full cursor-pointer items-center gap-3.5 rounded-xl border border-line bg-surface p-3.5 text-left transition-colors hover:border-line-strong"
+        ) : (
+          /* Fil de conversation actif */
+          <div ref={scrollRef} className="flex-1 space-y-3.5 overflow-y-auto px-4 py-4">
+            {messages.map((msg) =>
+              msg.sender === 'user' ? (
+                <div key={msg.id} className="flex justify-end">
+                  <div className="max-w-[85%] rounded-2xl rounded-br-xs bg-fg px-3.5 py-2 text-xs font-medium text-canvas shadow-2xs">
+                    <p>{msg.prompt}</p>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  key={msg.id}
+                  className="dash-rise space-y-3 rounded-2xl border border-line/80 bg-subtle/40 p-3.5"
                 >
-                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${item.accentClass}`}>
-                    {item.icon}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-semibold text-fg group-hover:text-brand">
-                      {item.title}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-fg">
+                      <span className="flex h-4 w-4 items-center justify-center rounded-sm bg-[#2563eb]/15 text-[#2563eb] dark:text-[#60a5fa]">
+                        <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
+                      </span>
+                      Synthèse Jappo IA
                     </span>
-                    <span className="block truncate text-2xs text-muted">{item.subtitle}</span>
-                  </span>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg" />
-                </button>
-              ))}
-            </div>
-          )}
+                    <span className="num text-[10px] text-subtle">{msg.timestamp}</span>
+                  </div>
 
-          {/* Historique des échanges */}
-          {messages.map((msg) =>
-            msg.sender === 'user' ? (
-              <div key={msg.id} className="flex justify-end">
-                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-gradient-to-br from-[#0f2547] to-[#1e3a8a] px-4 py-2.5 text-xs font-medium text-white shadow-sm">
-                  <p>{msg.prompt}</p>
-                  <span className="mt-1 block text-right text-[10px] text-white/65">{msg.timestamp}</span>
-                </div>
-              </div>
-            ) : (
-              <div key={msg.id} className="dash-rise space-y-3 rounded-2xl border border-line bg-surface p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-2 border-b border-line pb-2">
-                  <span className="inline-flex items-center gap-1.5 text-2xs font-semibold text-brand">
-                    <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                    Synthèse Jappo IA
-                  </span>
-                  <span className="num text-[10px] text-subtle">{msg.timestamp}</span>
-                </div>
+                  {msg.response && (
+                    <>
+                      <p className="text-xs leading-relaxed text-fg">{msg.response.summary}</p>
 
-                {msg.response && (
-                  <>
-                    <p className="text-xs leading-relaxed text-fg">{msg.response.summary}</p>
+                      {msg.response.metrics && msg.response.metrics.length > 0 && (
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {msg.response.metrics.map((m) => (
+                            <div key={m.label} className="rounded-xl border border-line/70 bg-surface px-2.5 py-2">
+                              <span className="block truncate text-[10px] text-muted">{m.label}</span>
+                              <span
+                                className={`num mt-0.5 block truncate text-xs font-bold ${
+                                  m.tone === 'danger'
+                                    ? 'text-critical'
+                                    : m.tone === 'warning'
+                                      ? 'text-warning'
+                                      : m.tone === 'success'
+                                        ? 'text-ok'
+                                        : 'text-fg'
+                                }`}
+                              >
+                                {m.value}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
-                    {msg.response.metrics && msg.response.metrics.length > 0 && (
-                      <div className="grid grid-cols-3 gap-2">
-                        {msg.response.metrics.map((m) => (
-                          <div key={m.label} className="rounded-xl border border-line bg-raised/60 px-2.5 py-2">
-                            <span className="block truncate text-[10px] text-muted">{m.label}</span>
-                            <span
-                              className={`num mt-0.5 block truncate text-xs font-bold ${
-                                m.tone === 'danger'
-                                  ? 'text-critical'
-                                  : m.tone === 'warning'
-                                    ? 'text-warning'
-                                    : m.tone === 'success'
-                                      ? 'text-ok'
-                                      : 'text-fg'
-                              }`}
-                            >
-                              {m.value}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {msg.response.tableRows && msg.response.tableRows.length > 0 && msg.response.tableHeaders && (
-                      <div className="overflow-hidden rounded-xl border border-line">
-                        <table className="w-full text-left text-2xs">
-                          <thead className="border-b border-line bg-raised/70 text-muted">
-                            <tr>
-                              <th className="px-2.5 py-1.5 font-medium">{msg.response.tableHeaders[0]}</th>
-                              <th className="px-2.5 py-1.5 font-medium">{msg.response.tableHeaders[1]}</th>
-                              <th className="px-2.5 py-1.5 text-right font-medium">{msg.response.tableHeaders[2]}</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-line bg-surface">
-                            {msg.response.tableRows.map((row, rIdx) => (
-                              <tr key={`${row.col1}-${rIdx}`}>
-                                <td className="px-2.5 py-1.5 font-medium text-fg">{row.col1}</td>
-                                <td className="px-2.5 py-1.5 text-muted">{row.col2}</td>
-                                <td className="px-2.5 py-1.5 text-right">
-                                  {row.badge ? (
-                                    <Badge size="sm" tone={row.badge.tone}>
-                                      {row.badge.text}
-                                    </Badge>
-                                  ) : (
-                                    <span className="num font-medium text-fg">{row.col3}</span>
-                                  )}
-                                </td>
+                      {msg.response.tableRows && msg.response.tableRows.length > 0 && msg.response.tableHeaders && (
+                        <div className="overflow-hidden rounded-xl border border-line/80 bg-surface">
+                          <table className="w-full text-left text-[11px]">
+                            <thead className="border-b border-line/80 bg-subtle/60 text-muted">
+                              <tr>
+                                <th className="px-2.5 py-1.5 font-medium">{msg.response.tableHeaders[0]}</th>
+                                <th className="px-2.5 py-1.5 font-medium">{msg.response.tableHeaders[1]}</th>
+                                <th className="px-2.5 py-1.5 text-right font-medium">{msg.response.tableHeaders[2]}</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                            </thead>
+                            <tbody className="divide-y divide-line/60">
+                              {msg.response.tableRows.map((row, rIdx) => (
+                                <tr key={`${row.col1}-${rIdx}`}>
+                                  <td className="px-2.5 py-1.5 font-medium text-fg">{row.col1}</td>
+                                  <td className="px-2.5 py-1.5 text-muted">{row.col2}</td>
+                                  <td className="px-2.5 py-1.5 text-right">
+                                    {row.badge ? (
+                                      <Badge size="sm" tone={row.badge.tone}>
+                                        {row.badge.text}
+                                      </Badge>
+                                    ) : (
+                                      <span className="num font-medium text-fg">{row.col3}</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
 
-                    {msg.response.recommendations && msg.response.recommendations.length > 0 && (
-                      <ul className="space-y-1.5 rounded-xl bg-raised/50 p-3 text-2xs text-fg">
-                        {msg.response.recommendations.map((rec, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            {rec.includes('tension') || rec.includes('vitale') || rec.includes('attente') ? (
-                              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
-                            ) : (
-                              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok" aria-hidden="true" />
-                            )}
-                            <span>{rec}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                      {msg.response.recommendations && msg.response.recommendations.length > 0 && (
+                        <ul className="space-y-1.5 rounded-xl border border-line/60 bg-surface p-2.5 text-[11px] text-fg">
+                          {msg.response.recommendations.map((rec, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              {rec.includes('tension') || rec.includes('vitale') || rec.includes('attente') ? (
+                                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
+                              ) : (
+                                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok" aria-hidden="true" />
+                              )}
+                              <span>{rec}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
 
-                    {msg.response.actionLink && (
-                      <div className="pt-1">
-                        <Link
-                          to={msg.response.actionLink.to}
-                          onClick={onClose}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline"
-                        >
-                          {msg.response.actionLink.label}
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </Link>
-                      </div>
-                    )}
-                  </>
-                )}
+                      {msg.response.actionLink && (
+                        <div>
+                          <Link
+                            to={msg.response.actionLink.to}
+                            onClick={onClose}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563eb] hover:underline dark:text-[#60a5fa]"
+                          >
+                            {msg.response.actionLink.label}
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </Link>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )
+            )}
+
+            {isThinking && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="dash-rise space-y-2 rounded-2xl border border-line/80 bg-subtle/40 p-3.5"
+              >
+                <div className="flex items-center gap-2 text-xs font-medium text-fg">
+                  <Sparkles className="live-pulse h-3.5 w-3.5 text-[#2563eb] dark:text-[#60a5fa]" aria-hidden="true" />
+                  <span>{thinkingLabel}</span>
+                </div>
+                <div className="ai-thinking-bar h-1.5 w-full rounded-full" />
+                <div className="ai-thinking-bar h-1.5 w-2/3 rounded-full" />
               </div>
-            )
-          )}
+            )}
 
-          {/* État animé pendant que l'IA réfléchit */}
-          {isThinking && (
-            <div
-              role="status"
-              aria-live="polite"
-              className="dash-rise space-y-2.5 rounded-2xl border border-line bg-surface p-4 shadow-sm"
-            >
-              <div className="flex items-center gap-2 text-xs font-semibold text-fg">
-                <Sparkles className="live-pulse h-4 w-4 text-brand" aria-hidden="true" />
-                <span>{thinkingLabel}</span>
+            {!isThinking && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {quickPrompts.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => submitQuery(item.query)}
+                    className="cursor-pointer rounded-lg border border-line/70 bg-subtle/50 px-2.5 py-1 text-[11px] font-medium text-muted transition-colors hover:border-line-strong hover:bg-raised hover:text-fg"
+                  >
+                    {item.title}
+                  </button>
+                ))}
               </div>
-              <div className="ai-thinking-bar h-2 w-full rounded-full" />
-              <div className="ai-thinking-bar h-2 w-2/3 rounded-full" />
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
-          {/* Suggestions rapides en bas de conversation */}
-          {messages.length > 0 && !isThinking && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {quickPrompts.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => submitQuery(item.query)}
-                  className="cursor-pointer rounded-full border border-line bg-surface px-3 py-1 text-2xs font-medium text-muted transition-colors hover:border-brand hover:text-brand"
-                >
-                  {item.title}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Barre de saisie en pied de tiroir */}
+        {/* Boîte de saisie à deux niveaux (style FlowAI) — sans aucun contour rouge */}
         <form
           onSubmit={(e) => {
             e.preventDefault()
             submitQuery(input)
           }}
-          className="shrink-0 border-t border-line bg-surface/95 p-3.5 backdrop-blur-md sm:rounded-b-2xl"
+          className="shrink-0 p-3 pt-1"
         >
-          <div className="flex items-center gap-2 rounded-xl border border-line-strong bg-canvas px-3 py-1.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
+          <div className="rounded-xl border border-line bg-subtle/45 px-3.5 pt-3 pb-2.5 transition-colors focus-within:border-line-strong focus-within:bg-surface">
             <input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Posez une question sur les lits, le sang ou le SAMU…"
+              placeholder="Posez une question sur votre périmètre…"
               aria-label="Question pour l’assistant IA"
-              className="w-full bg-transparent text-xs text-fg placeholder:text-subtle focus:outline-none"
+              className="w-full bg-transparent text-xs text-fg placeholder:text-muted focus:outline-none"
             />
-            <button
-              type="submit"
-              disabled={!input.trim() || isThinking}
-              aria-label="Envoyer la question"
-              className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[#0f2547] text-white transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-brand"
-            >
-              <Send className="h-3.5 w-3.5" />
-            </button>
+            <div className="mt-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (messages.length > 0) setMessages([])
+                    inputRef.current?.focus()
+                  }}
+                  title="Suggestions rapides"
+                  aria-label="Afficher les suggestions rapides"
+                  className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-raised hover:text-fg"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+                <span className="truncate text-[11px] text-subtle">{primaryRoleLabel(roles)}</span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={!input.trim() || isThinking}
+                aria-label="Envoyer la question"
+                className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-fg text-canvas transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <Send className="h-3 w-3" />
+              </button>
+            </div>
           </div>
         </form>
       </aside>

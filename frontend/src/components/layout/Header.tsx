@@ -92,13 +92,13 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
           {/* Bouton Assistant IA (inspiré de la vidéo de référence) */}
           <button
             type="button"
-            onClick={() => setIsAiOpen(true)}
+            onClick={() => setIsAiOpen((prev) => !prev)}
             aria-expanded={isAiOpen}
             aria-haspopup="dialog"
-            className="mr-1 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-[#0f2547] px-3 text-xs font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-[#16335e] dark:bg-brand dark:hover:bg-brand-strong"
+            className="mr-1 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-fg px-3 text-xs font-semibold text-canvas shadow-2xs transition-all hover:opacity-90"
             title="Ouvrir l’Assistant IA de régulation Jappo Dundu"
           >
-            <Sparkles className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />
+            <Sparkles className="h-3.5 w-3.5 text-[#3b82f6] dark:text-[#2563eb]" aria-hidden="true" />
             <span>Assistant IA</span>
           </button>
 

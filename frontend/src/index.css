@@ -814,15 +814,58 @@
   pointer-events: none;
 }
 
-/* Fond maillé subtil pour l'Assistant IA */
-.ai-mesh-surface {
+/* Surface épurée et halo localisé de l'Assistant IA (inspiré de FlowAI) */
+.ai-panel-surface {
   background-color: var(--surface);
+  background-image: radial-gradient(
+    ellipse 90% 45% at 50% 0%,
+    color-mix(in oklab, var(--accent-blue) 6%, transparent),
+    transparent 70%
+  );
+  box-shadow:
+    0 28px 68px -14px rgb(11 31 58 / 0.26),
+    0 8px 24px -6px rgb(11 31 58 / 0.12),
+    0 0 0 1px color-mix(in oklab, var(--line-strong) 80%, transparent);
+}
+.dark .ai-panel-surface {
+  background-color: #0d1524;
+  background-image: radial-gradient(
+    ellipse 90% 42% at 50% 0%,
+    rgb(59 130 246 / 0.09),
+    transparent 70%
+  );
+  box-shadow:
+    0 32px 72px -12px rgb(0 0 0 / 0.72),
+    0 0 0 1px rgb(255 255 255 / 0.09),
+    inset 0 1px 0 0 rgb(255 255 255 / 0.08);
+}
+
+/* Réticule géométrique ultra-discret centré uniquement autour du médaillon */
+.ai-orb-stage {
   background-image:
-    radial-gradient(circle at 50% 0%, color-mix(in oklab, var(--brand) 7%, transparent), transparent 58%),
-    radial-gradient(circle at 85% 20%, color-mix(in oklab, var(--accent-blue) 8%, transparent), transparent 50%),
-    linear-gradient(var(--line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--line) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 28px 28px, 28px 28px;
+    linear-gradient(to right, transparent, color-mix(in oklab, var(--line-strong) 55%, transparent) 50%, transparent),
+    linear-gradient(to bottom, transparent, color-mix(in oklab, var(--line-strong) 55%, transparent) 50%, transparent);
+  background-size: 180px 1px, 1px 130px;
+  background-position: center center;
+  background-repeat: no-repeat;
+}
+
+/* Médaillon 3D tactile au centre de la scène IA */
+.ai-orb-medallion {
+  background: linear-gradient(180deg, #ffffff 0%, #f3f6fb 100%);
+  box-shadow:
+    0 14px 28px -6px rgb(15 23 42 / 0.16),
+    0 4px 10px -2px rgb(37 99 235 / 0.12),
+    0 0 0 1px rgb(15 23 42 / 0.06),
+    inset 0 2px 1px 0 #ffffff;
+}
+.dark .ai-orb-medallion {
+  background: linear-gradient(165deg, #1e2b42 0%, #111a2c 100%);
+  box-shadow:
+    0 16px 32px -6px rgb(0 0 0 / 0.65),
+    0 0 24px -4px rgb(59 130 246 / 0.28),
+    0 0 0 1px rgb(255 255 255 / 0.12),
+    inset 0 1px 1px 0 rgb(255 255 255 / 0.2);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -860,11 +903,11 @@
   @keyframes ai-drawer-slide {
     from {
       opacity: 0;
-      transform: translateX(24px) scale(0.985);
+      transform: translateY(-8px) scale(0.97);
     }
     to {
       opacity: 1;
-      transform: translateX(0) scale(1);
+      transform: translateY(0) scale(1);
     }
   }
 
@@ -872,11 +915,9 @@
     0%,
     100% {
       transform: translateY(0) scale(1);
-      box-shadow: 0 12px 30px -6px rgb(228 21 30 / 0.28), 0 0 0 0 rgb(228 21 30 / 0.18);
     }
     50% {
-      transform: translateY(-4px) scale(1.04);
-      box-shadow: 0 18px 36px -6px rgb(37 99 235 / 0.32), 0 0 0 12px rgb(37 99 235 / 0);
+      transform: translateY(-3px) scale(1.03);
     }
   }
 
