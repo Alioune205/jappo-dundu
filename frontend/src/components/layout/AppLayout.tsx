@@ -40,10 +40,14 @@ export const AppLayout: React.FC = () => {
 
   return (
     <div className="flex h-full bg-canvas text-fg">
-      <Sidebar />
+      <div className="contents print:hidden">
+        <Sidebar />
+      </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header />
+        <div className="print:hidden">
+          <Header />
+        </div>
         <CriticalAlertsBanner />
         {idleWarning && (
           <div

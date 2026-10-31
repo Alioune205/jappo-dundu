@@ -12,7 +12,7 @@ from .authentication import (
     JappoDunduTokenVerifyView,
     LogoutView,
 )
-from .views import AuditLogView, EmergencyAccessView, SystemStatusView, TwoFactorView, health_check
+from .views import AuditLogView, EmergencyAccessView, NetworkKpisView, SystemStatusView, TwoFactorView, health_check
 
 app_name = 'security'
 
@@ -22,6 +22,7 @@ urlpatterns = [
     path('status/', SystemStatusView.as_view(), name='system-status'),
     path('security/audit/', AuditLogView.as_view(), name='audit-log'),
     path('security/emergency-access/', EmergencyAccessView.as_view(), name='emergency-access'),
+    path('supervision/kpis/', NetworkKpisView.as_view(), name='network-kpis'),
 ]
 
 # Monté sous /api/auth/ (noms d'URL conservés pour la compatibilité)

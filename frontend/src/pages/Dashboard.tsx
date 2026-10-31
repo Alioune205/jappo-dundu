@@ -1,6 +1,15 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Ambulance as AmbulanceIcon, ArrowRight, BedDouble, BrainCircuit, Droplets } from 'lucide-react'
+import {
+  Ambulance as AmbulanceIcon,
+  ArrowRight,
+  BedDouble,
+  BrainCircuit,
+  Droplets,
+  FileText,
+  Maximize2,
+  Minimize2,
+} from 'lucide-react'
 import { Link } from 'react-router'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
@@ -36,6 +45,7 @@ import { QK } from '@/lib/queryKeys'
 import { AmbulanceManagerDashboard } from './dashboard/AmbulanceManagerDashboard'
 import { BedManagerDashboard } from './dashboard/BedManagerDashboard'
 import { BloodManagerDashboard } from './dashboard/BloodManagerDashboard'
+import { KpiPanel } from './dashboard/KpiPanel'
 import type { Role } from '@/types/api'
 
 /** Rôles qui ont une vue dédiée, centrée sur leur établissement. */
@@ -52,6 +62,15 @@ const STAT_COLUMNS: Record<number, string> = {
   3: 'xl:grid-cols-3',
   4: 'xl:grid-cols-4',
 }
+
+type LayerKey = 'hospitals' | 'bloodBanks' | 'ambulances' | 'missions'
+
+const LAYERS: { key: LayerKey; label: string; swatch: string }[] = [
+  { key: 'hospitals', label: 'Hôpitaux', swatch: 'bg-info' },
+  { key: 'bloodBanks', label: 'Banques de sang', swatch: 'bg-critical' },
+  { key: 'ambulances', label: 'Ambulances', swatch: 'bg-ok' },
+  { key: 'missions', label: 'Missions', swatch: 'bg-warning' },
+]
 
 export const Dashboard: React.FC = () => {
   const { user, roles } = useAuth()
@@ -77,6 +96,25 @@ const NetworkDashboard: React.FC = () => {
   const seeFleet = canManage(roles, 'ambulances')
 
   // 1. Demandes de sang ouvertes
+  const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
+    hospitals: true,
+    bloodBanks: true,
+    ambulances: true,
+    missions: true,
+  })
+  // Salle de crise : le tableau de bord en plein écran (écran mural).
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [crisisMode, setCrisisMode] = useState(false)
+  useEffect(() => {
+    const sync = () => setCrisisMode(document.fullscreenElement === rootRef.current)
+    document.addEventListener('fullscreenchange', sync)
+    return () => document.removeEventListener('fullscreenchange', sync)
+  }, [])
+  const toggleCrisisMode = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined)
+    else rootRef.current?.requestFullscreen?.().catch(() => undefined)
+  }
+
   const { data: bloodRequests = [] } = useQuery({
     queryKey: [...QK.bloodRequests, 'open'],
     queryFn: async () => {
@@ -179,13 +217,33 @@ const NetworkDashboard: React.FC = () => {
   const visibleCards = [seeBeds, seeBlood, seeFleet, seeBlood].filter(Boolean).length
 
   return (
-    <div className="space-y-6">
+    <div ref={rootRef} className={`space-y-6 ${crisisMode ? 'overflow-y-auto bg-canvas p-6' : ''}`}>
       <PageHeader
         title={user?.facility ? user.facility.name : 'Supervision nationale'}
         description={
           user?.facility
             ? `Indicateurs temps réel · ${user.facility.city}`
             : 'Indicateurs temps réel du réseau de santé · Sénégal'
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            <Link
+              to="/rapport"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium text-fg hover:bg-raised"
+            >
+              <FileText className="h-4 w-4" aria-hidden="true" /> Rapport
+            </Link>
+            <button
+              type="button"
+              onClick={toggleCrisisMode}
+              aria-pressed={crisisMode}
+              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-navy px-3 text-sm font-semibold text-white hover:opacity-90"
+              title="Plein écran pour un écran mural de salle de crise"
+            >
+              {crisisMode ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
+              {crisisMode ? 'Quitter' : 'Salle de crise'}
+            </button>
+          </div>
         }
       />
 
@@ -267,23 +325,33 @@ const NetworkDashboard: React.FC = () => {
       <section className="panel">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
           <h2 className="text-sm font-semibold text-fg">Carte opérationnelle</h2>
-          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted" aria-label="Légende">
-            <li className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm bg-info" /> Hôpitaux
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm bg-critical" /> Banques de sang · missions
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm bg-ok" /> Ambulance libre
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-sm bg-warning" /> En mission
-            </li>
+          {/* Légende = calques : chaque entrée s'affiche ou se masque. */}
+          <ul className="flex flex-wrap items-center gap-1 text-xs" aria-label="Calques de la carte">
+            {LAYERS.map((layer) => (
+              <li key={layer.key}>
+                <button
+                  type="button"
+                  aria-pressed={layers[layer.key]}
+                  onClick={() => setLayers((current) => ({ ...current, [layer.key]: !current[layer.key] }))}
+                  className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors ${
+                    layers[layer.key] ? 'border-line-strong text-fg' : 'border-line text-subtle line-through'
+                  }`}
+                >
+                  <span className={`h-2 w-2 rounded-sm ${layer.swatch}`} /> {layer.label}
+                </button>
+              </li>
+            ))}
           </ul>
         </div>
         <div className="p-2">
-          <MapView facilities={facilities} ambulances={ambulances} missions={activeMissions} height="420px" />
+          <MapView
+            facilities={facilities.filter((f) =>
+              f.facility_type === 'blood_bank' ? layers.bloodBanks : f.facility_type === 'ambulance_service' ? true : layers.hospitals
+            )}
+            ambulances={layers.ambulances ? ambulances : []}
+            missions={layers.missions ? activeMissions : []}
+            height={crisisMode ? '62vh' : '420px'}
+          />
         </div>
       </section>
 
@@ -407,6 +475,8 @@ const NetworkDashboard: React.FC = () => {
           </section>
         )}
       </div>
+
+      <KpiPanel />
     </div>
   )
 }

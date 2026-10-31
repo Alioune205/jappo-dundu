@@ -31,6 +31,7 @@ export const PAGE_ROLES: Record<string, Role[]> = {
   '/ambulances': DOMAIN_ROLES.ambulances,
   '/ml': DOMAIN_ROLES.blood,
   '/facilities': ['admin'],
+  '/rapport': ['admin', ...DOMAIN_ROLES.beds, ...DOMAIN_ROLES.blood, ...DOMAIN_ROLES.ambulances],
 }
 
 /** Libellés des rôles, du plus large au plus spécialisé (ordre d'affichage). */

@@ -13,6 +13,7 @@ import {
   NotFound,
   Landing,
   Locate,
+  WeeklyReport,
 } from '@/pages/lazy'
 
 export const routes = [
@@ -98,6 +99,14 @@ export const routes = [
             element: (
               <SuspenseWrapper>
                 <FacilitiesManagement />
+              </SuspenseWrapper>
+            ),
+          },
+          {
+            path: 'rapport',
+            element: (
+              <SuspenseWrapper>
+                <WeeklyReport />
               </SuspenseWrapper>
             ),
           },

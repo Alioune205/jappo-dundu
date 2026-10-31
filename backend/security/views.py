@@ -21,7 +21,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from ml.constants import REGION_CODES
+from users.filters import choice_param, int_param
+from users.permissions import is_admin, user_facility
+
 from . import audit, otp
+from .kpis import network_kpis
 from .middleware import health_payload
 from .models import AuditEvent, EmergencyAccess, TwoFactor
 from .permissions import IsAdmin
@@ -253,3 +258,27 @@ class TwoFactorView(APIView):
             audit.record(request, 'two_factor.disabled', user)
             return Response({'enabled': False})
         raise ValidationError({'step': ["Étape inconnue."]})
+
+
+class NetworkKpisView(APIView):
+    """Indicateurs de pilotage et leurs objectifs : GET /api/supervision/kpis/ ?days=7 &region=dakar
+
+    L'administrateur général choisit la région (tout le pays par défaut) ;
+    un administrateur de domaine voit la région de son établissement.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        params = request.query_params
+        days = int_param(params, 'days', default=7, minimum=1, maximum=90)
+        if is_admin(request.user):
+            region = choice_param(params, 'region', REGION_CODES)
+        else:
+            if not any(manages(request.user, domain) for domain in Domain):
+                raise PermissionDenied("Réservé aux administrateurs.")
+            own = user_facility(request.user)
+            region = own.region if own else None
+            if region is None:
+                raise PermissionDenied("Compte rattaché à aucun établissement.")
+        return Response(network_kpis(days=days, region=region))

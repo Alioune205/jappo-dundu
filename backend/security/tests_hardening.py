@@ -10,6 +10,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
+from ambulances.models import Mission
 from lits.models import BedCapacity
 from sang.tests.helpers import make_donor
 from security.models import AuditEvent, EmergencyAccess
@@ -131,3 +132,28 @@ class ConsentTests(TestCase):
         profile = UserProfile.objects.get(user__username='771112233')
         self.assertIsNotNone(profile.terms_accepted_at)
         self.assertEqual(profile.terms_version, '2026-10')
+
+
+class KpiTests(TestCase):
+    def test_indicators_with_targets_and_scope(self):
+        admin = make_user('admin', Role.ADMIN)
+        hospital = make_facility("Hôpital A")
+        now = timezone.now()
+        for minutes in (10, 20, 40):
+            mission = Mission.objects.create(
+                priority='urgent', pickup_latitude=14.7, pickup_longitude=-17.4, region='dakar', status='completed'
+            )
+            Mission.objects.filter(pk=mission.pk).update(
+                created_at=now - timedelta(hours=1), on_site_at=now - timedelta(hours=1) + timedelta(minutes=minutes)
+            )
+        BedCapacity.objects.create(facility=hospital, category='emergency', total_beds=4)
+        data = api_client(admin).get('/api/supervision/kpis/', {'days': 7}).data
+        indicators = {row['key']: row for row in data['indicators']}
+        self.assertEqual(indicators['response_minutes']['value'], 20)
+        self.assertEqual(indicators['response_minutes']['status'], 'warning')
+        self.assertEqual(indicators['bed_freshness_rate']['status'], 'ok')
+        self.assertEqual(indicators['blood_fulfilled_rate']['status'], 'no_data')
+        self.assertEqual(data['volumes']['late_missions'], 1)
+        manager = make_user('lits_a', Role.BED_MANAGER, facility=hospital)
+        self.assertEqual(api_client(manager).get('/api/supervision/kpis/').data['region'], 'dakar')
+        self.assertEqual(api_client(make_user('awa', Role.DONOR)).get('/api/supervision/kpis/').status_code, 403)
