@@ -90,6 +90,12 @@ function PushBridge() {
         router.navigate('/sos')
         return
       }
+      if ((response?.notification.request.content.data as { type?: string } | undefined)?.type === 'donation_used') {
+        // « Votre don a servi » : l'historique montre le don et ses badges.
+        Notifications.clearLastNotificationResponse()
+        router.navigate('/history')
+        return
+      }
       if (isEligibleAgainNotification(response)) {
         // L'accueil montre les centres et les collectes où donner.
         Notifications.clearLastNotificationResponse()

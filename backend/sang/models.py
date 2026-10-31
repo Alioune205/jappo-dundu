@@ -70,6 +70,17 @@ class DonorQuerySet(models.QuerySet):
         )
 
 
+class RarePhenotype(models.TextChoices):
+    """Phénotypes rares recherchés au niveau national (liste à compléter avec le CNTS)."""
+
+    BOMBAY = 'bombay', "Phénotype Bombay (Oh)"
+    RH_NULL = 'rh_null', "Rh nul"
+    KELL_NEG = 'kell_null', "Kell nul (K0)"
+    DUFFY_NEG = 'duffy_null', "Duffy négatif Fy(a-b-)"
+    U_NEG = 'u_negative', "U négatif (S-s-U-)"
+    OTHER = 'other', "Autre (attesté par le CNTS)"
+
+
 class Donor(models.Model):
     """Profil donneur (un par compte citoyen)."""
 
@@ -120,6 +131,14 @@ class Donor(models.Model):
     )
     last_donation_date = models.DateField(
         null=True, blank=True, verbose_name="Date du dernier don"
+    )
+    # Registre des groupes rares (inscription volontaire) : ces donneurs sont
+    # recherchés dans tout le pays quand un patient a besoin de leur phénotype.
+    rare_phenotype = models.CharField(
+        max_length=20,
+        choices=RarePhenotype.choices,
+        blank=True,
+        verbose_name="Phénotype rare",
     )
     # Don après lequel le rappel « vous pouvez de nouveau donner » est parti :
     # un seul rappel par don (sang/reminders.py).
@@ -225,6 +244,13 @@ class BloodRequest(models.Model):
         default=Component.RED_CELLS,
         verbose_name="Produit sanguin",
     )
+    rare_phenotype = models.CharField(
+        max_length=20,
+        choices=RarePhenotype.choices,
+        blank=True,
+        verbose_name="Phénotype rare requis",
+        help_text="Les donneurs inscrits au registre de ce phénotype sont alertés dans tout le pays.",
+    )
     notes = models.CharField(
         max_length=500,
         blank=True,
@@ -315,6 +341,11 @@ class DonorResponse(models.Model):
         verbose_name="Donneur",
     )
     status = models.CharField(max_length=10, choices=Status.choices, verbose_name="Statut")
+    # Donneur engagé en route : l'hôpital voit son heure d'arrivée estimée.
+    on_the_way_at = models.DateTimeField(null=True, blank=True, verbose_name="En route depuis")
+    eta_at = models.DateTimeField(null=True, blank=True, verbose_name="Arrivée estimée à")
+    # Accueil au centre (carte QR scannée ou présentée).
+    arrived_at = models.DateTimeField(null=True, blank=True, verbose_name="Arrivé le")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Répondu le")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Modifiée le")
 

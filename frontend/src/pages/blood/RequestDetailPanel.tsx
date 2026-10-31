@@ -5,7 +5,7 @@ import { api } from '@/lib/api'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { formatDistance, formatRelative } from '@/lib/format'
+import { formatDistance, formatEta, formatRelative } from '@/lib/format'
 import { useNow } from '@/lib/useNow'
 import type { BloodRequest, DonorMatch, DonorResponse } from '@/types/api'
 import { responseTone } from './bloodStats'
@@ -56,6 +56,11 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
       queryClient.invalidateQueries({ queryKey: QK.bloodRequests })
       onCancelled()
     },
+  })
+
+  const arrived = useMutation({
+    mutationFn: (responseId: number) => api.post(`/api/sang/requests/${request.id}/responses/${responseId}/arrived/`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...QK.requestResponses, request.id] }),
   })
 
   const relaunch = useMutation({
@@ -203,11 +208,27 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
                         {resp.donor.phone_number}
                       </a>
                     )}
+                    {resp.status === 'accepted' && (resp.arrived_at || resp.eta_at) && (
+                      <div className="mt-0.5 font-semibold text-ok">
+                        {resp.arrived_at ? 'Arrivé au centre' : `En route · arrivée ${formatEta(resp.eta_at, now)}`}
+                      </div>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Badge tone={responseTone(resp.status)} size="sm">
                       {resp.status_display}
                     </Badge>
+                    {resp.status === 'accepted' && !resp.arrived_at && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => arrived.mutate(resp.id)}
+                        isLoading={arrived.isPending && arrived.variables === resp.id}
+                        title="Le donneur s'est présenté (carte QR)"
+                      >
+                        Arrivé
+                      </Button>
+                    )}
                     {resp.status === 'accepted' && (
                       <Button
                         variant="primary"

@@ -172,6 +172,8 @@ export interface BloodRequest {
   response_counts: { accepted: number; declined: number; donated: number } | null
   component: BloodComponent
   component_display: string
+  /** Phénotype rare requis : seuls les donneurs du registre, dans tout le pays. */
+  rare_phenotype?: RarePhenotype | ''
   /** Vagues d'alerte déjà envoyées aux donneurs (les plus proches d'abord). */
   alert_wave: number
   last_alert_at: string | null
@@ -183,6 +185,7 @@ export interface BloodRequest {
 export interface BloodRequestInput {
   blood_group?: BloodGroup
   component?: BloodComponent
+  rare_phenotype?: RarePhenotype | ''
   units_needed: number
   urgency: Urgency
   notes: string
@@ -201,6 +204,11 @@ export interface DonorResponse {
     full_name?: string
     phone_number?: string | null
   }
+  /** Donneur engagé parti vers l'établissement, et son arrivée estimée. */
+  on_the_way_at: string | null
+  eta_at: string | null
+  /** Accueilli au centre. */
+  arrived_at: string | null
   created_at: string
   updated_at: string
 }
@@ -599,6 +607,8 @@ export interface SystemStatus {
   service: string
   checks: Record<'database' | 'channel_layer' | 'ml_model', DependencyCheck>
 }
+
+export type RarePhenotype = 'bombay' | 'rh_null' | 'kell_null' | 'duffy_null' | 'u_negative' | 'other'
 
 /** Produit sanguin d'une demande, d'un stock ou d'une commande. */
 export type BloodComponent = 'red_cells' | 'plasma' | 'platelets' | 'whole_blood'

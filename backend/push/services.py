@@ -195,6 +195,16 @@ def notify_blood_request(blood_request, donors=None):
     )
 
 
+def notify_donation_used(user_id, facility_name):
+    """Remerciement : le don confirmé a été remis à l'établissement pour un patient."""
+    return send_to_users(
+        [user_id],
+        title="Merci : votre don a servi",
+        body=f"Votre sang a été remis à {facility_name} pour un patient qui en avait besoin.",
+        data={'type': 'donation_used'},
+    )
+
+
 def notify_can_donate_again(user_ids):
     """« Vous pouvez de nouveau donner » : le délai depuis le dernier don est écoulé."""
     return send_to_users(

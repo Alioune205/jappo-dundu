@@ -76,10 +76,14 @@ export interface DonorProfile {
   longitude: number | null
   location_updated_at: string | null
   last_donation_date: string | null
+  /** Registre des groupes rares (inscription volontaire). */
+  rare_phenotype?: RarePhenotype | ''
   next_eligible_date: string | null
   is_eligible: boolean
   ineligibility_reasons: string[]
 }
+
+export type RarePhenotype = 'bombay' | 'rh_null' | 'kell_null' | 'duffy_null' | 'u_negative' | 'other'
 
 /** Corps de PUT /api/sang/donors/me/ (création ou remplacement). */
 export interface DonorInput {
@@ -89,6 +93,7 @@ export interface DonorInput {
   weight_kg: number | null
   is_available: boolean
   last_donation_date: string | null
+  rare_phenotype?: RarePhenotype | ''
   latitude: number | null
   longitude: number | null
 }

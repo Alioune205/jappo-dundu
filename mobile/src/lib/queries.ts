@@ -23,6 +23,8 @@ import type {
 } from '@/types/api'
 import { api, ApiError } from './api'
 import { distanceKm, type Coords } from './location'
+// Import circulaire sans risque : preciseCoords n'est appelé qu'à l'exécution.
+import { preciseCoords } from './sos'
 
 export const QK = {
   donor: ['donor'] as const,
@@ -110,6 +112,19 @@ export function useNearby(coords: Coords | null, { enabled, live }: { enabled: b
     if (enabled && coords && (!previous || distanceKm(previous, coords) > MOVE_KM)) refetch()
   }, [coords, enabled, refetch])
   return query
+}
+
+/**
+ * « Je suis en route » : l'hôpital voit l'heure d'arrivée estimée. La position
+ * précise ne sert qu'au calcul du trajet, elle n'est pas conservée.
+ */
+export function useOnMyWay() {
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const coords = await preciseCoords()
+      return api.post<MyResponse & { eta_at: string | null }>(`/api/sang/requests/${id}/on-my-way/`, coords)
+    },
+  })
 }
 
 export function useRespond() {

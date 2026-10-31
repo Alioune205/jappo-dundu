@@ -1,7 +1,7 @@
 /** Contrôles de saisie côté téléphone ; le serveur reste juge (unicité, format du numéro). */
 import type { FieldErrors } from '@/lib/api'
 import { ageOn, parseFrDate, toIsoDate } from '@/lib/dates'
-import type { BloodGroup, RegionCode, Sex } from '@/types/api'
+import type { BloodGroup, RegionCode, Sex, RarePhenotype } from '@/types/api'
 
 export interface RegistrationForm {
   first_name: string
@@ -79,6 +79,7 @@ export interface DonorForm {
   /** Poids en kilos (saisie libre, chiffres). */
   weight_kg: string
   is_available: boolean
+  rare_phenotype: RarePhenotype | ''
 }
 
 export const EMPTY_DONOR: DonorForm = {
@@ -88,6 +89,7 @@ export const EMPTY_DONOR: DonorForm = {
   last_donation_date: '',
   weight_kg: '',
   is_available: true,
+  rare_phenotype: '',
 }
 
 /**

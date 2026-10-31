@@ -28,7 +28,7 @@ from users.exceptions import Conflict
 
 from . import eligibility, notifications
 from .compatibility import can_donate, compatible_donor_groups, compatible_recipient_groups
-from .models import BloodRequest, Donation, Donor, DonorResponse
+from .models import MAX_SEARCH_RADIUS_KM, BloodRequest, Donation, Donor, DonorResponse
 
 logger = logging.getLogger('jappo_dundu.sang')
 
@@ -52,6 +52,12 @@ def find_matching_donors(blood_request, *, radius_km=None, limit=20, today=None,
     candidats (ex. donneurs pas encore alertés, voir ``sang.alerts``).
     """
     radius_km = min(radius_km or blood_request.search_radius_km, blood_request.search_radius_km)
+    if blood_request.rare_phenotype:
+        # Phénotype rare : seuls les donneurs du registre, recherchés dans tout le pays.
+        queryset = (queryset if queryset is not None else Donor.objects.all()).filter(
+            rare_phenotype=blood_request.rare_phenotype
+        )
+        radius_km = MAX_SEARCH_RADIUS_KM * 10
     queryset = (
         (queryset if queryset is not None else Donor.objects.all())
         .eligible(today)
@@ -74,7 +80,9 @@ def find_matching_donors(blood_request, *, radius_km=None, limit=20, today=None,
 def find_nearby_requests(donor, point, *, radius_km, limit):
     """Demandes ouvertes compatibles, dont le rayon de recherche atteint ``point``.
 
-    Chaque demande retournée porte ``distance_m`` (établissement ↔ point).
+    Une demande de phénotype rare n'atteint que les donneurs de ce phénotype,
+    où qu'ils soient (en tête de liste). Chaque demande retournée porte
+    ``distance_m`` (établissement ↔ point).
     """
     queryset = BloodRequest.objects.filter(
         status=Status.OPEN,
@@ -89,7 +97,20 @@ def find_nearby_requests(donor, point, *, radius_km, limit):
         latitude_field='facility__latitude',
         longitude_field='facility__longitude',
     )
-    reachable = [req for req in candidates if req.distance_m <= req.search_radius_km * 1000]
+    reachable = [
+        req for req in candidates if req.distance_m <= req.search_radius_km * 1000 and not req.rare_phenotype
+    ]
+    if donor.rare_phenotype:
+        # Registre des groupes rares : ses demandes atteignent le donneur où qu'il soit.
+        rare = nearest(
+            queryset.filter(rare_phenotype=donor.rare_phenotype),
+            point,
+            radius_m=MAX_SEARCH_RADIUS_KM * 10 * 1000,
+            limit=MAX_RESULTS,
+            latitude_field='facility__latitude',
+            longitude_field='facility__longitude',
+        )
+        reachable = sorted([*rare, *reachable], key=lambda req: (not req.rare_phenotype, req.distance_m))
     return reachable[:limit]
 
 
@@ -166,6 +187,42 @@ def cancel_request(blood_request):
 # =============================================================
 # RÉPONSES DES DONNEURS
 # =============================================================
+
+
+@transaction.atomic
+def on_my_way(donor, blood_request, point):
+    """Le donneur engagé part : heure d'arrivée estimée transmise à l'établissement."""
+    from geo.routing import travel_time
+
+    response = (
+        DonorResponse.objects.select_for_update()
+        .filter(blood_request=blood_request, donor=donor, status=ResponseStatus.ACCEPTED)
+        .first()
+    )
+    if response is None:
+        raise Conflict("Acceptez d'abord la demande.")
+    facility = blood_request.facility
+    travel = travel_time(point, facility.latitude, facility.longitude)
+    now = timezone.now()
+    response.on_the_way_at = response.on_the_way_at or now
+    response.eta_at = now + timedelta(minutes=travel.minutes)
+    response.save(update_fields=['on_the_way_at', 'eta_at', 'updated_at'])
+    notifications.notify_response(response)
+    return response
+
+
+@transaction.atomic
+def mark_arrived(blood_request, response_id):
+    """Accueil du donneur au centre (carte présentée) ; le don se confirme ensuite."""
+    response = _locked_response(blood_request, response_id)
+    if response is None:
+        return None
+    if response.status != ResponseStatus.ACCEPTED:
+        raise Conflict("Seul un donneur engagé peut être accueilli.")
+    response.arrived_at = response.arrived_at or timezone.now()
+    response.save(update_fields=['arrived_at', 'updated_at'])
+    notifications.notify_response(response)
+    return response
 
 
 @transaction.atomic
@@ -303,6 +360,10 @@ def confirm_donation(blood_request, response_id, *, recorded_by, donated_on=None
     response.blood_request = blood_request
     notifications.notify_response(response)
     notifications.notify_request(blood_request, event)
+    # « Votre don a servi » : le donneur sait où est allé son sang.
+    from push.services import notify_donation_used
+
+    transaction.on_commit(lambda: notify_donation_used(response.donor.user_id, blood_request.facility.name))
 
     # Gamification : évaluation et attribution des badges mérités
     try:

@@ -75,6 +75,7 @@ class DonorSerializer(serializers.ModelSerializer):
             'longitude',
             'location_updated_at',
             'last_donation_date',
+            'rare_phenotype',
             'next_eligible_date',
             'is_eligible',
             'ineligibility_reasons',
@@ -216,6 +217,7 @@ class BloodRequestSerializer(serializers.ModelSerializer):
             'blood_group_display',
             'component',
             'component_display',
+            'rare_phenotype',
             'units_needed',
             'units_collected',
             'units_remaining',
@@ -382,7 +384,17 @@ class DonorResponseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DonorResponse
-        fields = ['id', 'status', 'status_display', 'donor', 'created_at', 'updated_at']
+        fields = [
+            'id',
+            'status',
+            'status_display',
+            'donor',
+            'on_the_way_at',
+            'eta_at',
+            'arrived_at',
+            'created_at',
+            'updated_at',
+        ]
         read_only_fields = fields
 
     def get_donor(self, obj):
@@ -405,7 +417,7 @@ class MyResponseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DonorResponse
-        fields = ['id', 'status', 'status_display', 'blood_request', 'created_at', 'updated_at']
+        fields = ['id', 'status', 'status_display', 'blood_request', 'on_the_way_at', 'eta_at', 'created_at', 'updated_at']
         read_only_fields = fields
 
 

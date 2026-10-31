@@ -14,6 +14,7 @@ import type {
   FacilityType,
   MissionStatus,
   RegionCode,
+  RarePhenotype,
   RiskLevel,
   Role,
   SupplyOrderStatus,
@@ -123,6 +124,16 @@ export const COMPONENTS: Option<BloodComponent>[] = [
   { value: 'plasma', label: 'Plasma (PFC)' },
   { value: 'platelets', label: 'Plaquettes' },
   { value: 'whole_blood', label: 'Sang total' },
+]
+
+/** Registre des groupes rares (même liste que RarePhenotype, backend sang/models.py). */
+export const RARE_PHENOTYPES: Option<RarePhenotype>[] = [
+  { value: 'bombay', label: 'Phénotype Bombay (Oh)' },
+  { value: 'rh_null', label: 'Rh nul' },
+  { value: 'kell_null', label: 'Kell nul (K0)' },
+  { value: 'duffy_null', label: 'Duffy négatif' },
+  { value: 'u_negative', label: 'U négatif' },
+  { value: 'other', label: 'Autre (attesté CNTS)' },
 ]
 
 export const SUPPLY_ORDER_STATUSES: (Option<SupplyOrderStatus> & { tone: Tone })[] = [

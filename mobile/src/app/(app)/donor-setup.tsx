@@ -5,6 +5,7 @@ import Animated from 'react-native-reanimated'
 import { AuthShell, enter } from '@/components/AuthShell'
 import { Button } from '@/components/ui/Button'
 import { Segmented } from '@/components/ui/Segmented'
+import { SelectField } from '@/components/ui/SelectField'
 import { Text } from '@/components/ui/Text'
 import { TextField } from '@/components/ui/TextField'
 import { BloodGroupPicker } from '@/features/donor/BloodGroupPicker'
@@ -17,6 +18,17 @@ import { useDonor, useSaveDonor } from '@/lib/queries'
 import { EMPTY_DONOR, validateDonor, type DonorForm } from '@/lib/validation'
 import { space, useTheme } from '@/theme'
 import type { DonorProfile, Sex } from '@/types/api'
+
+/** Registre des groupes rares : recherché dans tout le pays quand un patient en a besoin. */
+const RARE_PHENOTYPES = [
+  { value: 'none', label: 'Aucun / je ne sais pas' },
+  { value: 'bombay', label: 'Phénotype Bombay (Oh)' },
+  { value: 'rh_null', label: 'Rh nul' },
+  { value: 'kell_null', label: 'Kell nul (K0)' },
+  { value: 'duffy_null', label: 'Duffy négatif' },
+  { value: 'u_negative', label: 'U négatif' },
+  { value: 'other', label: 'Autre (attesté par le CNTS)' },
+] as const
 
 const SEXES = [
   { value: 'F' as Sex, label: 'Femme' },
@@ -32,6 +44,7 @@ function formOf(donor: DonorProfile | undefined): DonorForm {
     last_donation_date: toFrInput(donor.last_donation_date),
     weight_kg: donor.weight_kg != null ? String(donor.weight_kg) : '',
     is_available: donor.is_available,
+    rare_phenotype: donor.rare_phenotype ?? '',
   }
 }
 
@@ -108,6 +121,7 @@ function DonorFormScreen({ donor, editing }: { donor: DonorProfile | undefined; 
         last_donation_date: parseFrDate(form.last_donation_date),
         weight_kg: Number(form.weight_kg.trim()),
         is_available: form.is_available,
+        rare_phenotype: form.rare_phenotype,
         latitude: coords?.latitude ?? null,
         longitude: coords?.longitude ?? null,
       })
@@ -182,6 +196,16 @@ function DonorFormScreen({ donor, editing }: { donor: DonorProfile | undefined; 
           maxLength={3}
           hint="Le CNTS demande au moins 50 kg. Le centre vous pèse avant le don."
           error={errorOf('weight_kg')}
+        />
+      </Animated.View>
+
+      <Animated.View entering={enter(4)}>
+        <SelectField
+          label="Groupe rare (facultatif)"
+          value={form.rare_phenotype || null}
+          options={RARE_PHENOTYPES}
+          onChange={(rare_phenotype) => set({ rare_phenotype: rare_phenotype === 'none' ? '' : rare_phenotype })}
+          placeholder="Seulement si le CNTS vous l’a indiqué"
         />
       </Animated.View>
 

@@ -279,7 +279,7 @@ class BloodRequestViewSet(
     http_method_names = ['get', 'post', 'patch', 'head', 'options']
     lookup_value_regex = r'\d+'
 
-    DONOR_ACTIONS = ('nearby', 'respond')
+    DONOR_ACTIONS = ('nearby', 'respond', 'on_my_way')
 
     def get_permissions(self):
         if self.action in self.DONOR_ACTIONS:
@@ -287,7 +287,7 @@ class BloodRequestViewSet(
         return super().get_permissions()
 
     def get_queryset(self):
-        if self.action == 'respond':
+        if self.action in ('respond', 'on_my_way'):
             return BloodRequest.objects.select_related('facility')
 
         queryset = scope_to_facility(
@@ -469,6 +469,30 @@ class BloodRequestViewSet(
         serializer.is_valid(raise_exception=True)
         response = services.respond(donor, self.get_object(), serializer.validated_data['status'])
         return Response(MyResponseSerializer(response).data)
+
+    @action(detail=True, methods=['post'], url_path='on-my-way')
+    def on_my_way(self, request, pk=None):
+        """Donneur engagé en route : POST /api/sang/requests/<id>/on-my-way/ {"latitude", "longitude"}"""
+        donor = current_donor(request.user)
+        try:
+            point = GeoPoint(float(request.data.get('latitude')), float(request.data.get('longitude')))
+        except (TypeError, ValueError):
+            raise ValidationError({'latitude': ["Position invalide."]}) from None
+        response = services.on_my_way(donor, self.get_object(), point)
+        return Response(MyResponseSerializer(response).data)
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path=r'responses/(?P<response_id>\d+)/arrived',
+        url_name='donor-arrived',
+    )
+    def donor_arrived(self, request, pk=None, response_id=None):
+        """Accueil du donneur au centre : POST .../responses/<rid>/arrived/"""
+        response = services.mark_arrived(self.get_object(), int(response_id))
+        if response is None:
+            raise NotFound("Réponse introuvable pour cette demande.")
+        return Response(DonorResponseSerializer(response).data)
 
 
 # =============================================================

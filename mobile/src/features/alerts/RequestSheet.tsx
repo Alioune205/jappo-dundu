@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
+import { useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
 import { BloodGroupBadge } from '@/components/ui/BloodGroup'
@@ -10,7 +11,7 @@ import { StatusDot } from '@/components/ui/StatusDot'
 import { Text } from '@/components/ui/Text'
 import { deadline, formatDate, timeAgo } from '@/lib/dates'
 import { formatDistance } from '@/lib/location'
-import { useRespond } from '@/lib/queries'
+import { useOnMyWay, useRespond } from '@/lib/queries'
 import { motion, radius, space, useTheme } from '@/theme'
 import type { DonorProfile, NearbyRequest } from '@/types/api'
 import { callFacility, openDirections, units, URGENCY } from './format'
@@ -58,6 +59,8 @@ export function RequestSheet({ request, visible, loading, donor, onClose }: Requ
 function SheetBody({ request, donor }: { request: NearbyRequest; donor: DonorProfile }) {
   const { colors } = useTheme()
   const respond = useRespond()
+  const onMyWay = useOnMyWay()
+  const router = useRouter()
   const [confirmCancel, setConfirmCancel] = useState(false)
   const urgency = URGENCY[request.urgency]
   const status = request.my_response
@@ -133,6 +136,33 @@ function SheetBody({ request, donor }: { request: NearbyRequest; donor: DonorPro
               <ActionButton icon="phone" label="Appeler" onPress={() => callFacility(facility.phone_number!)} />
             ) : null}
           </View>
+          {onMyWay.data ? (
+            <Text variant="label" tone="ok">
+              L’hôpital sait que vous arrivez
+              {onMyWay.data.eta_at
+                ? ` (vers ${new Date(onMyWay.data.eta_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })})`
+                : ''}
+              .
+            </Text>
+          ) : (
+            <Button
+              label="Je suis en route"
+              variant="secondary"
+              onPress={() => onMyWay.mutate(request.id)}
+              loading={onMyWay.isPending}
+              haptic
+            />
+          )}
+          {onMyWay.error ? (
+            <Text variant="caption" tone="brand">
+              {onMyWay.error instanceof Error ? onMyWay.error.message : 'Envoi impossible.'}
+            </Text>
+          ) : null}
+          <Pressable onPress={() => router.push({ pathname: '/pre-donation' })} accessibilityRole="button" hitSlop={8}>
+            <Text variant="label" tone="brand">
+              Vérifier si je peux donner aujourd’hui
+            </Text>
+          </Pressable>
           <Pressable
             onPress={() => (confirmCancel ? send('cancelled') : setConfirmCancel(true))}
             disabled={respond.isPending}

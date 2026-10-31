@@ -6,8 +6,16 @@ import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
-import { BLOOD_GROUPS, COMPONENTS, URGENCIES } from '@/lib/constants'
-import type { BloodComponent, BloodGroup, BloodRequest, BloodRequestInput, FacilitySummary, Urgency } from '@/types/api'
+import { BLOOD_GROUPS, COMPONENTS, RARE_PHENOTYPES, URGENCIES } from '@/lib/constants'
+import type {
+  BloodComponent,
+  BloodGroup,
+  BloodRequest,
+  BloodRequestInput,
+  FacilitySummary,
+  RarePhenotype,
+  Urgency,
+} from '@/types/api'
 import { QK } from '@/lib/queryKeys'
 
 /** Établissements qui peuvent demander du sang (pas les services d'ambulances). */
@@ -136,6 +144,18 @@ const CreateRequestForm: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           onChange={(e) => set({ search_radius_km: parseInt(e.target.value, 10) || 20 })}
         />
       </div>
+      <Select
+        label="Phénotype rare (facultatif)"
+        value={form.rare_phenotype ?? ''}
+        onChange={(e) => set({ rare_phenotype: e.target.value as RarePhenotype | '' })}
+      >
+        <option value="">Aucun : donneurs compatibles à proximité</option>
+        {RARE_PHENOTYPES.map((p) => (
+          <option key={p.value} value={p.value}>
+            {p.label} : registre national
+          </option>
+        ))}
+      </Select>
       <Textarea
         label="Précisions cliniques"
         placeholder="ex. bloc opératoire 2, patient polytraumatisé"
