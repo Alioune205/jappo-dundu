@@ -88,10 +88,26 @@ Pour importer un fichier situé sur le serveur, il faut d'abord le copier dans l
 | Journaux de l'API | `logs -f web` |
 | État détaillé (admin) | `GET /api/status/` avec un token admin |
 | Mise à jour du code | `git pull` puis `up -d --build` |
+| Tâches planifiées (alertes, relances, rappels) | cron du serveur, **chaque minute** : `* * * * * cd /opt/jappo-dundu/deploy && docker compose -f docker-compose.prod.yml exec -T web python manage.py run_scheduled_tasks` (voir ci-dessous) |
 | Prédictions quotidiennes | cron du serveur : `0 6 * * * cd /opt/jappo-dundu/deploy && docker compose -f docker-compose.prod.yml exec -T web python manage.py predict_shortages` |
 | Ré-entraînement mensuel | `exec web python manage.py train_model` |
 | Sauvegarde de la base | `exec -T db pg_dump -U jappo -Fc jappo_db > sauvegarde_$(date +%F).dump` |
 | Restauration | `exec -T db pg_restore -U jappo -d jappo_db --clean < sauvegarde.dump` |
+
+### Tâches planifiées
+
+`run_scheduled_tasks` lance ce qui est dû à chaque appel :
+
+| Fréquence | Commande | Rôle |
+|---|---|---|
+| chaque minute | `escalate_critical_alerts` | SMS à la ligne de garde puis à l'administrateur si une alerte critique reste sans accusé |
+| chaque minute | `escalate_blood_alerts` | vague suivante d'alertes aux donneurs quand les engagements manquent |
+| chaque minute | `expire_bed_reservations` | libère les lits réservés dont le délai est écoulé |
+| chaque heure | `remind_stale_beds` | rappel aux établissements dont les chiffres de lits sont périmés |
+| chaque jour, 9 h | `remind_eligible_donors` | « vous pouvez de nouveau donner » |
+
+Chaque commande peut aussi être lancée seule. Sans ce cron, les alertes ne sont
+jamais relancées et les donneurs ne reçoivent que la première vague.
 
 Chaque requête HTTP est journalisée avec un identifiant `X-Request-ID`, renvoyé au
 client et utilisable pour retrouver une erreur dans les journaux.
