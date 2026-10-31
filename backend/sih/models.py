@@ -178,3 +178,24 @@ class HospitalSyncLog(models.Model):
 
     def __str__(self):
         return f"[{self.created_at:%d/%m/%Y %H:%M}] {self.facility.name} - {self.get_sync_type_display()} ({self.status})"
+
+
+class Webhook(models.Model):
+    """Adresse du logiciel d'un établissement, prévenue des événements qui le concernent.
+
+    Corps JSON signé HMAC-SHA256 avec ``secret`` (en-tête ``X-JappoDundu-Signature``).
+    ``events`` vide : tous les événements (``mission``, ``prealert``, ``blood_order``).
+    """
+
+    facility = models.ForeignKey(HealthFacility, on_delete=models.CASCADE, related_name='webhooks')
+    url = models.URLField(verbose_name="Adresse (HTTPS)")
+    secret = models.CharField(max_length=64, verbose_name="Secret de signature")
+    events = models.JSONField(default=list, blank=True, verbose_name="Événements")
+    is_active = models.BooleanField(default=True)
+    last_status = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="Dernier code HTTP")
+    last_delivery_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Webhook"
+        verbose_name_plural = "Webhooks"

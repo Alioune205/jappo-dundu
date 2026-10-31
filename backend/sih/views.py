@@ -19,14 +19,19 @@ from django.utils import timezone
 from rest_framework import generics, status, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
+from ml.constants import REGION_CODES
 from ml.models import BloodStockRecord
 from security.middleware import get_client_ip
+from security.permissions import IsAdmin
+from security.roles import Domain, manages
+from users.filters import choice_param, int_param
 from users.models import HealthFacility
 from users.permissions import is_admin, user_facility
 
-from . import services
+from . import interop, services
 from .authentication import HospitalApiKeyAuthentication, SIHBurstThrottle, SIHSustainedThrottle
 from .models import HospitalApiKey
 from .permissions import (
@@ -269,3 +274,55 @@ class HospitalApiKeyViewSet(viewsets.ModelViewSet):
         # Révocation douce : désactivation
         instance.is_active = False
         instance.save(update_fields=['is_active'])
+
+
+# =============================================================
+# INTEROPÉRABILITÉ SORTANTE (comptes connectés)
+# =============================================================
+
+
+class FhirBedsView(APIView):
+    """Capacités en lits au format FHIR R4 : GET /api/sih/fhir/beds/ ?facility=3 ?region=dakar
+
+    Administrateur général (tout le réseau) ou administrateur des lits (son établissement).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(interop.fhir_bed_bundle(_facilities_for(request, Domain.BEDS)))
+
+
+class Dhis2ExportView(APIView):
+    """Agrégats de la semaine au format DHIS2 dataValueSets : GET /api/sih/dhis2/ (administrateur général)."""
+
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        return Response(interop.dhis2_data_values(_facilities_for(request, Domain.BEDS)))
+
+
+class SyncMonitoringView(APIView):
+    """Fraîcheur des synchronisations SIH : GET /api/sih/monitoring/ (administrateur général)."""
+
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        return Response(interop.sync_monitoring())
+
+
+def _facilities_for(request, domain):
+    facilities = HealthFacility.objects.filter(is_active=True)
+    if not is_admin(request.user):
+        own = user_facility(request.user)
+        if own is None or not manages(request.user, domain):
+            raise PermissionDenied("Réservé à l'administrateur de l'établissement.")
+        return facilities.filter(pk=own.pk)
+    params = request.query_params
+    facility = int_param(params, 'facility')
+    if facility is not None:
+        facilities = facilities.filter(pk=facility)
+    region = choice_param(params, 'region', REGION_CODES)
+    if region:
+        facilities = facilities.filter(region=region)
+    return facilities

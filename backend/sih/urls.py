@@ -8,6 +8,8 @@ from django.urls import path
 from rest_framework.routers import SimpleRouter
 
 from .views import (
+    Dhis2ExportView,
+    FhirBedsView,
     HospitalApiKeyViewSet,
     SIHBedEventView,
     SIHBedsSyncView,
@@ -15,6 +17,7 @@ from .views import (
     SIHLogsView,
     SIHPingView,
     SIHStatusSummaryView,
+    SyncMonitoringView,
 )
 
 app_name = 'sih'
@@ -31,5 +34,8 @@ urlpatterns = [
     path('stocks/status/', SIHBloodStockSyncView.as_view(), name='sih-stocks-status'),
     path('stocks/sync/', SIHBloodStockSyncView.as_view(), name='sih-stocks-sync'),
     path('logs/', SIHLogsView.as_view(), name='sih-logs'),
+    path('fhir/beds/', FhirBedsView.as_view(), name='fhir-beds'),
+    path('dhis2/', Dhis2ExportView.as_view(), name='dhis2-export'),
+    path('monitoring/', SyncMonitoringView.as_view(), name='sync-monitoring'),
     *router.urls,
 ]

@@ -63,6 +63,10 @@ def raise_alert(kind, target, *, title, message, facility=None, region=''):
     transaction.on_commit(
         lambda: broadcast_alert('general', data, region=region or None, hospital_id=getattr(facility, 'pk', None))
     )
+    if facility is not None:
+        from sih.interop import dispatch_webhook
+
+        transaction.on_commit(lambda: dispatch_webhook(facility, kind, {**data, 'target_id': target.pk}))
     return alert
 
 

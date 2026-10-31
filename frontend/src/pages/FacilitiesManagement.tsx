@@ -11,6 +11,7 @@ import type { AdminUser, Facility } from '@/types/api'
 import { FacilitiesTable } from './facilities/FacilitiesTable'
 import { UsersTable } from './facilities/UsersTable'
 import { AuditLogPanel } from './facilities/AuditLogPanel'
+import { InteropPanel } from './facilities/InteropPanel'
 import { FacilityFormModal } from './facilities/FacilityFormModal'
 import { UserFormModal } from './facilities/UserFormModal'
 import { QK } from '@/lib/queryKeys'
@@ -108,6 +109,7 @@ export const FacilitiesManagement: React.FC = () => {
         />
       )}
 
+      {isAdmin && <InteropPanel />}
       {isAdmin && <AuditLogPanel />}
 
       <FacilityFormModal isOpen={openModal === 'facilities'} onClose={() => setOpenModal(null)} />
