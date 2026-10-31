@@ -274,6 +274,7 @@ REST_FRAMEWORK = {
         # Alerte SOS d'un citoyen (une seule active à la fois, voir ambulances.services).
         'sos': config('THROTTLE_SOS_RATE', default='10/hour'),
         'locate': config('THROTTLE_LOCATE_RATE', default='30/hour'),
+        'facility_application': config('THROTTLE_FACILITY_APPLICATION_RATE', default='5/hour'),
         # Récupération de compte : demandes de code et essais, par adresse IP.
         'password_reset': config('THROTTLE_PASSWORD_RESET_RATE', default='5/hour'),
         'password_reset_confirm': config('THROTTLE_PASSWORD_RESET_CONFIRM_RATE', default='20/hour'),

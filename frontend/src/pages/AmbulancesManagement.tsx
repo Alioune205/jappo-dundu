@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
@@ -18,6 +18,7 @@ import { FleetStatsGrid } from './ambulances/FleetStatsGrid'
 import { MissionTable } from './ambulances/MissionTable'
 import { FleetTable } from './ambulances/FleetTable'
 import { NewMissionModal } from './ambulances/NewMissionModal'
+import { useHotkey } from '@/lib/useHotkey'
 import { VehicleModal } from './ambulances/VehicleModal'
 import { DispatchModal } from './ambulances/DispatchModal'
 import { SosAlerts } from './ambulances/SosAlerts'
@@ -41,6 +42,9 @@ export const AmbulancesManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'missions' | 'fleet'>('missions')
   const [actionError, setActionError] = useState<string | null>(null)
   const [isNewMissionOpen, setIsNewMissionOpen] = useState(false)
+  // « N » : nouvelle mission, sans quitter le clavier pendant l'appel.
+  const openNewMission = useCallback(() => setIsNewMissionOpen(true), [])
+  useHotkey('n', openNewMission, !isNewMissionOpen)
   const [editingVehicle, setEditingVehicle] = useState<Ambulance | 'new' | null>(null)
   const [dispatching, setDispatching] = useState<Mission | null>(null)
 
@@ -124,7 +128,7 @@ export const AmbulancesManagement: React.FC = () => {
                 Véhicule
               </Button>
             )}
-            <Button variant="danger" size="sm" onClick={() => setIsNewMissionOpen(true)} icon={<Plus className="h-3.5 w-3.5" />}>
+            <Button variant="danger" size="sm" onClick={() => setIsNewMissionOpen(true)} icon={<Plus className="h-3.5 w-3.5" />} title="Raccourci : N">
               Nouvelle mission
             </Button>
           </>

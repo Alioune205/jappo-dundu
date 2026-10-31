@@ -652,7 +652,7 @@ export const Landing: React.FC = () => {
                 </ul>
                 <div className="flex items-center gap-3 border-t border-line px-6 py-4">
                   <Smartphone className="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
-                  <p className="text-sm text-muted">L’application des donneurs arrive bientôt sur Android et iPhone.</p>
+                  <p className="text-sm text-muted">L’application des donneurs (Android et iPhone) est en phase de test avec les premiers centres.</p>
                 </div>
               </div>
             </div>
@@ -703,12 +703,17 @@ export const Landing: React.FC = () => {
               <div className="mt-8 border-t border-white/10 pt-8">
                 <p className="text-base font-semibold text-white">Votre établissement veut rejoindre le réseau ?</p>
                 <p className="mt-1 text-sm text-on-navy-muted">
-                  Hôpitaux, centres de transfusion et services d’ambulances : connectez-vous à Jappo Dundu.
+                  Hôpitaux, centres de transfusion et services d’ambulances : envoyez une demande d’adhésion.
                 </p>
-                <Link to={spaceLink.to} className={`${btnPrimary} mt-6 h-12 px-6 text-base`}>
-                  {spaceLink.label}
-                  <ArrowRight className="btn-arrow h-5 w-5" aria-hidden="true" />
-                </Link>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link to="/rejoindre" className={`${btnPrimary} h-12 px-6 text-base`}>
+                    Demander l’adhésion
+                    <ArrowRight className="btn-arrow h-5 w-5" aria-hidden="true" />
+                  </Link>
+                  <Link to={spaceLink.to} className={`${btnOnDark} h-12 px-6 text-base`}>
+                    {spaceLink.label}
+                  </Link>
+                </div>
               </div>
             </div>
             <div className="relative min-h-72">

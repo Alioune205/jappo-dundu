@@ -14,6 +14,7 @@ import {
   Landing,
   Locate,
   WeeklyReport,
+  JoinNetwork,
 } from '@/pages/lazy'
 
 export const routes = [
@@ -24,6 +25,16 @@ export const routes = [
     element: (
       <SuspenseWrapper>
         <Landing />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    // Demande d'adhésion d'un établissement (page publique).
+    path: '/rejoindre',
+    errorElement: <RouteError />,
+    element: (
+      <SuspenseWrapper>
+        <JoinNetwork />
       </SuspenseWrapper>
     ),
   },

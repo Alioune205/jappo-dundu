@@ -23,3 +23,4 @@ export const Login = lazy(() => import('@/pages/Login').then(m => ({ default: m.
 export const NotFound = lazy(() => import('@/pages/NotFound').then(m => ({ default: m.NotFound })))
 export const Locate = lazy(() => import('@/pages/Locate').then(m => ({ default: m.Locate })))
 export const WeeklyReport = lazy(() => import('@/pages/WeeklyReport').then(m => ({ default: m.WeeklyReport })))
+export const JoinNetwork = lazy(() => import('@/pages/JoinNetwork').then(m => ({ default: m.JoinNetwork })))

@@ -177,3 +177,39 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"Profil de {self.user.get_username()}"
+
+
+class FacilityApplication(models.Model):
+    """Demande d'adhésion d'un établissement, validée par l'administrateur général.
+
+    La validation crée l'établissement ; les comptes de ses administrateurs
+    sont ensuite créés par l'administrateur général (rôles et périmètres).
+    """
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', "En attente"
+        APPROVED = 'approved', "Validée"
+        REJECTED = 'rejected', "Refusée"
+
+    name = models.CharField(max_length=200, verbose_name="Établissement")
+    facility_type = models.CharField(max_length=30, choices=HealthFacility.FacilityType.choices)
+    region = models.CharField(max_length=50, choices=REGIONS)
+    city = models.CharField(max_length=100)
+    address = models.CharField(max_length=255, blank=True)
+    latitude = latitude_field(null=True)
+    longitude = longitude_field(null=True)
+    contact_name = models.CharField(max_length=150, verbose_name="Responsable")
+    contact_role = models.CharField(max_length=100, blank=True, verbose_name="Fonction")
+    contact_phone = models.CharField(max_length=13, validators=[validate_phone_number])
+    contact_email = models.EmailField(blank=True)
+    message = models.CharField(max_length=500, blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    review_note = models.CharField(max_length=255, blank=True)
+    facility = models.ForeignKey(HealthFacility, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Demande d'adhésion"
+        verbose_name_plural = "Demandes d'adhésion"
+        ordering = ['-created_at']

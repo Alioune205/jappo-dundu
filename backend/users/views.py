@@ -14,12 +14,13 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework import generics, mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.throttling import AnonRateThrottle
+from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
 
 from geo.search import nearest
@@ -30,11 +31,12 @@ from security.permissions import IsAdmin
 from security.roles import Domain, Role, manages
 
 from .filters import boolean_param, choice_param, int_param
-from .models import CAPABILITIES, HealthFacility
+from .models import CAPABILITIES, FacilityApplication, HealthFacility
 from .permissions import is_admin
 from .services import user_facility_id
 from .serializers import (
     AccountSerializer,
+    FacilityApplicationSerializer,
     FacilityTechnicalSerializer,
     HealthFacilitySerializer,
     NearbyFacilitySerializer,
@@ -276,3 +278,66 @@ class HealthFacilityViewSet(
             limit=query['limit'],
         )
         return Response(NearbyFacilitySerializer(facilities, many=True).data)
+
+
+class FacilityApplicationViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, viewsets.GenericViewSet):
+    """Adhésion d'un établissement au réseau.
+
+    POST /api/facilities/applications/            formulaire public (limité par adresse IP)
+    GET  /api/facilities/applications/ ?status=   administrateur général
+    POST /api/facilities/applications/<id>/approve/ {"latitude", "longitude"} : crée l'établissement
+    POST /api/facilities/applications/<id>/reject/  {"note"}
+    """
+
+    serializer_class = FacilityApplicationSerializer
+    queryset = FacilityApplication.objects.all()
+    throttle_scope = 'facility_application'
+
+    def get_permissions(self):
+        return [AllowAny()] if self.action == 'create' else [IsAdmin()]
+
+    def get_throttles(self):
+        return [ScopedRateThrottle()] if self.action == 'create' else super().get_throttles()
+
+    def get_queryset(self):
+        status_filter = self.request.query_params.get('status')
+        queryset = FacilityApplication.objects.all()
+        return queryset.filter(status=status_filter) if status_filter else queryset
+
+    def _pending(self):
+        application = self.get_object()
+        if application.status != FacilityApplication.Status.PENDING:
+            raise ValidationError({'status': ["Cette demande a déjà été traitée."]})
+        return application
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        application = self._pending()
+        latitude = request.data.get('latitude', application.latitude)
+        longitude = request.data.get('longitude', application.longitude)
+        if latitude in (None, '') or longitude in (None, ''):
+            raise ValidationError({'latitude': ["Position de l'établissement requise pour le valider."]})
+        facility = HealthFacility.objects.create(
+            name=application.name,
+            facility_type=application.facility_type,
+            region=application.region,
+            city=application.city,
+            address=application.address,
+            phone_number=application.contact_phone,
+            latitude=float(latitude),
+            longitude=float(longitude),
+        )
+        application.status = FacilityApplication.Status.APPROVED
+        application.facility = facility
+        application.reviewed_at = timezone.now()
+        application.save()
+        return Response(self.get_serializer(application).data)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        application = self._pending()
+        application.status = FacilityApplication.Status.REJECTED
+        application.review_note = str(request.data.get('note', ''))[:255]
+        application.reviewed_at = timezone.now()
+        application.save()
+        return Response(self.get_serializer(application).data)

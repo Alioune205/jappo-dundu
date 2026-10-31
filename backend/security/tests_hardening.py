@@ -157,3 +157,25 @@ class KpiTests(TestCase):
         manager = make_user('lits_a', Role.BED_MANAGER, facility=hospital)
         self.assertEqual(api_client(manager).get('/api/supervision/kpis/').data['region'], 'dakar')
         self.assertEqual(api_client(make_user('awa', Role.DONOR)).get('/api/supervision/kpis/').status_code, 403)
+
+
+class FacilityApplicationTests(TestCase):
+    def test_public_application_then_admin_approval(self):
+        body = {
+            'name': 'Clinique Les Palmiers',
+            'facility_type': 'clinic',
+            'region': 'dakar',
+            'city': 'Dakar',
+            'contact_name': 'Dr Fall',
+            'contact_phone': '77 444 55 66',
+        }
+        created = api_client().post('/api/facilities/applications/', body, format='json')
+        self.assertEqual(created.status_code, 201, created.data)
+        admin = make_user('admin', Role.ADMIN)
+        url = f"/api/facilities/applications/{created.data['id']}/"
+        self.assertEqual(api_client().get('/api/facilities/applications/').status_code, 401)
+        self.assertEqual(api_client(admin).post(f'{url}approve/', {}, format='json').status_code, 400)  # position requise
+        approved = api_client(admin).post(f'{url}approve/', {'latitude': 14.7, 'longitude': -17.45}, format='json')
+        self.assertEqual(approved.data['status'], 'approved')
+        self.assertTrue(api_client(admin).get('/api/facilities/', {'search': 'Palmiers'}).data['count'])
+        self.assertEqual(api_client(admin).post(f'{url}reject/', {}, format='json').status_code, 400)

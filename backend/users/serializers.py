@@ -21,7 +21,7 @@ from ml.constants import REGIONS
 from security.roles import FACILITY_ROLES, Role, primary_role
 
 from . import services
-from .models import CAPABILITIES, HealthFacility, UserProfile
+from .models import CAPABILITIES, FacilityApplication, HealthFacility, UserProfile
 from .validators import normalize_phone_number
 
 User = get_user_model()
@@ -582,3 +582,39 @@ class PasswordChangeSerializer(serializers.Serializer):
         user.save(update_fields=['password'])
         services.revoke_refresh_tokens(user)
         return user
+
+
+class FacilityApplicationSerializer(serializers.ModelSerializer):
+    """Demande d'adhésion (formulaire public) ; lue et traitée par l'administrateur général."""
+
+    contact_phone = PhoneNumberField()
+    facility_type_display = serializers.CharField(source='get_facility_type_display', read_only=True)
+    region_display = serializers.CharField(source='get_region_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = FacilityApplication
+        fields = [
+            'id',
+            'name',
+            'facility_type',
+            'facility_type_display',
+            'region',
+            'region_display',
+            'city',
+            'address',
+            'latitude',
+            'longitude',
+            'contact_name',
+            'contact_role',
+            'contact_phone',
+            'contact_email',
+            'message',
+            'status',
+            'status_display',
+            'review_note',
+            'facility',
+            'created_at',
+            'reviewed_at',
+        ]
+        read_only_fields = ['id', 'status', 'review_note', 'facility', 'created_at', 'reviewed_at']

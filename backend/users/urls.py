@@ -11,6 +11,7 @@ from django.urls import path
 from rest_framework.routers import SimpleRouter
 
 from .views import (
+    FacilityApplicationViewSet,
     AccountView,
     HealthFacilityViewSet,
     PasswordChangeView,
@@ -31,6 +32,7 @@ urlpatterns = [
 ]
 
 _facility_router = SimpleRouter()
+_facility_router.register('applications', FacilityApplicationViewSet, basename='facility-application')
 _facility_router.register('', HealthFacilityViewSet, basename='facility')
 
 facility_urlpatterns = (_facility_router.urls, 'facilities')

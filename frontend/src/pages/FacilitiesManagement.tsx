@@ -12,6 +12,7 @@ import { FacilitiesTable } from './facilities/FacilitiesTable'
 import { UsersTable } from './facilities/UsersTable'
 import { AuditLogPanel } from './facilities/AuditLogPanel'
 import { InteropPanel } from './facilities/InteropPanel'
+import { ApplicationsPanel } from './facilities/ApplicationsPanel'
 import { FacilityFormModal } from './facilities/FacilityFormModal'
 import { UserFormModal } from './facilities/UserFormModal'
 import { QK } from '@/lib/queryKeys'
@@ -109,6 +110,7 @@ export const FacilitiesManagement: React.FC = () => {
         />
       )}
 
+      {isAdmin && <ApplicationsPanel />}
       {isAdmin && <InteropPanel />}
       {isAdmin && <AuditLogPanel />}
 
