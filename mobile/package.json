@@ -37,6 +37,7 @@
     "react-native-worklets": "0.13.0"
   },
   "devDependencies": {
+    "@react-native/jest-preset": "^0.88.0",
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "30.0.0",
     "@types/react": "~19.3.0",
@@ -66,7 +67,8 @@
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|react-native-svg|react-native-reanimated|react-native-worklets)"
     ],
     "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/src/$1"
+      "^@/(.*)$": "<rootDir>/src/$1",
+      "^expo-modules-core(/.*)?$": "<rootDir>/node_modules/expo/node_modules/expo-modules-core$1"
     },
     "testPathIgnorePatterns": [
       "/node_modules/",

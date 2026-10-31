@@ -57,7 +57,7 @@ export default function CentersScreen() {
       data={list}
       keyExtractor={(item) => String(item.id)}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={centers.isRefetching} onRefresh={() => centers.refetch()} tintColor={colors.muted} />}
+      refreshControl={<RefreshControl refreshing={centers.isRefetching} onRefresh={() => void centers.refetch()} tintColor={colors.muted} />}
       ListHeaderComponent={
         <View style={styles.header}>
           <View style={styles.title}>

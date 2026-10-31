@@ -82,7 +82,7 @@ export default function BadgesScreen() {
         refreshControl={
           <RefreshControl
             refreshing={gamification.isRefetching}
-            onRefresh={() => gamification.refetch()}
+            onRefresh={() => void gamification.refetch()}
             tintColor={colors.muted}
             colors={[colors.brand]}
           />
@@ -98,7 +98,7 @@ export default function BadgesScreen() {
               </View>
               <Text style={styles.heroBannerTitle}>Vos Trophées Citoyens</Text>
               <Text style={styles.heroBannerSubtitle}>
-                Chaque don sauve des vies et élève votre rang d'honneur
+                Chaque don sauve des vies et élève votre rang d’honneur
               </Text>
             </View>
           </View>
@@ -508,7 +508,7 @@ function BadgeDetailModal({
             </View>
           </View>
 
-          <Button label="Fermer" variant="primary" onPress={onClose} fullWidth />
+          <Button label="Fermer" variant="primary" onPress={onClose} style={{ alignSelf: 'stretch' }} />
         </View>
       </View>
     </Modal>
@@ -590,12 +590,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   heroBannerImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: '100%',
     height: '100%',
   },
   heroBannerOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(15, 23, 42, 0.45)',
     padding: space.md,
     justifyContent: 'flex-end',

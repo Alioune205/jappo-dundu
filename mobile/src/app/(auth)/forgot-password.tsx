@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Pressable, StyleSheet, View, type TextInput } from 'react-native'
+import { Pressable, StyleSheet, View, type TextInput, type TextInputInstance } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
 import Animated, { FadeInRight, FadeOutLeft } from 'react-native-reanimated'
@@ -40,7 +40,7 @@ export default function ForgotPasswordScreen() {
   const [busy, setBusy] = useState(false)
   const [shakeKey, setShakeKey] = useState(0)
   const [wait, setWait] = useState(0)
-  const passwordRef = useRef<TextInput>(null)
+  const passwordRef = useRef<TextInputInstance>(null)
 
   // Compte à rebours avant de pouvoir redemander un code.
   useEffect(() => {

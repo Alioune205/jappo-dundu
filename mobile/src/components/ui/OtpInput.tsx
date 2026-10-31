@@ -1,5 +1,5 @@
 import React, { forwardRef, useEffect, useState } from 'react'
-import { StyleSheet, TextInput, View } from 'react-native'
+import { StyleSheet, TextInput, View, type TextInputInstance } from 'react-native'
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -26,15 +26,15 @@ interface OtpInputProps {
  * la saisie (collage et remplissage automatique du SMS compris) ; la case en
  * cours porte le liseré de marque et un curseur qui clignote.
  */
-export const OtpInput = forwardRef<TextInput, OtpInputProps>(function OtpInput(
+export const OtpInput = forwardRef<TextInputInstance, OtpInputProps>(function OtpInput(
   { value, onChange, length = 6, error, shakeKey = 0, autoFocus = false },
   ref
 ) {
   const { colors } = useTheme()
   const [focused, setFocused] = useState(false)
   const shake = useSharedValue(0)
-  const inputRef = React.useRef<TextInput>(null)
-  React.useImperativeHandle(ref, () => inputRef.current as TextInput)
+  const inputRef = React.useRef<TextInputInstance>(null)
+  React.useImperativeHandle(ref, () => inputRef.current as TextInputInstance)
 
   useEffect(() => {
     if (!shakeKey) return

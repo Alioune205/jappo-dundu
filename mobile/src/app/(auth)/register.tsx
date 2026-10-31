@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react'
-import { Pressable, StyleSheet, View, type TextInput } from 'react-native'
+import { Pressable, StyleSheet, View, type TextInput, type TextInputInstance } from 'react-native'
 import { Link, useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
 import Animated from 'react-native-reanimated'
@@ -34,10 +34,10 @@ export default function RegisterScreen() {
   const [formError, setFormError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [termsOpen, setTermsOpen] = useState(false)
-  const lastNameRef = useRef<TextInput>(null)
-  const phoneRef = useRef<TextInput>(null)
-  const passwordRef = useRef<TextInput>(null)
-  const confirmRef = useRef<TextInput>(null)
+  const lastNameRef = useRef<TextInputInstance>(null)
+  const phoneRef = useRef<TextInputInstance>(null)
+  const passwordRef = useRef<TextInputInstance>(null)
+  const confirmRef = useRef<TextInputInstance>(null)
 
   const set = (patch: Partial<RegistrationForm>) => {
     setForm((current) => ({ ...current, ...patch }))

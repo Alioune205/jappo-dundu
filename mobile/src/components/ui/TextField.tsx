@@ -1,5 +1,5 @@
 import React, { forwardRef, useEffect, useState } from 'react'
-import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native'
+import { Pressable, StyleSheet, TextInput, View, type TextInputProps, type TextInputInstance } from 'react-native'
 import Animated, { FadeIn, interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated'
 import { fonts, motion, radius, space, useTheme } from '@/theme'
 import { Icon, type IconName } from './Icon'
@@ -23,7 +23,7 @@ export interface TextFieldProps extends TextInputProps {
  * Au focus, le fond s'éclaircit et un liseré de marque apparaît en fondu ;
  * une erreur garde le liseré rouge et s'affiche sous le champ.
  */
-export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
+export const TextField = forwardRef<TextInputInstance, TextFieldProps>(function TextField(
   { label, error, hint, icon, prefix, password = false, style, onFocus, onBlur, editable = true, ...props },
   ref
 ) {

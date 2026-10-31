@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react'
-import { Pressable, StyleSheet, type TextInput } from 'react-native'
+import { Pressable, StyleSheet, type TextInput, type TextInputInstance } from 'react-native'
 import { Link, useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated'
@@ -25,7 +25,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const passwordRef = useRef<TextInput>(null)
+  const passwordRef = useRef<TextInputInstance>(null)
   const shake = useSharedValue(0)
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }))
 
