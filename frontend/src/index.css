@@ -814,30 +814,26 @@
   pointer-events: none;
 }
 
-/* Surface épurée et halo localisé de l'Assistant IA (inspiré de FlowAI) */
+/* Surface épurée et halo atmosphérique de l'Assistant IA */
 .ai-panel-surface {
   background-color: var(--surface);
-  background-image: radial-gradient(
-    ellipse 90% 45% at 50% 0%,
-    color-mix(in oklab, var(--accent-blue) 6%, transparent),
-    transparent 70%
-  );
+  background-image:
+    radial-gradient(ellipse 85% 40% at 50% -5%, rgb(37 99 235 / 0.1), transparent 72%),
+    radial-gradient(ellipse 60% 35% at 85% 18%, rgb(225 29 72 / 0.05), transparent 65%);
   box-shadow:
-    0 28px 68px -14px rgb(11 31 58 / 0.26),
-    0 8px 24px -6px rgb(11 31 58 / 0.12),
-    0 0 0 1px color-mix(in oklab, var(--line-strong) 80%, transparent);
+    0 32px 80px -14px rgb(11 31 58 / 0.3),
+    0 10px 28px -6px rgb(11 31 58 / 0.14),
+    0 0 0 1px color-mix(in oklab, var(--line-strong) 85%, transparent);
 }
 .dark .ai-panel-surface {
-  background-color: #0d1524;
-  background-image: radial-gradient(
-    ellipse 90% 42% at 50% 0%,
-    rgb(59 130 246 / 0.09),
-    transparent 70%
-  );
+  background-color: #09101d;
+  background-image:
+    radial-gradient(ellipse 90% 42% at 50% -6%, rgb(59 130 246 / 0.16), transparent 70%),
+    radial-gradient(ellipse 65% 32% at 88% 15%, rgb(244 63 94 / 0.08), transparent 65%);
   box-shadow:
-    0 32px 72px -12px rgb(0 0 0 / 0.72),
-    0 0 0 1px rgb(255 255 255 / 0.09),
-    inset 0 1px 0 0 rgb(255 255 255 / 0.08);
+    0 36px 88px -12px rgb(0 0 0 / 0.82),
+    0 0 0 1px rgb(255 255 255 / 0.1),
+    inset 0 1px 0 0 rgb(255 255 255 / 0.12);
 }
 
 /* Réticule géométrique ultra-discret centré uniquement autour du médaillon */
@@ -845,30 +841,46 @@
   background-image:
     linear-gradient(to right, transparent, color-mix(in oklab, var(--line-strong) 55%, transparent) 50%, transparent),
     linear-gradient(to bottom, transparent, color-mix(in oklab, var(--line-strong) 55%, transparent) 50%, transparent);
-  background-size: 180px 1px, 1px 130px;
+  background-size: 210px 1px, 1px 140px;
   background-position: center center;
   background-repeat: no-repeat;
 }
 
-/* Médaillon 3D tactile au centre de la scène IA */
+/* Médaillon 3D tactile prismatique au centre de la scène IA */
 .ai-orb-medallion {
-  background: linear-gradient(180deg, #ffffff 0%, #f3f6fb 100%);
+  background: linear-gradient(155deg, #ffffff 0%, #f1f5fd 55%, #e5edfb 100%);
   box-shadow:
-    0 14px 28px -6px rgb(15 23 42 / 0.16),
-    0 4px 10px -2px rgb(37 99 235 / 0.12),
-    0 0 0 1px rgb(15 23 42 / 0.06),
-    inset 0 2px 1px 0 #ffffff;
+    0 18px 36px -8px rgb(37 99 235 / 0.24),
+    0 6px 14px -3px rgb(15 23 42 / 0.12),
+    0 0 0 1px rgb(37 99 235 / 0.14),
+    inset 0 2px 2px 0 #ffffff;
 }
 .dark .ai-orb-medallion {
-  background: linear-gradient(165deg, #1e2b42 0%, #111a2c 100%);
+  background: linear-gradient(155deg, #1e2d4a 0%, #10192d 60%, #0b1220 100%);
   box-shadow:
-    0 16px 32px -6px rgb(0 0 0 / 0.65),
-    0 0 24px -4px rgb(59 130 246 / 0.28),
-    0 0 0 1px rgb(255 255 255 / 0.12),
-    inset 0 1px 1px 0 rgb(255 255 255 / 0.2);
+    0 20px 44px -8px rgb(0 0 0 / 0.78),
+    0 0 32px -4px rgb(59 130 246 / 0.38),
+    0 0 0 1px rgb(96 165 250 / 0.28),
+    inset 0 1.5px 1.5px 0 rgb(255 255 255 / 0.26);
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  @keyframes ai-orbit-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .ai-orbit-slow {
+    animation: ai-orbit-spin 18s linear infinite;
+  }
+
+  .ai-orbit-reverse {
+    animation: ai-orbit-spin 24s linear reverse infinite;
+  }
   @keyframes dash-rise {
     from {
       opacity: 0;

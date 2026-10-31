@@ -16,6 +16,7 @@ import {
   Radio,
   ShieldCheck,
   Smartphone,
+  Sparkles,
   Users,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
@@ -43,15 +44,17 @@ const NAV = [
   { href: '#faq', label: 'FAQ' },
 ]
 
-/** Identité de chaque module : icône, couleur et photo. */
+/** Identité de chaque module : icône, couleur, badge et photo. */
 const MODULE_STYLE: Record<
   ModuleKey,
-  { icon: React.ElementType; text: string; bar: string; photo: string; alt: string }
+  { icon: React.ElementType; text: string; bar: string; softBg: string; badge: string; photo: string; alt: string }
 > = {
   blood: {
     icon: Droplets,
     text: 'text-accent-red',
     bar: 'bg-accent-red',
+    softBg: 'bg-accent-red/10',
+    badge: 'Module 01 · Transfusion',
     photo: 'module-sang',
     alt: 'Une infirmière range des poches de sang dans un réfrigérateur de banque de sang',
   },
@@ -59,6 +62,8 @@ const MODULE_STYLE: Record<
     icon: BedDouble,
     text: 'text-accent-blue',
     bar: 'bg-accent-blue',
+    softBg: 'bg-accent-blue/10',
+    badge: 'Module 02 · Hospitalisation',
     photo: 'module-lits',
     alt: 'Une soignante prépare un lit dans une chambre d’hôpital lumineuse',
   },
@@ -66,6 +71,8 @@ const MODULE_STYLE: Record<
     icon: Ambulance,
     text: 'text-accent-green',
     bar: 'bg-accent-green',
+    softBg: 'bg-accent-green/10',
+    badge: 'Module 03 · Régulation SAMU',
     photo: 'module-ambulance',
     alt: 'Une ambulance roule dans une avenue de Dakar',
   },
@@ -82,11 +89,11 @@ const ASSURANCES = [
 ]
 
 const btnPrimary =
-  'btn inline-flex items-center justify-center gap-2 rounded-lg bg-brand font-semibold text-on-brand shadow-[0_8px_20px_-8px_var(--brand)] hover:bg-brand-strong'
+  'btn inline-flex items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-on-brand shadow-[0_10px_24px_-8px_var(--brand)] transition-all hover:bg-brand-strong'
 const btnOnDark =
-  'btn inline-flex items-center justify-center gap-2 rounded-lg border border-white/25 font-semibold text-white hover:border-white/50 hover:bg-white/10'
+  'btn inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/[0.04] font-semibold text-white backdrop-blur-xs transition-all hover:border-white/45 hover:bg-white/10'
 const btnOutline =
-  'btn inline-flex items-center justify-center gap-2 rounded-lg border border-line-strong bg-surface font-semibold text-fg hover:border-fg/40'
+  'btn inline-flex items-center justify-center gap-2 rounded-xl border border-line-strong bg-surface font-semibold text-fg shadow-2xs transition-all hover:border-fg/40 hover:bg-raised/50'
 
 /** Rang d'un élément dans sa série : décale son apparition (voir index.css). */
 const stagger = (i: number) => ({ '--i': i }) as React.CSSProperties
@@ -100,12 +107,30 @@ const SectionHeader: React.FC<{
   className?: string
 }> = ({ eyebrow, title, intro, invert = false, className = 'max-w-2xl' }) => (
   <div data-reveal className={className}>
-    <p className={`font-label font-semibold ${invert ? 'text-amber' : 'text-brand'}`}>{eyebrow}</p>
-    <h2 className={`font-display mt-3 text-3xl leading-tight sm:text-4xl ${invert ? 'text-white' : 'text-fg'}`}>
+    <p
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 font-label text-[11px] font-semibold ${
+        invert
+          ? 'border-white/15 bg-white/[0.06] text-amber'
+          : 'border-brand/20 bg-brand/[0.06] text-brand'
+      }`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${invert ? 'bg-amber' : 'bg-brand'}`}
+        aria-hidden="true"
+      />
+      {eyebrow}
+    </p>
+    <h2
+      className={`font-display mt-4 text-3xl leading-[1.12] tracking-tight sm:text-4xl ${
+        invert ? 'text-white' : 'text-fg'
+      }`}
+    >
       {title}
     </h2>
     {intro && (
-      <p className={`mt-4 text-lg leading-relaxed ${invert ? 'text-on-navy-muted' : 'text-muted'}`}>{intro}</p>
+      <p className={`mt-4 text-base leading-relaxed sm:text-lg ${invert ? 'text-on-navy-muted' : 'text-muted'}`}>
+        {intro}
+      </p>
     )}
   </div>
 )
@@ -116,8 +141,7 @@ const PHOTO_FORMATS = ['webp', 'jpg']
 /**
  * Photo de la page (WebP, puis JPEG). Si aucun fichier n'existe encore, un
  * fond bleu nuit quadrillé avec un pictogramme prend sa place : jamais d'image
- * cassée. Liste des photos et prompts de génération :
- * public/images/landing/PROMPTS.md ; crédits : CREDITS.md.
+ * cassée.
  */
 const Photo: React.FC<{
   name: string
@@ -158,45 +182,48 @@ const MOCK_ACTIVITY = [
 ]
 
 const MOCK_KPIS = [
-  { label: 'Lits libres', value: '78', note: '+3 depuis ce matin', icon: BedDouble, cls: 'text-accent-blue' },
-  { label: 'Stock O−', value: '2', note: 'poches · critique', icon: Droplets, cls: 'text-accent-red' },
-  { label: 'Missions', value: '4', note: 'en cours', icon: Ambulance, cls: 'text-accent-green' },
+  { label: 'Lits libres', value: '78', note: '+3 depuis ce matin', icon: BedDouble, cls: 'text-accent-blue', bar: 'w-3/4 bg-accent-blue' },
+  { label: 'Stock O−', value: '2', note: 'poches · critique', icon: Droplets, cls: 'text-accent-red', bar: 'w-1/4 bg-accent-red' },
+  { label: 'Missions', value: '4', note: 'en cours', icon: Ambulance, cls: 'text-accent-green', bar: 'w-2/3 bg-accent-green' },
 ]
 
 /** Aperçu du tableau de bord (décoratif) : indicateurs, carte et activité. */
 const ProductMock: React.FC = () => (
   <div aria-hidden="true" className="relative">
-    <div className="overflow-hidden rounded-xl border border-white/10 bg-surface shadow-[0_40px_80px_-24px_rgb(0_0_0/0.55)]">
+    <div className="overflow-hidden rounded-2xl border border-white/15 bg-surface shadow-[0_40px_90px_-20px_rgb(0_0_0/0.65)]">
       {/* Barre de fenêtre */}
-      <div className="flex items-center gap-2 border-b border-line bg-raised px-4 py-2.5">
-        <span className="h-2.5 w-2.5 rounded-full bg-line-strong" />
-        <span className="h-2.5 w-2.5 rounded-full bg-line-strong" />
-        <span className="h-2.5 w-2.5 rounded-full bg-line-strong" />
-        <span className="ml-3 text-xs font-semibold text-fg">Supervision nationale</span>
-        <span className="ml-auto flex items-center gap-1.5 text-2xs font-semibold text-accent-green">
+      <div className="flex items-center gap-2 border-b border-line bg-raised/90 px-4 py-3">
+        <span className="h-2.5 w-2.5 rounded-full bg-accent-red/70" />
+        <span className="h-2.5 w-2.5 rounded-full bg-amber/70" />
+        <span className="h-2.5 w-2.5 rounded-full bg-accent-green/70" />
+        <span className="ml-2 text-xs font-bold tracking-tight text-fg">Supervision nationale</span>
+        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-accent-green/25 bg-accent-green/10 px-2.5 py-0.5 text-2xs font-semibold text-accent-green">
           <span className="live-pulse h-1.5 w-1.5 rounded-full bg-accent-green" /> Temps réel
         </span>
       </div>
 
-      <div className="space-y-3 p-4">
+      <div className="space-y-3.5 p-4">
         <div className="grid grid-cols-3 gap-3">
           {MOCK_KPIS.map((kpi) => (
-            <div key={kpi.label} className="rounded-lg border border-line p-3">
+            <div key={kpi.label} className="rounded-xl border border-line bg-raised/40 p-3">
               <div className="flex items-center justify-between text-2xs font-medium text-muted">
                 {kpi.label}
                 <kpi.icon className={`h-3.5 w-3.5 ${kpi.cls}`} />
               </div>
-              <div className="num mt-1.5 text-2xl font-bold text-fg">{kpi.value}</div>
-              <div className={`truncate text-2xs ${kpi.cls}`}>{kpi.note}</div>
+              <div className="num mt-1.5 text-2xl font-bold tracking-tight text-fg">{kpi.value}</div>
+              <div className={`mt-0.5 truncate text-2xs font-medium ${kpi.cls}`}>{kpi.note}</div>
+              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-line">
+                <div className={`h-full rounded-full ${kpi.bar}`} />
+              </div>
             </div>
           ))}
         </div>
 
-        <div className="relative h-36 overflow-hidden rounded-lg border border-line bg-raised">
+        <div className="relative h-40 overflow-hidden rounded-xl border border-line bg-raised">
           <svg className="absolute inset-0 h-full w-full" viewBox="0 0 400 160" preserveAspectRatio="none">
             <defs>
-              <pattern id="mock-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                <path d="M20 0H0V20" fill="none" stroke="var(--line)" strokeWidth="1" />
+              <pattern id="mock-grid" width="24" height="24" patternUnits="userSpaceOnUse">
+                <path d="M24 0H0V24" fill="none" stroke="var(--line)" strokeWidth="0.75" />
               </pattern>
             </defs>
             <rect width="400" height="160" fill="url(#mock-grid)" />
@@ -210,28 +237,29 @@ const ProductMock: React.FC = () => (
               strokeLinecap="round"
             />
           </svg>
-          <span className="absolute left-[10%] top-[72%] flex h-7 w-7 items-center justify-center rounded-full border-2 border-accent-green bg-surface">
-            <Ambulance className="h-3.5 w-3.5 text-accent-green" />
+          <span className="absolute left-[10%] top-[72%] flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent-green bg-surface shadow-sm">
+            <Ambulance className="h-4 w-4 text-accent-green" />
           </span>
-          {/* Pastille qui suit la route de l'ambulance jusqu'au lit libre. */}
           <span className="route-runner absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-green shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent-green)_25%,transparent)]" />
-          <span className="route-target absolute left-[84%] top-[8%] flex h-7 w-7 items-center justify-center rounded-full border-2 border-accent-blue bg-surface">
-            <BedDouble className="h-3.5 w-3.5 text-accent-blue" />
+          <span className="route-target absolute left-[84%] top-[8%] flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent-blue bg-surface shadow-sm">
+            <BedDouble className="h-4 w-4 text-accent-blue" />
           </span>
-          <span className="ping absolute left-[48%] top-[30%] flex h-7 w-7 items-center justify-center rounded-full border-2 border-accent-red bg-surface text-accent-red">
-            <Droplets className="h-3.5 w-3.5" />
+          <span className="ping absolute left-[48%] top-[30%] flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent-red bg-surface text-accent-red shadow-sm">
+            <Droplets className="h-4 w-4" />
           </span>
         </div>
 
-        <ul className="divide-y divide-line rounded-lg border border-line">
+        <ul className="divide-y divide-line rounded-xl border border-line bg-raised/25">
           {MOCK_ACTIVITY.map((row) => (
-            <li key={row.title} className="flex items-center gap-3 px-3 py-2">
+            <li key={row.title} className="flex items-center gap-3 px-3.5 py-2.5">
               <span className={`h-2 w-2 shrink-0 rounded-full ${row.dot}`} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-semibold text-fg">{row.title}</span>
                 <span className="block truncate text-2xs text-muted">{row.place}</span>
               </span>
-              <span className="num shrink-0 text-2xs text-subtle">{row.time}</span>
+              <span className="num shrink-0 rounded-md bg-raised px-1.5 py-0.5 text-2xs font-medium text-subtle">
+                {row.time}
+              </span>
             </li>
           ))}
         </ul>
@@ -243,29 +271,34 @@ const ProductMock: React.FC = () => (
 /** Visuel de l'accroche : une photo et les informations que la plateforme fait circuler. */
 const HeroVisual: React.FC = () => (
   <div data-hero-mock className="relative mx-auto w-full max-w-xl lg:max-w-none">
-    <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-white/10 shadow-[0_40px_80px_-24px_rgb(0_0_0/0.6)] lg:aspect-[5/4]">
+    <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border border-white/15 shadow-[0_44px_96px_-24px_rgb(0_0_0/0.68)] lg:aspect-[5/4]">
       <Photo
         name="hero"
         eager
         icon={Ambulance}
         alt="Une équipe de secours sénégalaise prend en charge un patient devant une ambulance"
-        className="absolute inset-0 object-[55%_50%]"
+        className="absolute inset-0 object-[55%_50%] transition-transform duration-700 hover:scale-[1.02]"
       />
       <div
         aria-hidden="true"
-        className="absolute inset-0 bg-gradient-to-t from-navy/70 via-transparent to-transparent"
+        className="absolute inset-0 bg-gradient-to-t from-navy/85 via-navy/20 to-transparent"
       />
       {/* Mission en cours, sur la photo. */}
       <div
         aria-hidden="true"
-        className="absolute bottom-5 left-5 hidden items-center gap-3 sm:flex rounded-xl border border-white/15 bg-navy/70 px-4 py-3 text-white backdrop-blur-md"
+        className="absolute bottom-5 left-5 right-5 hidden items-center justify-between gap-3 rounded-2xl border border-white/15 bg-navy/80 px-4 py-3.5 text-white backdrop-blur-xl sm:flex"
       >
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-green">
-          <Ambulance className="h-4.5 w-4.5" />
-        </span>
-        <span>
-          <span className="block text-sm font-semibold">Ambulance DK-5120 · en route</span>
-          <span className="block text-xs text-on-navy-muted">Lit réservé · CHU de Fann · 6 min</span>
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-green text-white shadow-sm">
+            <Ambulance className="h-5 w-5" />
+          </span>
+          <div>
+            <span className="block text-sm font-bold">Ambulance DK-5120 · en route</span>
+            <span className="block text-xs text-on-navy-muted">Lit réservé · CHU de Fann · ETA 6 min</span>
+          </div>
+        </div>
+        <span className="rounded-full border border-accent-green/35 bg-accent-green/15 px-2.5 py-1 text-2xs font-semibold text-accent-green">
+          Verrouillé
         </span>
       </div>
     </div>
@@ -273,38 +306,43 @@ const HeroVisual: React.FC = () => (
     {/* Lits disponibles, comme sur le tableau de bord. */}
     <div
       aria-hidden="true"
-      className="absolute -left-3 top-6 hidden w-48 rounded-xl border border-line bg-surface p-3.5 shadow-[var(--shadow-raised)] sm:block lg:-left-10"
+      className="absolute -left-3 top-6 hidden w-52 rounded-2xl border border-line bg-surface/95 p-4 shadow-[var(--shadow-raised)] backdrop-blur-md sm:block lg:-left-10"
     >
       <div className="flex items-center justify-between text-2xs font-medium text-muted">
         Lits libres · Dakar
-        <span className="flex items-center gap-1 font-semibold text-accent-green">
+        <span className="inline-flex items-center gap-1 rounded-full bg-accent-green/12 px-2 py-0.5 font-semibold text-accent-green">
           <span className="live-pulse h-1.5 w-1.5 rounded-full bg-accent-green" /> Direct
         </span>
       </div>
-      <div className="num mt-1 flex items-baseline gap-2">
-        <span className="text-2xl font-bold text-fg">78</span>
-        <span className="text-2xs text-accent-blue">+3 ce matin</span>
+      <div className="num mt-1.5 flex items-baseline gap-2">
+        <span className="text-3xl font-extrabold tracking-tight text-fg">78</span>
+        <span className="text-2xs font-semibold text-accent-blue">+3 ce matin</span>
+      </div>
+      <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-raised">
+        <div className="h-full w-3/4 rounded-full bg-accent-blue" />
       </div>
     </div>
 
     {/* Alerte telle que le donneur la reçoit sur son téléphone. */}
     <div
       aria-hidden="true"
-      className="hero-notif absolute -bottom-10 -right-2 w-64 rounded-xl border border-line bg-surface p-3.5 shadow-[var(--shadow-raised)] sm:-right-6"
+      className="hero-notif absolute -bottom-9 -right-2 w-68 rounded-2xl border border-line bg-surface/95 p-4 shadow-[var(--shadow-raised)] backdrop-blur-md sm:-right-6"
     >
-      <div className="flex items-center gap-2 text-2xs font-semibold text-brand">
-        <Bell className="h-3.5 w-3.5" /> Jappo Dundu · maintenant
+      <div className="flex items-center justify-between text-2xs font-semibold text-brand">
+        <span className="inline-flex items-center gap-1.5">
+          <Bell className="h-3.5 w-3.5" /> Jappo Dundu · maintenant
+        </span>
+        <span className="rounded-md bg-brand/10 px-1.5 py-0.5 text-[10px]">Urgence vitale</span>
       </div>
-      <p className="mt-1 text-sm font-semibold text-fg">Sang O− recherché à 2,4 km</p>
-      <p className="text-xs text-muted">Hôpital Principal · 2 poches</p>
+      <p className="mt-1.5 text-sm font-bold text-fg">Sang O− recherché à 2,4 km</p>
+      <p className="text-xs text-muted">Hôpital Principal · 2 poches requises</p>
     </div>
   </div>
 )
 
 /**
  * Page d'accueil publique : présenter la plateforme (sang, lits, ambulances),
- * ses publics et le don de sang. Style institutionnel (voir .landing dans
- * index.css) ; animations dans landing/motion.ts.
+ * ses publics et le don de sang. Style institutionnel et épuré de haut niveau.
  */
 export const Landing: React.FC = () => {
   const { isAuthenticated } = useAuth()
@@ -324,28 +362,28 @@ export const Landing: React.FC = () => {
       </a>
 
       {/* En-tête */}
-      <header className="landing-nav sticky top-0 z-40 border-b border-line bg-surface/95 backdrop-blur">
+      <header className="landing-nav sticky top-0 z-40 border-b border-line/80 bg-surface/90 backdrop-blur-xl">
         <nav aria-label="Navigation principale" className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-5">
           <a href="#haut" className="flex shrink-0 items-center gap-2.5">
             <BrandMark className="h-9 w-9" />
             <BrandName className="text-lg" />
           </a>
-          <ul className="mx-auto hidden items-center gap-1 lg:flex">
+          <ul className="mx-auto hidden items-center gap-1 rounded-full border border-line/70 bg-raised/50 p-1 lg:flex">
             {NAV.map((item) => (
               <li key={item.href}>
                 <a
                   href={item.href}
-                  className="rounded-md px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-fg"
+                  className="rounded-full px-3.5 py-1.5 text-sm font-medium text-muted transition-all hover:bg-surface hover:text-fg hover:shadow-2xs"
                 >
                   {item.label}
                 </a>
               </li>
             ))}
           </ul>
-          <div className="ml-auto flex items-center gap-2 lg:ml-0">
+          <div className="ml-auto flex items-center gap-2.5 lg:ml-0">
             <a
               href="#don"
-              className="hidden rounded-md px-3 py-2 text-sm font-semibold text-fg hover:text-brand md:block"
+              className="hidden rounded-xl px-3.5 py-2 text-sm font-semibold text-fg transition-colors hover:bg-raised hover:text-brand md:block"
             >
               Devenir donneur
             </a>
@@ -361,25 +399,29 @@ export const Landing: React.FC = () => {
       <main id="contenu">
         {/* Accroche */}
         <section id="haut" className="relative overflow-hidden bg-navy text-on-navy">
-          <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-0" />
+          <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-0 opacity-75" />
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute -right-40 -top-56 h-[40rem] w-[40rem] rounded-full bg-[radial-gradient(circle,color-mix(in_oklab,var(--brand)_32%,transparent),transparent_65%)]"
+            className="pointer-events-none absolute -right-40 -top-56 h-[42rem] w-[42rem] rounded-full bg-[radial-gradient(circle,color-mix(in_oklab,var(--brand)_30%,transparent),transparent_65%)]"
           />
-          <div className="relative mx-auto grid max-w-7xl items-center gap-16 px-5 pb-28 pt-16 lg:grid-cols-[1fr_1.05fr] lg:pb-32 lg:pt-24">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -left-32 bottom-0 h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgb(37_99_235/0.18),transparent_65%)]"
+          />
+          <div className="relative mx-auto grid max-w-7xl items-center gap-16 px-5 pb-28 pt-16 lg:grid-cols-[1.02fr_0.98fr] lg:pb-32 lg:pt-24">
             <div>
               <p
                 data-hero
                 style={stagger(0)}
-                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-on-navy-muted"
+                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3.5 py-1.5 text-xs font-medium text-on-navy-muted backdrop-blur-xs"
               >
-                <span className="live-pulse h-1.5 w-1.5 rounded-full bg-amber" aria-hidden="true" />
+                <span className="live-pulse h-2 w-2 rounded-full bg-amber" aria-hidden="true" />
                 Plateforme de coordination des urgences · Sénégal
               </p>
               <h1
                 data-hero
                 style={stagger(1)}
-                className="font-display mt-6 text-4xl leading-[1.08] text-white sm:text-5xl lg:text-[3.5rem]"
+                className="font-display mt-6 text-4xl leading-[1.06] tracking-tight text-white sm:text-5xl lg:text-[3.55rem]"
               >
                 Le sang, les lits et les ambulances, <span className="text-amber">enfin connectés.</span>
               </h1>
@@ -387,7 +429,7 @@ export const Landing: React.FC = () => {
                 Jappo Dundu relie en temps réel les donneurs, les hôpitaux et le SAMU : l’ambulance la plus proche, le
                 lit disponible et le donneur compatible, au même endroit.
               </p>
-              <div data-hero style={stagger(3)} className="mt-9 flex flex-wrap gap-3">
+              <div data-hero style={stagger(3)} className="mt-9 flex flex-wrap gap-3.5">
                 <a href="#modules" className={`${btnPrimary} h-12 px-6 text-base`}>
                   Découvrir les modules
                   <ArrowRight className="btn-arrow h-5 w-5" aria-hidden="true" />
@@ -396,10 +438,12 @@ export const Landing: React.FC = () => {
                   Devenir donneur
                 </a>
               </div>
-              <ul data-hero style={stagger(4)} className="mt-10 flex flex-wrap gap-x-6 gap-y-2">
+              <ul data-hero style={stagger(4)} className="mt-10 flex flex-wrap gap-x-6 gap-y-2.5 border-t border-white/10 pt-6">
                 {ASSURANCES.map((item) => (
                   <li key={item} className="flex items-center gap-2 text-sm text-on-navy-muted">
-                    <Check className="h-4 w-4 text-accent-green" aria-hidden="true" />
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent-green/15">
+                      <Check className="h-3.5 w-3.5 text-accent-green" aria-hidden="true" />
+                    </span>
                     {item}
                   </li>
                 ))}
@@ -409,14 +453,21 @@ export const Landing: React.FC = () => {
           </div>
         </section>
 
-        {/* Repères */}
+        {/* Repères Bento */}
         <section aria-label="La plateforme en chiffres" className="border-b border-line bg-surface">
           <dl className="mx-auto grid max-w-7xl grid-cols-2 px-5 lg:grid-cols-4 lg:divide-x lg:divide-line">
             {KEY_FIGURES.map((figure, index) => (
-              <div key={figure.label} data-reveal style={stagger(index)} className="flex flex-col px-2 py-10 lg:px-8">
+              <div
+                key={figure.label}
+                data-reveal
+                style={stagger(index)}
+                className="group flex flex-col px-3 py-10 transition-colors hover:bg-raised/35 lg:px-8"
+              >
+                <span className="num mb-2 text-2xs font-bold tracking-widest text-brand/80 uppercase">
+                  0{index + 1}
+                </span>
                 <dt className="order-2 mt-2 max-w-[15rem] text-sm leading-snug text-muted">{figure.label}</dt>
-                <dd className="num -order-1 text-4xl font-bold tracking-tight text-fg">
-                  {/* Compteur animé ; la valeur finale reste lisible par les lecteurs d'écran. */}
+                <dd className="num -order-1 text-4xl font-extrabold tracking-tight text-fg sm:text-[2.65rem]">
                   <span aria-hidden="true" data-count={figure.value}>
                     {figure.value}
                   </span>
@@ -435,7 +486,7 @@ export const Landing: React.FC = () => {
               title="Tout ce qu’il faut pour gérer une urgence"
               intro="Chaque module fonctionne seul, et ils partagent les mêmes données : un lit libéré ou une ambulance disponible se voit partout, aussitôt."
             />
-            <div className="mt-14 grid gap-6 lg:grid-cols-3">
+            <div className="mt-14 grid gap-7 lg:grid-cols-3">
               {MODULES.map((module, index) => {
                 const style = MODULE_STYLE[module.key]
                 const Icon = style.icon
@@ -444,22 +495,38 @@ export const Landing: React.FC = () => {
                     key={module.key}
                     data-reveal
                     style={stagger(index)}
-                    className="lift relative flex flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--shadow-panel)]"
+                    className="lift group relative flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-panel)] transition-all hover:border-line-strong"
                   >
                     <div className="relative aspect-[16/10] overflow-hidden">
-                      <Photo name={style.photo} alt={style.alt} icon={Icon} className="absolute inset-0" />
-                      <span aria-hidden="true" className={`absolute inset-x-0 bottom-0 h-1 ${style.bar}`} />
+                      <Photo
+                        name={style.photo}
+                        alt={style.alt}
+                        icon={Icon}
+                        className="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
+                      />
+                      <div
+                        aria-hidden="true"
+                        className="absolute inset-0 bg-gradient-to-t from-navy/65 via-transparent to-transparent"
+                      />
+                      <span className="absolute left-4 top-4 rounded-full border border-white/20 bg-navy/70 px-3 py-1 text-2xs font-semibold text-white backdrop-blur-md">
+                        {style.badge}
+                      </span>
+                      <span aria-hidden="true" className={`absolute inset-x-0 bottom-0 h-1.5 ${style.bar}`} />
                     </div>
-                    <div className="relative px-8 pb-8">
-                      <span className="lift-icon -mt-6 flex h-12 w-12 items-center justify-center rounded-lg border border-line bg-surface shadow-[var(--shadow-panel)]">
+                    <div className="relative flex flex-1 flex-col px-7 pb-8">
+                      <span className="lift-icon -mt-6 flex h-12 w-12 items-center justify-center rounded-xl border border-line bg-surface shadow-[var(--shadow-panel)]">
                         <Icon className={`h-6 w-6 ${style.text}`} aria-hidden="true" />
                       </span>
-                      <h3 className="mt-5 text-xl font-bold text-fg">{module.name}</h3>
+                      <h3 className="mt-5 text-xl font-bold tracking-tight text-fg">{module.name}</h3>
                       <p className={`mt-1 text-sm font-semibold ${style.text}`}>{module.tagline}</p>
                       <ul className="mt-6 space-y-3 border-t border-line pt-6">
                         {module.features.map((feature) => (
                           <li key={feature} className="flex gap-3 text-sm leading-relaxed text-muted">
-                            <Check className={`mt-0.5 h-4 w-4 shrink-0 ${style.text}`} aria-hidden="true" />
+                            <span
+                              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${style.softBg}`}
+                            >
+                              <Check className={`h-3.5 w-3.5 ${style.text}`} aria-hidden="true" />
+                            </span>
                             {feature}
                           </li>
                         ))}
@@ -474,45 +541,58 @@ export const Landing: React.FC = () => {
 
         {/* Fonctionnement : une urgence de bout en bout */}
         <section id="fonctionnement" className="scroll-mt-16 border-y border-line bg-surface py-24">
-          <div className="mx-auto grid max-w-7xl gap-14 px-5 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="mx-auto grid max-w-7xl gap-14 px-5 lg:grid-cols-[0.92fr_1.08fr]">
             <div>
               <SectionHeader
                 eyebrow="Fonctionnement"
                 title="Une urgence, du premier appel au don de sang"
                 intro="Un accident sur la route : voici comment les trois modules se relaient, minute par minute."
               />
-              <div data-reveal="photo" className="relative mt-10 aspect-[4/3] overflow-hidden rounded-xl">
+              <div
+                data-reveal="photo"
+                className="relative mt-10 aspect-[4/3] overflow-hidden rounded-2xl border border-line shadow-[var(--shadow-panel)]"
+              >
                 <Photo
                   name="urgence"
                   icon={Radio}
                   alt="Une régulatrice du SAMU coordonne une intervention depuis la salle de régulation"
                   className="absolute inset-0 object-[80%_50%]"
                 />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-navy/90 to-transparent p-6 pt-20">
-                  <p className="text-lg font-semibold text-white">
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-navy/95 via-navy/50 to-transparent p-6 pt-20">
+                  <p className="inline-flex items-center gap-2 text-xs font-semibold tracking-wider text-amber uppercase">
+                    <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Chaîne de survie synchronisée
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-white">
                     25 minutes, trois modules, une seule chaîne de secours.
                   </p>
                 </div>
               </div>
             </div>
-            <ol className="lg:pt-4">
+            <ol className="space-y-4 lg:pt-2">
               {SCENARIO.map((step, index) => {
                 const style = MODULE_STYLE[step.module]
                 const Icon = style.icon
-                const last = index === SCENARIO.length - 1
                 return (
-                  <li key={step.title} data-reveal style={stagger(index)} className="relative flex gap-6 pb-12 last:pb-0">
-                    {/* Fil de la chronologie */}
-                    {!last && <span aria-hidden="true" className="absolute bottom-0 left-6 top-14 w-px bg-line-strong" />}
-                    <span className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-line bg-surface shadow-[var(--shadow-panel)]">
+                  <li
+                    key={step.title}
+                    data-reveal
+                    style={stagger(index)}
+                    className="group relative flex gap-5 rounded-2xl border border-line bg-canvas/55 p-5 transition-all hover:border-line-strong hover:bg-surface hover:shadow-xs"
+                  >
+                    <span
+                      className={`relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line bg-surface shadow-2xs ${style.softBg}`}
+                    >
                       <Icon className={`h-5 w-5 ${style.text}`} aria-hidden="true" />
                     </span>
-                    <div className="pt-1">
-                      <p className="num text-xs font-semibold uppercase tracking-wider text-subtle">
-                        Étape {index + 1} · T + {step.time}
-                      </p>
-                      <h3 className="mt-1.5 text-lg font-bold text-fg">{step.title}</h3>
-                      <p className="mt-2 max-w-lg text-[0.9375rem] leading-relaxed text-muted">{step.text}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="num rounded-md bg-raised px-2 py-0.5 text-2xs font-bold uppercase tracking-wider text-fg">
+                          Étape {index + 1}
+                        </span>
+                        <span className={`num text-xs font-semibold ${style.text}`}>T + {step.time}</span>
+                      </div>
+                      <h3 className="mt-2 text-lg font-bold text-fg">{step.title}</h3>
+                      <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-muted">{step.text}</p>
                     </div>
                   </li>
                 )
@@ -537,14 +617,15 @@ export const Landing: React.FC = () => {
                     key={audience.who}
                     data-reveal
                     style={stagger(index)}
-                    className="lift flex flex-col rounded-xl border border-line bg-surface p-7"
+                    className="lift flex flex-col rounded-2xl border border-line bg-surface p-7 shadow-[var(--shadow-panel)] transition-all hover:border-line-strong"
                   >
-                    <span className="lift-icon flex h-11 w-11 items-center justify-center rounded-lg bg-navy text-white">
-                      <Icon className="h-5 w-5" aria-hidden="true" />
+                    <span className="lift-icon flex h-12 w-12 items-center justify-center rounded-xl bg-navy text-white shadow-sm">
+                      <Icon className="h-5 w-5 text-amber" aria-hidden="true" />
                     </span>
-                    <h3 className="mt-5 text-lg font-bold text-fg">{audience.who}</h3>
+                    <h3 className="mt-5 text-lg font-bold tracking-tight text-fg">{audience.who}</h3>
                     <p className="mt-3 flex-1 text-sm leading-relaxed text-muted">{audience.text}</p>
-                    <p className="mt-5 inline-flex w-fit rounded-md bg-raised px-2.5 py-1 text-2xs font-semibold text-fg">
+                    <p className="mt-5 inline-flex w-fit items-center gap-1.5 rounded-lg border border-line bg-raised/70 px-3 py-1 text-2xs font-semibold text-fg">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" />
                       {audience.where}
                     </p>
                   </div>
@@ -556,7 +637,7 @@ export const Landing: React.FC = () => {
 
         {/* Pilotage */}
         <section className="relative overflow-hidden bg-navy py-24 text-on-navy">
-          <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-0" />
+          <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-0 opacity-75" />
           <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 lg:grid-cols-[1.1fr_0.9fr]">
             <div data-reveal className="order-2 lg:order-1">
               <ProductMock />
@@ -568,17 +649,22 @@ export const Landing: React.FC = () => {
                 title="Voir, anticiper, protéger"
                 intro="Un tableau de bord par rôle : l’essentiel du réseau sur un seul écran."
               />
-              <ul className="mt-10 space-y-7">
+              <ul className="mt-10 space-y-5">
                 {PILOTING.map((item, index) => {
                   const Icon = PILOTING_ICONS[index]
                   return (
-                    <li key={item.title} data-reveal style={stagger(index)} className="flex gap-5">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/10">
+                    <li
+                      key={item.title}
+                      data-reveal
+                      style={stagger(index)}
+                      className="flex gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xs"
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
                         <Icon className="h-5 w-5 text-amber" aria-hidden="true" />
                       </span>
                       <div>
-                        <h3 className="text-lg font-bold text-white">{item.title}</h3>
-                        <p className="mt-1.5 text-sm leading-relaxed text-on-navy-muted">{item.text}</p>
+                        <h3 className="text-base font-bold text-white">{item.title}</h3>
+                        <p className="mt-1 text-sm leading-relaxed text-on-navy-muted">{item.text}</p>
                       </div>
                     </li>
                   )
@@ -597,9 +683,9 @@ export const Landing: React.FC = () => {
                 title="Un don peut sauver jusqu’à trois vies"
                 intro="Avec l’application, vous êtes prévenu quand un hôpital proche a besoin de votre groupe sanguin."
               />
-              <div data-reveal className="mt-10 rounded-xl border border-line bg-surface p-6">
-                <h3 className="text-sm font-bold text-fg">Conditions pour donner</h3>
-                <ul className="mt-4 space-y-3">
+              <div data-reveal className="mt-10 rounded-2xl border border-line bg-surface p-7 shadow-[var(--shadow-panel)]">
+                <h3 className="text-sm font-bold tracking-wide text-fg uppercase">Conditions pour donner</h3>
+                <ul className="mt-5 space-y-3.5">
                   {DONOR_CONDITIONS.map((condition) => (
                     <li key={condition} className="flex items-start gap-3 text-[0.9375rem] text-fg">
                       <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-green/12">
@@ -622,24 +708,27 @@ export const Landing: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-6">
-              <div data-reveal="photo" className="aspect-[16/10] overflow-hidden rounded-xl">
+              <div
+                data-reveal="photo"
+                className="aspect-[16/10] overflow-hidden rounded-2xl border border-line shadow-[var(--shadow-panel)]"
+              >
                 <Photo
                   name="don"
                   icon={Droplets}
                   alt="Une jeune donneuse sourit pendant son don de sang, accompagnée d’une infirmière"
                 />
               </div>
-              <div data-reveal className="rounded-xl border border-line bg-surface">
-                <div className="flex items-baseline justify-between gap-4 border-b border-line px-6 py-4">
+              <div data-reveal className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-panel)]">
+                <div className="flex items-baseline justify-between gap-4 border-b border-line bg-raised/35 px-6 py-4">
                   <h3 className="text-base font-bold text-fg">Groupes recherchés</h3>
-                  <p className="text-xs text-muted">CNTS · {BLOOD_NEEDS.updated}</p>
+                  <p className="text-xs font-medium text-muted">CNTS · {BLOOD_NEEDS.updated}</p>
                 </div>
                 <ul className="grid grid-cols-2 sm:grid-cols-4 sm:divide-x sm:divide-line">
                   {BLOOD_NEEDS.groups.map((g, index) => {
                     const critical = g.level === 'critical'
                     return (
                       <li key={g.group} data-reveal="scale" style={stagger(index + 1)} className="px-6 py-5">
-                        <span className="block text-3xl font-bold tracking-tight text-fg">{g.group}</span>
+                        <span className="block text-3xl font-extrabold tracking-tight text-fg">{g.group}</span>
                         <span
                           className={`mt-2 inline-flex rounded-md px-2 py-0.5 text-2xs font-semibold ${
                             critical ? 'heartbeat bg-brand text-on-brand' : 'bg-raised text-fg'
@@ -651,9 +740,11 @@ export const Landing: React.FC = () => {
                     )
                   })}
                 </ul>
-                <div className="flex items-center gap-3 border-t border-line px-6 py-4">
+                <div className="flex items-center gap-3 border-t border-line bg-raised/25 px-6 py-4">
                   <Smartphone className="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
-                  <p className="text-sm text-muted">L’application des donneurs (Android et iPhone) est en phase de test avec les premiers centres.</p>
+                  <p className="text-sm text-muted">
+                    L’application des donneurs (Android et iPhone) est en phase de test avec les premiers centres.
+                  </p>
                 </div>
               </div>
             </div>
@@ -669,12 +760,17 @@ export const Landing: React.FC = () => {
               intro="L’essentiel sur la plateforme, les données et le don de sang."
               className="lg:sticky lg:top-28 lg:self-start"
             />
-            <div className="divide-y divide-line border-y border-line">
+            <div className="space-y-3">
               {FAQ.map((item, index) => (
-                <details key={item.q} data-reveal style={stagger(index)} className="group">
+                <details
+                  key={item.q}
+                  data-reveal
+                  style={stagger(index)}
+                  className="group rounded-2xl border border-line bg-canvas/45 px-6 transition-colors open:border-line-strong open:bg-surface"
+                >
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-base font-semibold text-fg hover:text-brand [&::-webkit-details-marker]:hidden">
                     {item.q}
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-open:rotate-45 motion-reduce:transition-none">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-surface transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-open:rotate-45 motion-reduce:transition-none">
                       <Plus className="h-4 w-4 text-brand" aria-hidden="true" />
                     </span>
                   </summary>
@@ -689,9 +785,9 @@ export const Landing: React.FC = () => {
         <section className="px-5 py-24">
           <div
             data-reveal
-            className="relative mx-auto grid max-w-7xl overflow-hidden rounded-2xl bg-navy text-on-navy lg:grid-cols-2"
+            className="relative mx-auto grid max-w-7xl overflow-hidden rounded-3xl border border-white/10 bg-navy text-on-navy shadow-[0_32px_72px_-18px_rgb(11_31_58/0.45)] lg:grid-cols-2"
           >
-            <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-0" />
+            <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-0 opacity-75" />
             <div className="relative p-8 sm:p-12 lg:p-14">
               <p className="font-label font-semibold text-amber">Pourquoi Jappo Dundu</p>
               <h2 className="font-display mt-3 text-3xl leading-tight text-white sm:text-4xl">
@@ -754,7 +850,7 @@ export const Landing: React.FC = () => {
             <ul className="mt-4 space-y-2.5 text-sm">
               {NAV.map((item) => (
                 <li key={item.href}>
-                  <a href={item.href} className="text-on-navy-muted hover:text-white">
+                  <a href={item.href} className="text-on-navy-muted transition-colors hover:text-white">
                     {item.label}
                   </a>
                 </li>
@@ -765,7 +861,7 @@ export const Landing: React.FC = () => {
             <h3 className="font-label font-semibold text-white">Accès</h3>
             <ul className="mt-4 space-y-2.5 text-sm">
               <li>
-                <Link to={spaceLink.to} className="text-on-navy-muted hover:text-white">
+                <Link to={spaceLink.to} className="text-on-navy-muted transition-colors hover:text-white">
                   {spaceLink.label}
                 </Link>
               </li>
@@ -774,7 +870,7 @@ export const Landing: React.FC = () => {
                   href={SOURCE.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-on-navy-muted hover:text-white"
+                  className="text-on-navy-muted transition-colors hover:text-white"
                 >
                   Donner son sang (CNTS)
                 </a>

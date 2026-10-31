@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
+  Activity,
   Ambulance as AmbulanceIcon,
   ArrowRight,
   BedDouble,
   CheckCircle2,
+  CornerDownLeft,
   Droplets,
   Plus,
   RotateCcw,
@@ -68,6 +70,7 @@ interface ChatMessage {
 interface QuickPrompt {
   id: string
   title: string
+  tag: string
   icon: React.ReactNode
   badgeBg: string
   query: string
@@ -93,10 +96,9 @@ const timeFmt = new Intl.DateTimeFormat('fr-SN', {
 })
 
 /**
- * Assistant IA de régulation Jappo Dundu.
- * Design épuré inspiré de FlowAI : panneau flottant à droite, médaillon 3D
- * central sur réticule discret, accueil aligné à gauche, suggestions compactes
- * en une ligne et boîte de saisie à deux niveaux sans contour criard.
+ * Assistant IA de régulation Jappo Dundu — Design Haute Couture (style FlowAI / Copilot).
+ * Médaillon orbital prismatique 3D, télémétrie en direct, cartes d'analyse
+ * interactives avec badges contextuels et éditeur de commande à deux niveaux.
  */
 export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onClose }) => {
   const { user, roles } = useAuth()
@@ -165,8 +167,9 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
     {
       id: 'global',
       title: 'Synthèse des urgences prioritaires',
+      tag: 'Priorité',
       icon: <Sparkles className="h-3.5 w-3.5" />,
-      badgeBg: 'bg-[#e11d48]/12 text-[#e11d48] dark:bg-[#fb7185]/15 dark:text-[#fb7185]',
+      badgeBg: 'bg-[#e11d48]/12 text-[#e11d48] ring-1 ring-[#e11d48]/20 dark:bg-[#fb7185]/15 dark:text-[#fb7185]',
       query: 'Quelles sont les urgences prioritaires et tensions actuelles ?',
     },
     ...(seeBeds
@@ -174,8 +177,9 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
           {
             id: 'beds',
             title: 'Lits & services hospitaliers en tension',
+            tag: 'Temps réel',
             icon: <BedDouble className="h-3.5 w-3.5" />,
-            badgeBg: 'bg-[#2563eb]/12 text-[#2563eb] dark:bg-[#60a5fa]/15 dark:text-[#60a5fa]',
+            badgeBg: 'bg-[#2563eb]/12 text-[#2563eb] ring-1 ring-[#2563eb]/20 dark:bg-[#60a5fa]/15 dark:text-[#60a5fa]',
             query: 'Quel est l’état des lits disponibles et des services en tension ?',
           },
         ]
@@ -185,8 +189,9 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
           {
             id: 'blood',
             title: 'Demandes de sang & risques CQR à 7 j',
+            tag: 'CQR 7 j',
             icon: <Droplets className="h-3.5 w-3.5" />,
-            badgeBg: 'bg-[#d97706]/12 text-[#d97706] dark:bg-[#fbbf24]/15 dark:text-[#fbbf24]',
+            badgeBg: 'bg-[#d97706]/12 text-[#d97706] ring-1 ring-[#d97706]/20 dark:bg-[#fbbf24]/15 dark:text-[#fbbf24]',
             query: 'Analyse les demandes de sang ouvertes et les pénuries prévues à 7 jours.',
           },
         ]
@@ -196,8 +201,9 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
           {
             id: 'fleet',
             title: 'Flotte SAMU & missions en attente',
+            tag: 'PostGIS',
             icon: <AmbulanceIcon className="h-3.5 w-3.5" />,
-            badgeBg: 'bg-[#059669]/12 text-[#059669] dark:bg-[#34d399]/15 dark:text-[#34d399]',
+            badgeBg: 'bg-[#059669]/12 text-[#059669] ring-1 ring-[#059669]/20 dark:bg-[#34d399]/15 dark:text-[#34d399]',
             query: 'Quel est l’état de la flotte d’ambulances et des missions SAMU ?',
           },
         ]
@@ -515,7 +521,7 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-slate-950/15 transition-opacity dark:bg-black/35"
+      className="fixed inset-0 z-50 flex justify-end bg-slate-950/20 backdrop-blur-[1px] transition-opacity dark:bg-black/45"
       role="dialog"
       aria-modal="true"
       aria-label="Jappo IA — Assistant de régulation"
@@ -523,16 +529,22 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <aside className="ai-drawer-enter ai-panel-surface relative flex h-full w-full flex-col overflow-hidden sm:mt-14 sm:mr-4 sm:mb-4 sm:h-[calc(100%-4.5rem)] sm:max-w-[400px] sm:rounded-2xl">
-        {/* Barre supérieure minimaliste (style FlowAI) */}
-        <header className="flex h-11 shrink-0 items-center justify-between border-b border-line/80 bg-subtle/60 px-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-fg text-canvas shadow-2xs">
-              <Sparkles className="h-3 w-3" aria-hidden="true" />
+      <aside className="ai-drawer-enter ai-panel-surface relative flex h-full w-full flex-col overflow-hidden sm:mt-14 sm:mr-4 sm:mb-4 sm:h-[calc(100%-4.5rem)] sm:max-w-[420px] sm:rounded-2xl">
+        {/* Barre supérieure minimaliste Haute Couture */}
+        <header className="flex h-12 shrink-0 items-center justify-between border-b border-line/80 bg-subtle/50 px-4 backdrop-blur-md">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-[#2563eb] to-[#1e3a8a] text-white shadow-xs">
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
-            <h2 className="text-xs font-bold tracking-tight text-fg">
-              Jappo IA <span className="font-normal text-muted">Assistant</span>
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-bold tracking-tight text-fg">
+                Jappo IA <span className="font-normal text-muted">Copilot</span>
+              </h2>
+              <span className="inline-flex items-center gap-1 rounded-full border border-ok/25 bg-ok/10 px-2 py-0.5 text-[10px] font-medium text-ok">
+                <span className="live-pulse h-1.5 w-1.5 rounded-full bg-ok" aria-hidden="true" />
+                Temps réel
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-1">
@@ -540,7 +552,7 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
               <button
                 type="button"
                 onClick={() => setMessages([])}
-                className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-fg"
+                className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors hover:bg-raised hover:text-fg"
                 title="Nouvelle conversation"
                 aria-label="Réinitialiser la conversation"
               >
@@ -550,11 +562,11 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-fg"
+              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors hover:bg-raised hover:text-fg"
               aria-label="Fermer l’assistant IA"
               title="Fermer (Échap)"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         </header>
@@ -562,22 +574,54 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
         {/* Corps du panneau */}
         {messages.length === 0 ? (
           <div className="flex flex-1 flex-col justify-between overflow-y-auto px-4 py-4">
-            {/* Scène supérieure : Médaillon 3D sur réticule géométrique ultra-discret */}
+            {/* Scène supérieure : Système Orbital 3D + Médaillon Prismatique */}
             <div
-              className={`ai-orb-stage flex flex-1 items-center justify-center transition-all duration-500 ${
-                introStage === 'emblem' ? 'min-h-[240px]' : 'min-h-[155px]'
+              className={`ai-orb-stage relative flex flex-1 flex-col items-center justify-center transition-all duration-500 ${
+                introStage === 'emblem' ? 'min-h-[240px]' : 'min-h-[168px]'
               }`}
             >
-              <div className="ai-orb ai-orb-medallion relative flex h-14 w-14 items-center justify-center rounded-full">
-                <Sparkles className="h-6 w-6 text-[#2563eb] dark:text-[#60a5fa]" aria-hidden="true" />
+              <div className="relative flex h-28 w-28 items-center justify-center">
+                {/* Anneau orbital externe */}
+                <span
+                  aria-hidden="true"
+                  className="ai-orbit-slow pointer-events-none absolute inset-0 rounded-full border border-dashed border-line-strong/60"
+                >
+                  <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-[#2563eb] shadow-[0_0_8px_#2563eb]" />
+                </span>
+
+                {/* Anneau orbital intermédiaire */}
+                <span
+                  aria-hidden="true"
+                  className="ai-orbit-reverse pointer-events-none absolute inset-3.5 rounded-full border border-[#2563eb]/20 dark:border-[#60a5fa]/25"
+                >
+                  <span className="absolute -bottom-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-emerald-400" />
+                </span>
+
+                {/* Halo diffus */}
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-4 rounded-full bg-gradient-to-tr from-[#2563eb]/20 via-indigo-500/15 to-rose-500/15 blur-xl"
+                />
+
+                {/* Médaillon 3D central */}
+                <div className="ai-orb ai-orb-medallion relative flex h-14 w-14 items-center justify-center rounded-full">
+                  <Sparkles className="h-6 w-6 text-[#2563eb] dark:text-[#60a5fa]" aria-hidden="true" />
+                </div>
               </div>
+
+              {introStage === 'ready' && (
+                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line/80 bg-surface/80 px-2.5 py-0.5 text-[10px] font-medium text-muted shadow-2xs backdrop-blur-xs">
+                  <Activity className="h-3 w-3 text-[#2563eb] dark:text-[#60a5fa]" aria-hidden="true" />
+                  <span>Flux connectés · PostGIS · Modèle CQR</span>
+                </div>
+              )}
             </div>
 
-            {/* Section inférieure : Accueil aligné à gauche + Actions rapides en une ligne */}
+            {/* Section inférieure : Accueil éditorial aligné à gauche + Actions rapides */}
             {introStage === 'ready' && (
-              <div className="space-y-3.5 pt-2">
+              <div className="space-y-3.5 pt-1">
                 <div className="ai-stagger-item space-y-1 text-left" style={{ '--ai-step': 0 } as React.CSSProperties}>
-                  <h3 className="text-[15px] font-bold tracking-tight text-fg">
+                  <h3 className="text-base font-bold tracking-tight text-fg">
                     {hasPersonalName ? `Bonjour ${rawFirst} !` : 'Bonjour !'}
                   </h3>
                   <p className="text-xs leading-relaxed text-muted">
@@ -593,17 +637,20 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
                       type="button"
                       onClick={() => submitQuery(item.query)}
                       style={{ '--ai-step': idx + 1 } as React.CSSProperties}
-                      className="ai-stagger-item group flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-line/70 bg-subtle/60 px-3 py-2 text-left transition-all hover:border-line-strong hover:bg-raised"
+                      className="ai-stagger-item group flex w-full cursor-pointer items-center gap-3 rounded-xl border border-line/80 bg-subtle/55 px-3 py-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2563eb]/40 hover:bg-surface hover:shadow-sm"
                     >
                       <span
-                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${item.badgeBg}`}
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 group-hover:scale-105 ${item.badgeBg}`}
                       >
                         {item.icon}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-fg group-hover:text-brand">
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-fg group-hover:text-[#2563eb] dark:group-hover:text-[#60a5fa]">
                         {item.title}
                       </span>
-                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-subtle opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
+                      <span className="rounded-md border border-line/70 bg-surface/80 px-1.5 py-0.5 text-[10px] font-medium text-muted transition-colors group-hover:border-[#2563eb]/30 group-hover:text-[#2563eb] dark:group-hover:text-[#60a5fa]">
+                        {item.tag}
+                      </span>
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-[#2563eb] dark:group-hover:text-[#60a5fa]" />
                     </button>
                   ))}
                 </div>
@@ -616,112 +663,131 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
             {messages.map((msg) =>
               msg.sender === 'user' ? (
                 <div key={msg.id} className="flex justify-end">
-                  <div className="max-w-[85%] rounded-2xl rounded-br-xs bg-fg px-3.5 py-2 text-xs font-medium text-canvas shadow-2xs">
+                  <div className="max-w-[85%] rounded-2xl rounded-br-xs bg-gradient-to-br from-[#1e3a8a] to-[#0f2547] px-3.5 py-2.5 text-xs font-medium text-white shadow-xs">
                     <p>{msg.prompt}</p>
                   </div>
                 </div>
               ) : (
                 <div
                   key={msg.id}
-                  className="dash-rise space-y-3 rounded-2xl border border-line/80 bg-subtle/40 p-3.5"
+                  className="dash-rise overflow-hidden rounded-2xl border border-line bg-surface shadow-xs"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-fg">
-                      <span className="flex h-4 w-4 items-center justify-center rounded-sm bg-[#2563eb]/15 text-[#2563eb] dark:text-[#60a5fa]">
-                        <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
+                  <div className="h-1 w-full bg-gradient-to-r from-[#2563eb] via-[#6366f1] to-[#10b981]" />
+                  <div className="space-y-3 p-3.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-fg">
+                        <span className="flex h-4 w-4 items-center justify-center rounded-sm bg-[#2563eb]/15 text-[#2563eb] dark:text-[#60a5fa]">
+                          <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
+                        </span>
+                        Synthèse Jappo IA
                       </span>
-                      Synthèse Jappo IA
-                    </span>
-                    <span className="num text-[10px] text-subtle">{msg.timestamp}</span>
-                  </div>
+                      <span className="num text-[10px] text-subtle">{msg.timestamp}</span>
+                    </div>
 
-                  {msg.response && (
-                    <>
-                      <p className="text-xs leading-relaxed text-fg">{msg.response.summary}</p>
+                    {msg.response && (
+                      <>
+                        <p className="text-xs leading-relaxed text-fg">{msg.response.summary}</p>
 
-                      {msg.response.metrics && msg.response.metrics.length > 0 && (
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {msg.response.metrics.map((m) => (
-                            <div key={m.label} className="rounded-xl border border-line/70 bg-surface px-2.5 py-2">
-                              <span className="block truncate text-[10px] text-muted">{m.label}</span>
-                              <span
-                                className={`num mt-0.5 block truncate text-xs font-bold ${
+                        {msg.response.metrics && msg.response.metrics.length > 0 && (
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {msg.response.metrics.map((m) => (
+                              <div
+                                key={m.label}
+                                className={`rounded-xl border border-line/70 bg-subtle/50 px-2.5 py-2 border-l-2 ${
                                   m.tone === 'danger'
-                                    ? 'text-critical'
+                                    ? 'border-l-critical'
                                     : m.tone === 'warning'
-                                      ? 'text-warning'
+                                      ? 'border-l-warning'
                                       : m.tone === 'success'
-                                        ? 'text-ok'
-                                        : 'text-fg'
+                                        ? 'border-l-ok'
+                                        : 'border-l-[#2563eb]'
                                 }`}
                               >
-                                {m.value}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                                <span className="block truncate text-[10px] text-muted">{m.label}</span>
+                                <span
+                                  className={`num mt-0.5 block truncate text-xs font-bold ${
+                                    m.tone === 'danger'
+                                      ? 'text-critical'
+                                      : m.tone === 'warning'
+                                        ? 'text-warning'
+                                        : m.tone === 'success'
+                                          ? 'text-ok'
+                                          : 'text-fg'
+                                  }`}
+                                >
+                                  {m.value}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
 
-                      {msg.response.tableRows && msg.response.tableRows.length > 0 && msg.response.tableHeaders && (
-                        <div className="overflow-hidden rounded-xl border border-line/80 bg-surface">
-                          <table className="w-full text-left text-[11px]">
-                            <thead className="border-b border-line/80 bg-subtle/60 text-muted">
-                              <tr>
-                                <th className="px-2.5 py-1.5 font-medium">{msg.response.tableHeaders[0]}</th>
-                                <th className="px-2.5 py-1.5 font-medium">{msg.response.tableHeaders[1]}</th>
-                                <th className="px-2.5 py-1.5 text-right font-medium">{msg.response.tableHeaders[2]}</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-line/60">
-                              {msg.response.tableRows.map((row, rIdx) => (
-                                <tr key={`${row.col1}-${rIdx}`}>
-                                  <td className="px-2.5 py-1.5 font-medium text-fg">{row.col1}</td>
-                                  <td className="px-2.5 py-1.5 text-muted">{row.col2}</td>
-                                  <td className="px-2.5 py-1.5 text-right">
-                                    {row.badge ? (
-                                      <Badge size="sm" tone={row.badge.tone}>
-                                        {row.badge.text}
-                                      </Badge>
-                                    ) : (
-                                      <span className="num font-medium text-fg">{row.col3}</span>
-                                    )}
-                                  </td>
+                        {msg.response.tableRows && msg.response.tableRows.length > 0 && msg.response.tableHeaders && (
+                          <div className="overflow-hidden rounded-xl border border-line/80 bg-subtle/30">
+                            <table className="w-full text-left text-[11px]">
+                              <thead className="border-b border-line/80 bg-subtle/70 text-muted">
+                                <tr>
+                                  <th className="px-2.5 py-1.5 font-medium">{msg.response.tableHeaders[0]}</th>
+                                  <th className="px-2.5 py-1.5 font-medium">{msg.response.tableHeaders[1]}</th>
+                                  <th className="px-2.5 py-1.5 text-right font-medium">
+                                    {msg.response.tableHeaders[2]}
+                                  </th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                              </thead>
+                              <tbody className="divide-y divide-line/60 bg-surface">
+                                {msg.response.tableRows.map((row, rIdx) => (
+                                  <tr key={`${row.col1}-${rIdx}`}>
+                                    <td className="px-2.5 py-1.5 font-medium text-fg">{row.col1}</td>
+                                    <td className="px-2.5 py-1.5 text-muted">{row.col2}</td>
+                                    <td className="px-2.5 py-1.5 text-right">
+                                      {row.badge ? (
+                                        <Badge size="sm" tone={row.badge.tone}>
+                                          {row.badge.text}
+                                        </Badge>
+                                      ) : (
+                                        <span className="num font-medium text-fg">{row.col3}</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
 
-                      {msg.response.recommendations && msg.response.recommendations.length > 0 && (
-                        <ul className="space-y-1.5 rounded-xl border border-line/60 bg-surface p-2.5 text-[11px] text-fg">
-                          {msg.response.recommendations.map((rec, i) => (
-                            <li key={i} className="flex items-start gap-2">
-                              {rec.includes('tension') || rec.includes('vitale') || rec.includes('attente') ? (
-                                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
-                              ) : (
-                                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok" aria-hidden="true" />
-                              )}
-                              <span>{rec}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                        {msg.response.recommendations && msg.response.recommendations.length > 0 && (
+                          <ul className="space-y-1.5 rounded-xl border border-line/60 bg-subtle/40 p-2.5 text-[11px] text-fg">
+                            {msg.response.recommendations.map((rec, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                {rec.includes('tension') || rec.includes('vitale') || rec.includes('attente') ? (
+                                  <TriangleAlert
+                                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning"
+                                    aria-hidden="true"
+                                  />
+                                ) : (
+                                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok" aria-hidden="true" />
+                                )}
+                                <span>{rec}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
 
-                      {msg.response.actionLink && (
-                        <div>
-                          <Link
-                            to={msg.response.actionLink.to}
-                            onClick={onClose}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#2563eb] hover:underline dark:text-[#60a5fa]"
-                          >
-                            {msg.response.actionLink.label}
-                            <ArrowRight className="h-3.5 w-3.5" />
-                          </Link>
-                        </div>
-                      )}
-                    </>
-                  )}
+                        {msg.response.actionLink && (
+                          <div className="pt-0.5">
+                            <Link
+                              to={msg.response.actionLink.to}
+                              onClick={onClose}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563eb]/10 px-3 py-1.5 text-xs font-semibold text-[#2563eb] transition-colors hover:bg-[#2563eb]/20 dark:bg-[#60a5fa]/15 dark:text-[#60a5fa]"
+                            >
+                              {msg.response.actionLink.label}
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               )
             )}
@@ -730,7 +796,7 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
               <div
                 role="status"
                 aria-live="polite"
-                className="dash-rise space-y-2 rounded-2xl border border-line/80 bg-subtle/40 p-3.5"
+                className="dash-rise space-y-2 rounded-2xl border border-line/80 bg-surface p-3.5"
               >
                 <div className="flex items-center gap-2 text-xs font-medium text-fg">
                   <Sparkles className="live-pulse h-3.5 w-3.5 text-[#2563eb] dark:text-[#60a5fa]" aria-hidden="true" />
@@ -748,7 +814,7 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
                     key={item.id}
                     type="button"
                     onClick={() => submitQuery(item.query)}
-                    className="cursor-pointer rounded-lg border border-line/70 bg-subtle/50 px-2.5 py-1 text-[11px] font-medium text-muted transition-colors hover:border-line-strong hover:bg-raised hover:text-fg"
+                    className="cursor-pointer rounded-lg border border-line/70 bg-subtle/50 px-2.5 py-1 text-[11px] font-medium text-muted transition-colors hover:border-[#2563eb]/40 hover:bg-surface hover:text-fg"
                   >
                     {item.title}
                   </button>
@@ -758,7 +824,7 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
           </div>
         )}
 
-        {/* Boîte de saisie à deux niveaux (style FlowAI) — sans aucun contour rouge */}
+        {/* Éditeur de commande à deux niveaux (style FlowAI / Linear) */}
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -766,13 +832,13 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
           }}
           className="shrink-0 p-3 pt-1"
         >
-          <div className="rounded-xl border border-line bg-subtle/45 px-3.5 pt-3 pb-2.5 transition-colors focus-within:border-line-strong focus-within:bg-surface">
+          <div className="rounded-xl border border-line bg-subtle/50 px-3.5 pt-3 pb-2.5 transition-all focus-within:border-[#2563eb]/50 focus-within:bg-surface focus-within:ring-3 focus-within:ring-[#2563eb]/12">
             <input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Posez une question sur votre périmètre…"
+              placeholder="Interroger les lits, le sang, les prévisions CQR…"
               aria-label="Question pour l’assistant IA"
               className="w-full bg-transparent text-xs text-fg placeholder:text-muted focus:outline-none"
             />
@@ -784,23 +850,30 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
                     if (messages.length > 0) setMessages([])
                     inputRef.current?.focus()
                   }}
-                  title="Suggestions rapides"
+                  title="Afficher les analyses rapides"
                   aria-label="Afficher les suggestions rapides"
-                  className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-raised hover:text-fg"
+                  className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border border-line/80 bg-surface text-muted transition-colors hover:border-line-strong hover:text-fg"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>
-                <span className="truncate text-[11px] text-subtle">{primaryRoleLabel(roles)}</span>
+                <span className="truncate rounded-md bg-surface/80 px-2 py-0.5 text-[10px] font-medium text-muted">
+                  {primaryRoleLabel(roles)}
+                </span>
               </div>
 
-              <button
-                type="submit"
-                disabled={!input.trim() || isThinking}
-                aria-label="Envoyer la question"
-                className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-fg text-canvas transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                <Send className="h-3 w-3" />
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="hidden items-center gap-0.5 rounded-md border border-line/70 bg-surface/70 px-1.5 py-0.5 text-[10px] text-subtle sm:inline-flex">
+                  <CornerDownLeft className="h-2.5 w-2.5" aria-hidden="true" /> Entrée
+                </span>
+                <button
+                  type="submit"
+                  disabled={!input.trim() || isThinking}
+                  aria-label="Envoyer la question"
+                  className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-[#2563eb] to-[#1d4ed8] text-white shadow-xs transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <Send className="h-3 w-3" />
+                </button>
+              </div>
             </div>
           </div>
         </form>
