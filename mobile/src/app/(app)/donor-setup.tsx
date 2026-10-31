@@ -79,6 +79,7 @@ function DonorFormScreen({ donor, editing }: { donor: DonorProfile | undefined; 
   const push = usePushPermission()
 
   const [form, setForm] = useState<DonorForm>(() => formOf(donor))
+  const [referral, setReferral] = useState('')
   const [errors, setErrors] = useState<FieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
   // Position retenue pour le profil : celle déjà enregistrée, remplacée si le donneur la met à jour.
@@ -122,6 +123,7 @@ function DonorFormScreen({ donor, editing }: { donor: DonorProfile | undefined; 
         weight_kg: Number(form.weight_kg.trim()),
         is_available: form.is_available,
         rare_phenotype: form.rare_phenotype,
+        ...(!editing && referral.trim() ? { referral_code: referral.trim() } : {}),
         latitude: coords?.latitude ?? null,
         longitude: coords?.longitude ?? null,
       })
@@ -198,6 +200,20 @@ function DonorFormScreen({ donor, editing }: { donor: DonorProfile | undefined; 
           error={errorOf('weight_kg')}
         />
       </Animated.View>
+
+      {!editing ? (
+        <Animated.View entering={enter(4)}>
+          <TextField
+            label="Code de parrainage (facultatif)"
+            placeholder="JD-XXXX-XXXX"
+            autoCapitalize="characters"
+            value={referral}
+            onChangeText={setReferral}
+            hint="Le code de carte du proche qui vous a invité."
+            error={errors.referral_code?.[0]}
+          />
+        </Animated.View>
+      ) : null}
 
       <Animated.View entering={enter(4)}>
         <SelectField

@@ -59,6 +59,9 @@ class DonorSerializer(serializers.ModelSerializer):
     next_eligible_date = serializers.DateField(read_only=True)
     is_eligible = serializers.SerializerMethodField()
     ineligibility_reasons = serializers.SerializerMethodField()
+    # Code de carte du parrain, saisi une seule fois à la création du profil.
+    referral_code = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    referrals_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Donor
@@ -77,6 +80,8 @@ class DonorSerializer(serializers.ModelSerializer):
             'location_updated_at',
             'last_donation_date',
             'rare_phenotype',
+            'referral_code',
+            'referrals_count',
             'next_eligible_date',
             'is_eligible',
             'ineligibility_reasons',
@@ -127,6 +132,34 @@ class DonorSerializer(serializers.ModelSerializer):
             if changed:
                 attrs['location_updated_at'] = timezone.now() if latitude is not None else None
         return attrs
+
+    def get_referrals_count(self, obj):
+        return obj.referrals.count() if obj.pk else 0
+
+    def validate_referral_code(self, value):
+        """Carte d'un autre donneur (format JD-XXXX-XXXX) ; ignorée si vide."""
+        if not value.strip():
+            return None
+        from .cards import normalize_card_code
+
+        code = normalize_card_code(value)
+        referrer = Donor.objects.filter(card_code=code).first() if code else None
+        if referrer is None:
+            raise serializers.ValidationError("Code de parrainage inconnu.")
+        return referrer
+
+    def create(self, validated_data):
+        referrer = validated_data.pop('referral_code', None)
+        donor = super().create(validated_data)
+        if referrer is not None and referrer.user_id != donor.user_id:
+            Donor.objects.filter(pk=donor.pk).update(referred_by=referrer)
+            donor.referred_by = referrer
+        return donor
+
+    def update(self, instance, validated_data):
+        # Le parrain ne se choisit qu'à la création du profil.
+        validated_data.pop('referral_code', None)
+        return super().update(instance, validated_data)
 
 
 class DonorLookupSerializer(serializers.ModelSerializer):

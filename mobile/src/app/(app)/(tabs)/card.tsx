@@ -1,5 +1,5 @@
 import React from 'react'
-import { ScrollView, StyleSheet, View } from 'react-native'
+import { ScrollView, StyleSheet, View, Pressable, Share } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Animated, { FadeInDown } from 'react-native-reanimated'
 import { formatGroup, spokenGroup } from '@/components/ui/BloodGroup'
@@ -97,6 +97,45 @@ export default function CardScreen() {
             Montrez cette carte à l’accueil du centre de don : il la scanne pour retrouver votre profil et enregistrer
             votre don. Le groupe sanguin est toujours contrôlé par le centre avant le prélèvement.
           </Text>
+        </View>
+      </Animated.View>
+
+      {donations > 0 ? (
+        <Animated.View entering={enter(3)} style={[styles.info, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+          <Icon name="heart" size={20} color="brand" />
+          <View style={styles.flex}>
+            <Text variant="bodyStrong">
+              Jusqu’à {donations * 3} vies aidées
+            </Text>
+            <Text variant="caption" tone="muted">
+              Un don est séparé en globules rouges, plasma et plaquettes : il peut aider jusqu’à trois patients.
+            </Text>
+          </View>
+        </Animated.View>
+      ) : null}
+
+      <Animated.View entering={enter(4)} style={[styles.info, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+        <Icon name="user" size={20} color="brand" />
+        <View style={styles.flex}>
+          <Text variant="bodyStrong">Inviter un proche à donner</Text>
+          <Text variant="caption" tone="muted">
+            {donor.referrals_count
+              ? `${donor.referrals_count} personne${donor.referrals_count > 1 ? 's' : ''} inscrite${donor.referrals_count > 1 ? 's' : ''} grâce à vous.`
+              : 'Il saisit votre code de carte en créant son profil.'}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              Share.share({
+                message: `Je donne mon sang avec Jappo Dundu : les hôpitaux proches nous préviennent quand ils ont besoin de notre groupe. Rejoins-moi ! Mon code de parrainage : ${code}`,
+              }).catch(() => undefined)
+            }
+            hitSlop={8}
+          >
+            <Text variant="label" tone="brand">
+              Partager mon invitation
+            </Text>
+          </Pressable>
         </View>
       </Animated.View>
     </ScrollView>

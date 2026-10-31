@@ -82,6 +82,8 @@ export interface DonorProfile {
   last_donation_date: string | null
   /** Registre des groupes rares (inscription volontaire). */
   rare_phenotype?: RarePhenotype | ''
+  /** Personnes inscrites avec le code de carte de ce donneur. */
+  referrals_count?: number
   next_eligible_date: string | null
   is_eligible: boolean
   ineligibility_reasons: string[]
@@ -98,6 +100,8 @@ export interface DonorInput {
   is_available: boolean
   last_donation_date: string | null
   rare_phenotype?: RarePhenotype | ''
+  /** Code de carte d'un parrain, à la création du profil seulement. */
+  referral_code?: string
   latitude: number | null
   longitude: number | null
 }

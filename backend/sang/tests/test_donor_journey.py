@@ -6,9 +6,11 @@ registre des groupes rares.
 from unittest import mock
 
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from geo.distance import GeoPoint
-from users.tests.factories import api_client, offset
+from security.roles import Role
+from users.tests.factories import api_client, birth_date_for_age, make_user, offset
 
 from ..models import DonorResponse
 from ..services import find_matching_donors, find_nearby_requests
@@ -70,3 +72,23 @@ class RareRegistryTests(SangFixturesMixin, TestCase):
         response = api_client(donor.user).patch('/api/sang/donors/me/', {'rare_phenotype': 'kell_null'}, format='json')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data['rare_phenotype'], 'kell_null')
+
+
+class ReferralTests(SangFixturesMixin, TestCase):
+    def test_referral_code_at_creation_only(self):
+        sponsor = make_donor('parrain')
+        newcomer = make_user('filleul', Role.DONOR)
+        body = {
+            'blood_group': 'A+',
+            'sex': 'F',
+            'date_of_birth': str(birth_date_for_age(25, timezone.localdate())),
+            'weight_kg': 60,
+            'referral_code': sponsor.card_code,
+        }
+        response = api_client(newcomer).put('/api/sang/donors/me/', body, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(api_client(sponsor.user).get('/api/sang/donors/me/').data['referrals_count'], 1)
+        bad = api_client(make_user('autre', Role.DONOR)).put(
+            '/api/sang/donors/me/', {**body, 'referral_code': 'JD-0000-0000'}, format='json'
+        )
+        self.assertEqual(bad.status_code, 400)

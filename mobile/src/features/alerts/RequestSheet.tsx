@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, Pressable, Share, StyleSheet, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated'
@@ -61,6 +61,11 @@ function SheetBody({ request, donor }: { request: NearbyRequest; donor: DonorPro
   const respond = useRespond()
   const onMyWay = useOnMyWay()
   const router = useRouter()
+  // Ni nom de patient ni précision clinique : établissement, groupe, poches.
+  const shareRequest = () =>
+    Share.share({
+      message: `${facility.name} (${facility.city}) recherche du sang ${request.blood_group}. Si vous pouvez donner, installez Jappo Dundu ou présentez-vous au centre de transfusion.`,
+    }).catch(() => undefined)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const urgency = URGENCY[request.urgency]
   const status = request.my_response
@@ -158,6 +163,11 @@ function SheetBody({ request, donor }: { request: NearbyRequest; donor: DonorPro
               {onMyWay.error instanceof Error ? onMyWay.error.message : 'Envoi impossible.'}
             </Text>
           ) : null}
+          <Pressable onPress={() => shareRequest()} accessibilityRole="button" hitSlop={8}>
+            <Text variant="label" tone="brand">
+              Partager à un proche du même groupe
+            </Text>
+          </Pressable>
           <Pressable onPress={() => router.push({ pathname: '/pre-donation' })} accessibilityRole="button" hitSlop={8}>
             <Text variant="label" tone="brand">
               Vérifier si je peux donner aujourd’hui

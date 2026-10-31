@@ -140,6 +140,10 @@ class Donor(models.Model):
         blank=True,
         verbose_name="Phénotype rare",
     )
+    # Parrainage : donneur qui a invité celui-ci (code de sa carte saisi à l'inscription).
+    referred_by = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='referrals', verbose_name="Parrain"
+    )
     # Don après lequel le rappel « vous pouvez de nouveau donner » est parti :
     # un seul rappel par don (sang/reminders.py).
     eligibility_reminded_for = models.DateField(
