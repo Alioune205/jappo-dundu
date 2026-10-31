@@ -498,6 +498,15 @@ class SosTests(AmbulanceFixturesMixin, TestCase):
         # Région du lieu (établissement le plus proche), pas celle du profil.
         self.assertEqual(mission.region, 'dakar')
         self.assertEqual(calls['alert'][0][1]['event'], 'mission_created')
+
+    def test_sos_returns_first_aid_instructions(self):
+        response, _ = self.send(kind='malaise')
+        codes = [item['code'] for item in response.data['instructions']]
+        self.assertEqual(codes, ['recovery_position', 'stay_safe'])
+        self.assertTrue(response.data['instructions'][0]['steps'])
+        # La régulation voit les mêmes consignes que l'appelant.
+        mission = Mission.objects.get(pk=response.data['id'])
+        self.assertEqual(mission.triage, {'conscious': 'no'})
         # La régulation la voit, marquée SOS.
         row = api_client(self.dispatcher).get(MISSIONS).data['results'][0]
         self.assertEqual((row['id'], row['source']), (mission.pk, 'sos'))

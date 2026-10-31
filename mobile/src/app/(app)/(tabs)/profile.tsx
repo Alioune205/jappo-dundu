@@ -181,6 +181,13 @@ export default function ProfileScreen() {
                 onPress={() => router.push('/badges')}
                 actionLabel="Voir"
               />
+              <Row
+                icon="shield"
+                title="Fiche d’urgence"
+                value="Allergies, traitements et personnes à prévenir"
+                onPress={() => router.push({ pathname: '/emergency-card' })}
+                actionLabel="Ouvrir"
+              />
             </Card>
           </Animated.View>
 

@@ -6,8 +6,8 @@ import { Alert } from '@/components/ui/Alert'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
-import { BLOOD_GROUPS, URGENCIES } from '@/lib/constants'
-import type { BloodGroup, BloodRequest, BloodRequestInput, FacilitySummary, Urgency } from '@/types/api'
+import { BLOOD_GROUPS, COMPONENTS, URGENCIES } from '@/lib/constants'
+import type { BloodComponent, BloodGroup, BloodRequest, BloodRequestInput, FacilitySummary, Urgency } from '@/types/api'
 import { QK } from '@/lib/queryKeys'
 
 /** Établissements qui peuvent demander du sang (pas les services d'ambulances). */
@@ -15,6 +15,7 @@ const BLOOD_SITE_TYPES = new Set(['hospital', 'health_center', 'clinic', 'blood_
 
 const EMPTY_REQUEST: BloodRequestInput = {
   blood_group: 'O+',
+  component: 'red_cells',
   units_needed: 2,
   urgency: 'urgent',
   notes: '',
@@ -28,7 +29,7 @@ export const CreateRequestModal: React.FC<{ isOpen: boolean; onClose: () => void
     isOpen={isOpen}
     onClose={onClose}
     title="Nouvelle demande de sang"
-    description="Les donneurs compatibles à proximité sont alertés dès l'enregistrement."
+    description="Les donneurs compatibles les plus proches sont alertés. Pour une urgence immédiate, commandez aussi des poches en stock depuis le détail de la demande."
   >
     {/* Remonté à chaque ouverture : formulaire vierge, erreurs effacées. */}
     {isOpen && <CreateRequestForm onDone={onClose} />}
@@ -97,6 +98,17 @@ const CreateRequestForm: React.FC<{ onDone: () => void }> = ({ onDone }) => {
           {BLOOD_GROUPS.map((g) => (
             <option key={g} value={g}>
               {g}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="Produit"
+          value={form.component}
+          onChange={(e) => set({ component: e.target.value as BloodComponent })}
+        >
+          {COMPONENTS.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
             </option>
           ))}
         </Select>

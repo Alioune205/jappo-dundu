@@ -15,6 +15,9 @@ export const RealtimeEvent = {
   bloodRequestUpdated: 'blood_request_updated',
   bloodRequestClosed: 'blood_request_closed',
   bloodResponseUpdated: 'blood_response_updated',
+  bloodStockUpdated: 'blood_stock_updated',
+  bloodOrderCreated: 'blood_order_created',
+  bloodOrderUpdated: 'blood_order_updated',
   predictionUpdate: 'prediction_update',
 } as const
 

@@ -84,6 +84,24 @@ describe('Lits — gestionnaire d’un hôpital (« Mes lits »)', () => {
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/lits/capacities/1/discharge/'))
   })
 
+  it('signale des chiffres périmés et les confirme en un clic', async () => {
+    api.get.mockImplementation((url: string) =>
+      Promise.resolve({
+        results: url.startsWith('/api/lits/reservations/')
+          ? []
+          : [{ ...CAPACITIES[0], freshness: 'stale', expected_discharges: 2 }, CAPACITIES[1]],
+      })
+    )
+    renderWithProviders(<BedsManagement />)
+    const urgences = await card(/^Urgences/)
+    expect(within(urgences).getByText(/Chiffres périmés/)).toBeInTheDocument()
+    expect(within(urgences).getByText(/2 sorties prévues/)).toBeInTheDocument()
+    fireEvent.click(within(urgences).getByRole('button', { name: /Oui, confirmer/ }))
+    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/lits/capacities/1/confirm/'))
+    // Un service à jour ne pose pas la question.
+    expect(within(await card(/^Réanimation/)).queryByRole('button', { name: /Oui, confirmer/ })).not.toBeInTheDocument()
+  })
+
   it('affiche l’erreur du serveur', async () => {
     api.post.mockRejectedValueOnce(new Error('Aucun lit libre dans ce service.'))
     renderWithProviders(<BedsManagement />)

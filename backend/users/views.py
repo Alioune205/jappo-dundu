@@ -16,6 +16,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from rest_framework import generics, mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
@@ -26,13 +27,15 @@ from geo.serializers import parse_nearby_query
 from ml.constants import REGION_CODES
 from security.authentication import JappoDunduTokenObtainPairSerializer
 from security.permissions import IsAdmin
-from security.roles import Role
+from security.roles import Domain, Role, manages
 
 from .filters import boolean_param, choice_param, int_param
-from .models import HealthFacility
+from .models import CAPABILITIES, HealthFacility
 from .permissions import is_admin
+from .services import user_facility_id
 from .serializers import (
     AccountSerializer,
+    FacilityTechnicalSerializer,
     HealthFacilitySerializer,
     NearbyFacilitySerializer,
     PasswordChangeSerializer,
@@ -237,6 +240,31 @@ class HealthFacilityViewSet(
         if search:
             queryset = queryset.filter(Q(name__icontains=search) | Q(city__icontains=search))
         return queryset.order_by('name')
+
+    @action(detail=True, methods=['get', 'patch'])
+    def technical(self, request, pk=None):
+        """Plateau technique et téléphone de garde, déclarés par l'établissement lui-même.
+
+        GET/PATCH /api/facilities/<id>/technical/ {"capabilities": [...], "on_call_phone"}
+        Écriture : administrateur général, ou administrateur (lits, sang,
+        ambulances) rattaché à cet établissement.
+        """
+        facility = self.get_object()
+        if request.method == 'PATCH':
+            own = user_facility_id(request.user) == facility.pk and any(
+                manages(request.user, domain) for domain in Domain
+            )
+            if not (is_admin(request.user) or own):
+                raise PermissionDenied("Seul le personnel de cet établissement déclare son plateau technique.")
+            serializer = FacilityTechnicalSerializer(facility, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+        return Response(
+            {
+                **FacilityTechnicalSerializer(facility).data,
+                'available': [{'code': code, 'label': label} for code, label in CAPABILITIES],
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def nearest(self, request):

@@ -29,6 +29,9 @@ export const capacity = (overrides: Partial<BedCapacity> = {}): BedCapacity => {
     reserved_beds: reserved,
     available_beds: total - occupied - reserved,
     occupancy_rate: occupied / total,
+    expected_discharges: 0,
+    confirmed_at: '2026-10-04T06:00:00Z',
+    freshness: 'fresh',
     updated_at: '2026-10-04T06:00:00Z',
     ...overrides,
   } as BedCapacity

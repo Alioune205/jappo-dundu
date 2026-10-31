@@ -9,7 +9,7 @@
  * Responsable du domaine : Pape Alioune Sene (application mobile)
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Ambulance, AmbulanceStatus, DestinationsResponse, Mission, MissionStatus, Paginated } from '@/types/api'
+import type { Ambulance, AmbulanceStatus, DestinationsResponse, Mission, MissionStatus, Paginated, Vitals } from '@/types/api'
 import { api, ApiError } from './api'
 import { QK } from './queries'
 
@@ -73,6 +73,21 @@ export function useAdvanceMission() {
     onSettled: () => {
       client.invalidateQueries({ queryKey: QK.missions })
       client.invalidateQueries({ queryKey: QK.ambulance })
+    },
+  })
+}
+
+/** Bilan de l'équipage (constantes, observations) transmis à l'hôpital de destination. */
+export function useSendBilan() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, vitals, notes }: { id: number; vitals: Vitals; notes: string }) =>
+      api.post<Mission>(`/api/ambulances/missions/${id}/bilan/`, {
+        ...(Object.keys(vitals).length > 0 ? { vitals } : {}),
+        notes,
+      }),
+    onSuccess: (mission) => {
+      client.setQueryData<DriverMissions>(QK.missions, (previous) => (previous ? { ...previous, active: mission } : previous))
     },
   })
 }

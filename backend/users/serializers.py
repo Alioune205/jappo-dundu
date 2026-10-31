@@ -21,7 +21,7 @@ from ml.constants import REGIONS
 from security.roles import FACILITY_ROLES, Role, primary_role
 
 from . import services
-from .models import HealthFacility, UserProfile
+from .models import CAPABILITIES, HealthFacility, UserProfile
 from .validators import normalize_phone_number
 
 User = get_user_model()
@@ -86,6 +86,27 @@ class RoleField(serializers.ChoiceField):
 # =============================================================
 
 
+class CapabilitiesField(serializers.ListField):
+    """Plateau technique : codes connus, sans doublon, dans l'ordre du référentiel."""
+
+    child = serializers.ChoiceField(choices=CAPABILITIES)
+
+    def to_internal_value(self, data):
+        codes = set(super().to_internal_value(data))
+        return [code for code, _ in CAPABILITIES if code in codes]
+
+
+class FacilityTechnicalSerializer(serializers.ModelSerializer):
+    """Ce que le personnel d'un établissement déclare lui-même : plateau technique, garde."""
+
+    on_call_phone = PhoneNumberField(required=False, allow_blank=True)
+    capabilities = CapabilitiesField(required=False)
+
+    class Meta:
+        model = HealthFacility
+        fields = ['capabilities', 'on_call_phone']
+
+
 class HealthFacilitySummarySerializer(serializers.ModelSerializer):
     """Établissement en version courte (objets imbriqués, cartes)."""
 
@@ -105,6 +126,8 @@ class HealthFacilitySummarySerializer(serializers.ModelSerializer):
             'region_display',
             'city',
             'phone_number',
+            'on_call_phone',
+            'capabilities',
             'latitude',
             'longitude',
         ]
@@ -132,6 +155,8 @@ class HealthFacilitySerializer(serializers.ModelSerializer):
     )
     region_display = serializers.CharField(source='get_region_display', read_only=True)
     phone_number = PhoneNumberField(required=False, allow_blank=True)
+    on_call_phone = PhoneNumberField(required=False, allow_blank=True)
+    capabilities = CapabilitiesField(required=False)
 
     class Meta:
         model = HealthFacility
@@ -145,6 +170,8 @@ class HealthFacilitySerializer(serializers.ModelSerializer):
             'city',
             'address',
             'phone_number',
+            'on_call_phone',
+            'capabilities',
             'latitude',
             'longitude',
             'is_active',

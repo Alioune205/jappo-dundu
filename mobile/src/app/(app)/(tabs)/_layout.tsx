@@ -11,7 +11,7 @@ import { useAuth } from '@/context/AuthContext'
 import { pickAlert, UrgentAlert } from '@/features/alerts/UrgentAlert'
 import { useDeviceLocation } from '@/lib/location'
 import { isDriver } from '@/lib/missions'
-import { isSosNotification, pushSupported, registerForPush, requestIdOf } from '@/lib/push'
+import { isEligibleAgainNotification, isSosNotification, pushSupported, registerForPush, requestIdOf } from '@/lib/push'
 import { isMissingDonor, useDonor, useNearby, useRespond } from '@/lib/queries'
 import { space, useTheme } from '@/theme'
 import type { DonorProfile, NearbyRequest } from '@/types/api'
@@ -88,6 +88,12 @@ function PushBridge() {
       if (isSosNotification(response)) {
         Notifications.clearLastNotificationResponse()
         router.navigate('/sos')
+        return
+      }
+      if (isEligibleAgainNotification(response)) {
+        // L'accueil montre les centres et les collectes où donner.
+        Notifications.clearLastNotificationResponse()
+        router.navigate('/home')
         return
       }
       const id = requestIdOf(response)

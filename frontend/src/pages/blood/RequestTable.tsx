@@ -31,7 +31,7 @@ export const RequestTable: React.FC<RequestTableProps> = ({ requests, isLoading,
       <div className="px-4 py-12 text-center text-xs text-muted">Aucune demande ne correspond à ces critères.</div>
     ) : (
       <div className="overflow-x-auto">
-        <table className="ops-table">
+        <table className="ops-table" aria-label="Demandes de sang">
           <thead>
             <tr>
               <th scope="col">Groupe</th>

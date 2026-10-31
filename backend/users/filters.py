@@ -48,3 +48,15 @@ def boolean_param(params, name, *, default=None):
     if value in _FALSE:
         return False
     raise ValidationError({name: ["Booléen attendu : true ou false."]})
+
+
+def capabilities_param(params, name='capability'):
+    """Codes de plateau technique : ``?capability=ct_scan,trauma`` ; 400 si un code est inconnu."""
+    from .models import CAPABILITY_CODES
+
+    raw = ','.join(params.getlist(name))
+    codes = [code.strip() for code in raw.split(',') if code.strip()]
+    unknown = sorted(set(codes) - CAPABILITY_CODES)
+    if unknown:
+        raise ValidationError({name: [f"Code inconnu : {', '.join(unknown)}."]})
+    return codes

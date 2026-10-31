@@ -73,9 +73,27 @@ export interface FacilitySummary {
   region_display: string
   city: string
   phone_number: string | null
+  /** Ligne de garde joignable 24 h/24 par la régulation. */
+  on_call_phone?: string
+  /** Plateau technique (codes de CAPABILITIES). */
+  capabilities?: Capability[]
   latitude: number | null
   longitude: number | null
 }
+
+export type Capability =
+  | 'ventilator'
+  | 'operating_room'
+  | 'ct_scan'
+  | 'dialysis'
+  | 'incubator'
+  | 'obstetrics'
+  | 'trauma'
+  | 'neurosurgery'
+  | 'cardiology'
+  | 'burns'
+  | 'pediatric_icu'
+  | 'transfusion'
 
 export interface Facility extends FacilitySummary {
   address: string
@@ -152,6 +170,11 @@ export interface BloodRequest {
   search_radius_km: number
   created_by: PersonRef | null
   response_counts: { accepted: number; declined: number; donated: number } | null
+  component: BloodComponent
+  component_display: string
+  /** Vagues d'alerte déjà envoyées aux donneurs (les plus proches d'abord). */
+  alert_wave: number
+  last_alert_at: string | null
   created_at: string
   updated_at: string
   closed_at: string | null
@@ -159,6 +182,7 @@ export interface BloodRequest {
 
 export interface BloodRequestInput {
   blood_group?: BloodGroup
+  component?: BloodComponent
   units_needed: number
   urgency: Urgency
   notes: string
@@ -231,9 +255,17 @@ export interface BedCapacity {
   reserved_beds: number
   available_beds: number
   occupancy_rate: number
+  /** Patients dont la sortie est prévue dans les prochaines heures. */
+  expected_discharges: number
+  /** Dernière confirmation des chiffres par le personnel ou le SIH. */
+  confirmed_at: string
+  freshness: BedFreshness
   updated_at: string
   updated_by: PersonRef | null
 }
+
+/** Fraîcheur des chiffres d'un service : récents, à reconfirmer, périmés. */
+export type BedFreshness = 'fresh' | 'aging' | 'stale'
 
 export type BedReservationStatus = 'active' | 'fulfilled' | 'cancelled' | 'expired'
 
@@ -298,6 +330,9 @@ export interface Ambulance {
 
 export interface NearbyAmbulance extends Ambulance {
   distance_km: number | null
+  /** Durée de trajet jusqu'au lieu, par la route (osrm) ou estimée. */
+  travel_minutes: number | null
+  travel_source: 'osrm' | 'estimate' | null
 }
 
 export interface AmbulanceInput {
@@ -343,6 +378,64 @@ export interface Mission {
   completed_at: string | null
   cancelled_at: string | null
   response_time_minutes: number | null
+  /** Réponses du tri de l'appel (codes de /api/ambulances/triage/). */
+  triage: TriageAnswers
+  triage_assessment: TriageAssessment | null
+  /** Pré-alerte : réponse de l'hôpital de destination ('' sans destination). */
+  destination_status: DestinationStatus
+  destination_status_display: string
+  destination_note: string
+  destination_answered_at: string | null
+  /** Bilan de l'équipage (sans nom de patient). */
+  vitals: Vitals
+  bilan_notes: string
+  bilan_updated_at: string | null
+  /** Arrivée estimée de l'ambulance à sa cible du moment (lieu, puis hôpital). */
+  eta_at: string | null
+  eta_source: '' | 'osrm' | 'estimate'
+  /** Fiche d'urgence de l'auteur d'un SOS, s'il a accepté de la partager. */
+  caller_card?: {
+    blood_group: BloodGroup | null
+    allergies: string
+    conditions: string
+    medications: string
+  } | null
+  /** Alertes SOS de l'appelant sur 30 jours (fausses alertes répétées). */
+  caller_history?: { days: number; alerts: number; cancelled_by_regulation: number } | null
+}
+
+export type DestinationStatus = '' | 'pending' | 'accepted' | 'refused'
+
+export interface Vitals {
+  pulse?: number
+  systolic?: number
+  diastolic?: number
+  spo2?: number
+  resp_rate?: number
+  temperature?: number
+  gcs?: number
+  glucose?: number
+}
+
+export type TriageAnswers = Record<string, string>
+
+export interface TriageAssessment {
+  priority: Urgency
+  reasons: string[]
+  /** Codes des consignes, dans l'ordre où les lire. */
+  instructions: string[]
+}
+
+export interface TriageInstruction {
+  code: string
+  title: string
+  steps: string[]
+}
+
+export interface TriageProtocol {
+  questions: { code: string; label: string; choices: { value: string; label: string }[] }[]
+  instructions: Record<string, TriageInstruction>
+  disclaimer: string
 }
 
 export interface MissionInput {
@@ -354,11 +447,15 @@ export interface MissionInput {
   region: RegionCode
   caller_phone: string
   destination_id: number | null
+  triage?: TriageAnswers
 }
 
 export interface NearbyBedFacility extends FacilitySummary {
   distance_km: number | null
   available_beds: number
+  expected_discharges: number | null
+  confirmed_at: string | null
+  freshness: BedFreshness
 }
 
 export interface MissionDestinations {
@@ -501,4 +598,52 @@ export interface SystemStatus {
   status: 'healthy' | 'degraded'
   service: string
   checks: Record<'database' | 'channel_layer' | 'ml_model', DependencyCheck>
+}
+
+/** Produit sanguin d'une demande, d'un stock ou d'une commande. */
+export type BloodComponent = 'red_cells' | 'plasma' | 'platelets' | 'whole_blood'
+
+/** Ligne de stock (groupe × produit) d'un établissement. */
+export interface BloodStock {
+  id: number
+  facility: FacilitySummary
+  blood_group: BloodGroup
+  component: BloodComponent
+  component_display: string
+  units_available: number
+  /** Poches périmant sous 72 h : à utiliser ou transférer en priorité. */
+  units_expiring_soon: number
+  updated_at: string
+}
+
+/** Établissement ayant des poches compatibles en stock (GET /api/sang/stocks/nearby/). */
+export interface NearbyStockFacility extends FacilitySummary {
+  distance_km: number | null
+  stock_lines: { blood_group: BloodGroup; units_available: number; units_expiring_soon: number }[]
+  total_units: number
+}
+
+export type SupplyOrderStatus = 'requested' | 'accepted' | 'dispatched' | 'delivered' | 'refused' | 'cancelled'
+
+/** Commande de poches d'un établissement à un centre de transfusion. */
+export interface SupplyOrder {
+  id: number
+  requester: FacilitySummary
+  supplier: FacilitySummary
+  blood_request: number | null
+  blood_group: BloodGroup
+  component: BloodComponent
+  component_display: string
+  units: number
+  urgency: Urgency
+  urgency_display: string
+  status: SupplyOrderStatus
+  status_display: string
+  note: string
+  answer_note: string
+  created_at: string
+  accepted_at: string | null
+  dispatched_at: string | null
+  delivered_at: string | null
+  closed_at: string | null
 }

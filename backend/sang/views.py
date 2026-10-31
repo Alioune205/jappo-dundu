@@ -23,13 +23,14 @@ Référentiel : GET /api/sang/compatibility/
 Auteur : Ibrahima Khalilou Diallo
 """
 
+from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 from rest_framework import generics, mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.response import Response
@@ -44,8 +45,10 @@ from users.filters import choice_param, int_param
 from users.permissions import (
     facility_for_write,
     facility_permission,
+    in_scope,
     is_admin,
     scope_to_facility,
+    user_facility,
 )
 
 # Administrateurs du sang, limités à leur périmètre (CNTS : sa région).
@@ -53,13 +56,25 @@ CanManageBlood = facility_permission(Domain.BLOOD)
 from users.services import add_role
 from users.validators import normalize_phone_number
 
-from . import gamification, services
+from . import alerts, gamification, services, stocks
 from .cards import normalize_card_code
 from .compatibility import compatible_donor_groups, compatible_recipient_groups
-from .models import Badge, BloodRequest, Donation, Donor, DonorBadge, DonorResponse
+from .models import (
+    Badge,
+    BloodRequest,
+    BloodStock,
+    BloodSupplyOrder,
+    Component,
+    Donation,
+    Donor,
+    DonorBadge,
+    DonorResponse,
+)
 from .serializers import (
     BadgeSerializer,
     BloodRequestSerializer,
+    BloodStockSerializer,
+    BloodSupplyOrderSerializer,
     DonationSerializer,
     DonorLookupSerializer,
     DonorMatchSerializer,
@@ -70,7 +85,10 @@ from .serializers import (
     MyResponseSerializer,
     NearbyBloodRequestSerializer,
     NearbyRequestsQuerySerializer,
+    NearbyStockFacilitySerializer,
+    OrderAnswerSerializer,
     RespondSerializer,
+    StockSearchSerializer,
 )
 
 NO_DONOR_PROFILE = "Aucun profil donneur : créez-le avec PUT /api/sang/donors/me/."
@@ -328,6 +346,21 @@ class BloodRequestViewSet(
         blood_request = services.cancel_request(self.get_object())
         return Response(self.get_serializer(self._reloaded(blood_request)).data)
 
+    @action(detail=True, methods=['post'], url_path='alert-next-wave')
+    def alert_next_wave(self, request, pk=None):
+        """Relance immédiate : alerte la vague suivante de donneurs sans attendre le délai.
+
+        409 si la demande est clôturée ou si toutes les vagues sont parties.
+        """
+        blood_request = self.get_object()
+        if blood_request.status != BloodRequest.Status.OPEN:
+            raise Conflict("Cette demande est clôturée.")
+        if blood_request.alert_wave >= getattr(settings, 'BLOOD_ALERT_MAX_WAVES', 5):
+            raise Conflict("Toutes les vagues d'alerte sont déjà parties : élargissez le rayon ou contactez le CNTS.")
+        alerted = alerts.send_wave(blood_request, manual=True)
+        data = self.get_serializer(self._reloaded(blood_request)).data
+        return Response({**data, 'alerted_donors': alerted})
+
     @action(detail=True, methods=['get'])
     def matches(self, request, pk=None):
         """Donneurs éligibles et compatibles les plus proches (anonymes).
@@ -489,3 +522,172 @@ class DonationViewSet(
             recorded_by=request.user,
         )
         return Response(self.get_serializer(donation).data, status=status.HTTP_201_CREATED)
+
+
+# =============================================================
+# STOCK DE SANG ET COMMANDES DE POCHES
+# =============================================================
+
+
+class BloodStockViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, viewsets.GenericViewSet):
+    """Stock de poches par établissement (groupe × produit).
+
+    GET  /api/sang/stocks/ ?facility=3 &component=red_cells
+    POST /api/sang/stocks/ {"blood_group", "component", "units_available",
+                            "units_expiring_soon", "facility_id" (admin, CNTS régional)}
+         Inventaire : crée ou remplace la ligne.
+    GET  /api/sang/stocks/nearby/ ?blood_group=O- &component=red_cells &units=2
+         &radius_km=100 &facility=3   (poches compatibles autour de l'établissement)
+    GET  /api/sang/stocks/expiring/   poches périmant sous 72 h, par établissement
+    """
+
+    serializer_class = BloodStockSerializer
+    permission_classes = [CanManageBlood]
+
+    def get_queryset(self):
+        queryset = scope_to_facility(BloodStock.objects.select_related('facility'), self.request.user, Domain.BLOOD)
+        params = self.request.query_params
+        facility = int_param(params, 'facility')
+        if facility is not None:
+            queryset = queryset.filter(facility_id=facility)
+        component = choice_param(params, 'component', Component.values)
+        if component:
+            queryset = queryset.filter(component=component)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        facility = facility_for_write(request.user, data.pop('facility', None), domain=Domain.BLOOD)
+        stock = stocks.set_stock(facility, updated_by=request.user, **data)
+        return Response(self.get_serializer(stock).data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def nearby(self, request):
+        query = StockSearchSerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        params = query.validated_data
+        origin = params.get('facility') or user_facility(request.user)
+        if origin is None:
+            raise ValidationError({'facility': ["Indiquez l'établissement à partir duquel chercher."]})
+        if not in_scope(request.user, Domain.BLOOD, origin):
+            raise PermissionDenied("Établissement hors de votre périmètre.")
+        facilities = stocks.find_stock(
+            GeoPoint(origin.latitude, origin.longitude),
+            blood_group=params['blood_group'],
+            component=params['component'],
+            units=params['units'],
+            radius_km=params['radius_km'],
+            exclude=origin,
+        )
+        return Response(NearbyStockFacilitySerializer(facilities, many=True).data)
+
+    @action(detail=False, methods=['get'])
+    def expiring(self, request):
+        """Poches périmant sous 72 h, par établissement du périmètre (à transférer en priorité)."""
+        facility_ids = self.get_queryset().values_list('facility_id', flat=True)
+        return Response(list(stocks.expiring_summary(facility_ids)))
+
+
+class CanHandleOrder(CanManageBlood):
+    """Administrateur du sang du demandeur ou du fournisseur (une commande concerne deux établissements)."""
+
+    def has_object_permission(self, request, view, obj):
+        return in_scope(request.user, Domain.BLOOD, obj.requester) or in_scope(
+            request.user, Domain.BLOOD, obj.supplier
+        )
+
+
+class BloodSupplyOrderViewSet(
+    mixins.ListModelMixin, mixins.CreateModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet
+):
+    """Commandes de poches entre établissements.
+
+    GET  /api/sang/orders/ ?role=received|sent &open=true
+    POST /api/sang/orders/ {"supplier_id", "blood_group", "component", "units",
+                            "urgency", "blood_request_id", "note", "requester_id" (admin)}
+    POST /api/sang/orders/<id>/accept/   {"note"}   fournisseur
+    POST /api/sang/orders/<id>/refuse/   {"note"}   fournisseur (motif obligatoire)
+    POST /api/sang/orders/<id>/dispatch/ {"note"}   fournisseur : le stock baisse
+    POST /api/sang/orders/<id>/deliver/             demandeur : la demande liée est couverte
+    POST /api/sang/orders/<id>/cancel/              demandeur, avant expédition
+    """
+
+    serializer_class = BloodSupplyOrderSerializer
+    permission_classes = [CanHandleOrder]
+
+    def get_queryset(self):
+        user = self.request.user
+        base = BloodSupplyOrder.objects.select_related('requester', 'supplier', 'blood_request')
+        queryset = scope_to_facility(base, user, Domain.BLOOD, field='requester') | scope_to_facility(
+            base, user, Domain.BLOOD, field='supplier'
+        )
+        params = self.request.query_params
+        # « Envoyées » et « reçues » : celles de son propre établissement (un
+        # CNTS régional voit aussi, sans filtre, les commandes de sa région).
+        role = params.get('role')
+        own = None if is_admin(user) else user_facility(user)
+        if role == 'received':
+            queryset = queryset.filter(supplier=own) if own else queryset
+        elif role == 'sent':
+            queryset = queryset.filter(requester=own) if own else queryset
+        if params.get('open') == 'true':
+            queryset = queryset.filter(status__in=BloodSupplyOrder.OPEN_STATUSES)
+        return queryset.distinct().order_by('-created_at')
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        requester = facility_for_write(
+            request.user, data.pop('requester', None), domain=Domain.BLOOD, field='requester_id'
+        )
+        order = stocks.create_order(requester=requester, created_by=request.user, **data)
+        return Response(self.get_serializer(order).data, status=status.HTTP_201_CREATED)
+
+    def _order_for(self, side):
+        """Chaque côté agit pour lui-même : seul le fournisseur expédie, seul le demandeur reçoit."""
+        order = self.get_object()
+        facility = order.supplier if side == 'supplier' else order.requester
+        own = user_facility(self.request.user)
+        if not (is_admin(self.request.user) or (own is not None and own.pk == facility.pk)):
+            raise PermissionDenied(
+                "Action réservée au centre fournisseur."
+                if side == 'supplier'
+                else "Action réservée à l'établissement demandeur."
+            )
+        return order
+
+    def _answer(self, request):
+        serializer = OrderAnswerSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return serializer.validated_data['note']
+
+    @action(detail=True, methods=['post'])
+    def accept(self, request, pk=None):
+        order = stocks.accept_order(self._order_for('supplier'), note=self._answer(request))
+        return Response(self.get_serializer(order).data)
+
+    @action(detail=True, methods=['post'])
+    def refuse(self, request, pk=None):
+        note = self._answer(request)
+        if not note.strip():
+            raise ValidationError({'note': ["Indiquez le motif du refus."]})
+        order = stocks.refuse_order(self._order_for('supplier'), note=note)
+        return Response(self.get_serializer(order).data)
+
+    @action(detail=True, methods=['post'], url_path='dispatch')
+    def ship(self, request, pk=None):
+        order = stocks.dispatch_order(self._order_for('supplier'), note=self._answer(request), updated_by=request.user)
+        return Response(self.get_serializer(order).data)
+
+    @action(detail=True, methods=['post'])
+    def deliver(self, request, pk=None):
+        order = stocks.deliver_order(self._order_for('requester'))
+        return Response(self.get_serializer(order).data)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        order = stocks.cancel_order(self._order_for('requester'))
+        return Response(self.get_serializer(order).data)

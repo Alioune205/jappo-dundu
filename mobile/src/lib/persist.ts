@@ -17,7 +17,7 @@ export const CACHE_KEY = 'jappo-dundu.cache.v1'
 const MAX_AGE_MS = 7 * 24 * 3600 * 1000
 const WRITE_DELAY_MS = 600
 /** Premier segment des clés de requête conservées hors ligne. */
-const PERSISTED = new Set(['donor', 'nearby', 'history', 'ambulance', 'missions'])
+const PERSISTED = new Set(['donor', 'nearby', 'history', 'centers', 'gamification', 'sos', 'ambulance', 'missions'])
 
 interface Entry {
   key: QueryKey

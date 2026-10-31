@@ -16,7 +16,8 @@ from users.models import HealthFacility
 from users.serializers import HealthFacilitySummarySerializer, PhoneNumberField
 from users.services import roles_of
 
-from .models import Ambulance, Mission
+from . import triage as triage_protocol
+from .models import Ambulance, EmergencyProfile, Mission
 
 User = get_user_model()
 
@@ -121,13 +122,23 @@ class NearbyAmbulanceSerializer(AmbulanceSerializer):
     """Ambulance disponible trouvée par une recherche de proximité."""
 
     distance_km = serializers.SerializerMethodField()
+    travel_minutes = serializers.SerializerMethodField()
+    travel_source = serializers.SerializerMethodField()
 
     class Meta(AmbulanceSerializer.Meta):
-        fields = [*AmbulanceSerializer.Meta.fields, 'distance_km']
+        fields = [*AmbulanceSerializer.Meta.fields, 'distance_km', 'travel_minutes', 'travel_source']
         read_only_fields = fields
 
     def get_distance_km(self, obj):
         return distance_km(obj)
+
+    def get_travel_minutes(self, obj):
+        travel = getattr(obj, 'travel', None)
+        return travel.minutes if travel else None
+
+    def get_travel_source(self, obj):
+        travel = getattr(obj, 'travel', None)
+        return travel.source if travel else None
 
 
 class PositionSerializer(serializers.Serializer):
@@ -156,6 +167,7 @@ class MissionSerializer(serializers.ModelSerializer):
     caller_phone = PhoneNumberField(required=False, allow_blank=True)
     ambulance = AmbulanceSerializer(read_only=True)
     destination = HealthFacilitySummarySerializer(read_only=True)
+    origin_facility = HealthFacilitySummarySerializer(read_only=True)
     destination_id = serializers.PrimaryKeyRelatedField(
         source='destination',
         queryset=HealthFacility.objects.all(),
@@ -165,6 +177,11 @@ class MissionSerializer(serializers.ModelSerializer):
     )
     created_by = serializers.SerializerMethodField()
     response_time_minutes = serializers.SerializerMethodField()
+    triage = serializers.JSONField(required=False)
+    triage_assessment = serializers.SerializerMethodField()
+    destination_status_display = serializers.CharField(source='get_destination_status_display', read_only=True)
+    caller_card = serializers.SerializerMethodField()
+    caller_history = serializers.SerializerMethodField()
 
     class Meta:
         model = Mission
@@ -196,12 +213,34 @@ class MissionSerializer(serializers.ModelSerializer):
             'completed_at',
             'cancelled_at',
             'response_time_minutes',
+            'triage',
+            'triage_assessment',
+            'destination_status',
+            'destination_status_display',
+            'destination_note',
+            'destination_answered_at',
+            'vitals',
+            'bilan_notes',
+            'bilan_updated_at',
+            'eta_at',
+            'eta_source',
+            'caller_card',
+            'caller_history',
+            'origin_facility',
         ]
         read_only_fields = [
             'id',
             'status',
             'cancellation_reason',
             'source',
+            'destination_status',
+            'destination_note',
+            'destination_answered_at',
+            'vitals',
+            'bilan_notes',
+            'bilan_updated_at',
+            'eta_at',
+            'eta_source',
             'created_at',
             'updated_at',
             'assigned_at',
@@ -231,6 +270,88 @@ class MissionSerializer(serializers.ModelSerializer):
         if value is not None and not value.is_active:
             raise serializers.ValidationError("Cet établissement est désactivé.")
         return value
+
+    def get_caller_card(self, obj):
+        """Fiche d'urgence de l'auteur d'une alerte SOS, s'il a accepté de la partager."""
+        if obj.source != Mission.Source.SOS or obj.created_by_id is None:
+            return None
+        profile = EmergencyProfile.objects.filter(user_id=obj.created_by_id, share_with_samu=True).first()
+        if profile is None:
+            return None
+        donor = getattr(obj.created_by, 'donor', None)
+        return {
+            'blood_group': getattr(donor, 'blood_group', None),
+            'allergies': profile.allergies,
+            'conditions': profile.conditions,
+            'medications': profile.medications,
+        }
+
+    def get_caller_history(self, obj):
+        """Alertes SOS de l'appelant sur 30 jours, et celles que la régulation a annulées."""
+        if obj.source != Mission.Source.SOS or obj.created_by_id is None:
+            return None
+        from .services import caller_history
+
+        return caller_history(obj.created_by_id)
+
+    def validate_triage(self, value):
+        return triage_protocol.clean_answers(value)
+
+    def get_triage_assessment(self, obj):
+        return triage_protocol.assess(obj.triage) if obj.triage else None
+
+
+class TransferSerializer(serializers.Serializer):
+    """Demande de transfert d'un patient vers un autre établissement (sans nom de patient)."""
+
+    destination_id = serializers.PrimaryKeyRelatedField(
+        source='destination', queryset=HealthFacility.objects.filter(is_active=True)
+    )
+    category = serializers.ChoiceField(
+        choices=['emergency', 'intensive_care', 'surgery', 'internal_medicine', 'maternity', 'pediatrics', 'neonatology']
+    )
+    priority = serializers.ChoiceField(choices=Mission.Priority.choices, default=Mission.Priority.URGENT)
+    description = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+    origin_id = serializers.PrimaryKeyRelatedField(
+        source='origin', queryset=HealthFacility.objects.filter(is_active=True), required=False
+    )
+
+
+class VitalsSerializer(serializers.Serializer):
+    """Constantes relevées par l'équipage (toutes facultatives, bornes physiologiques larges)."""
+
+    pulse = serializers.IntegerField(min_value=20, max_value=250, required=False, help_text="Pouls (/min)")
+    systolic = serializers.IntegerField(min_value=40, max_value=260, required=False, help_text="PA systolique (mmHg)")
+    diastolic = serializers.IntegerField(min_value=20, max_value=160, required=False, help_text="PA diastolique (mmHg)")
+    spo2 = serializers.IntegerField(min_value=50, max_value=100, required=False, help_text="Saturation (%)")
+    resp_rate = serializers.IntegerField(min_value=4, max_value=60, required=False, help_text="Fréquence respiratoire (/min)")
+    temperature = serializers.FloatField(min_value=30, max_value=44, required=False, help_text="Température (°C)")
+    gcs = serializers.IntegerField(min_value=3, max_value=15, required=False, help_text="Score de Glasgow")
+    glucose = serializers.FloatField(min_value=0.2, max_value=6, required=False, help_text="Glycémie (g/L)")
+
+
+class BilanSerializer(serializers.Serializer):
+    """Bilan de l'équipage transmis à l'hôpital (sans nom de patient)."""
+
+    vitals = VitalsSerializer(required=False)
+    notes = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError("Indiquez des constantes ou des observations.")
+        return attrs
+
+
+class DestinationAnswerSerializer(serializers.Serializer):
+    """Réponse de l'hôpital à la pré-alerte ; un refus est motivé."""
+
+    accepted = serializers.BooleanField()
+    note = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+
+    def validate(self, attrs):
+        if not attrs['accepted'] and not attrs['note'].strip():
+            raise serializers.ValidationError({'note': ["Indiquez le motif du refus (ex. scanner en panne)."]})
+        return attrs
 
 
 class AssignSerializer(serializers.Serializer):
@@ -289,6 +410,7 @@ class CitizenSosSerializer(serializers.ModelSerializer):
 
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     ambulance = serializers.SerializerMethodField()
+    instructions = serializers.SerializerMethodField()
 
     class Meta:
         model = Mission
@@ -297,6 +419,8 @@ class CitizenSosSerializer(serializers.ModelSerializer):
             'status',
             'status_display',
             'description',
+            'instructions',
+            'eta_at',
             'pickup_address',
             'created_at',
             'assigned_at',
@@ -307,6 +431,10 @@ class CitizenSosSerializer(serializers.ModelSerializer):
             'ambulance',
         ]
         read_only_fields = fields
+
+    def get_instructions(self, obj):
+        """Consignes en attendant l'ambulance, selon le type d'urgence signalé."""
+        return triage_protocol.instructions_for(obj.triage or {})
 
     def get_ambulance(self, obj):
         ambulance = obj.ambulance
@@ -323,3 +451,33 @@ class CitizenSosSerializer(serializers.ModelSerializer):
             'ambulance_type_display': ambulance.get_ambulance_type_display(),
             'distance_km': distance,
         }
+
+
+class EmergencyContactSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=80)
+    phone = PhoneNumberField()
+    relation = serializers.CharField(max_length=40, required=False, allow_blank=True, default='')
+
+
+class EmergencyProfileSerializer(serializers.ModelSerializer):
+    """Fiche d'urgence du citoyen (consentements explicites, 3 contacts au plus)."""
+
+    contacts = EmergencyContactSerializer(many=True, required=False)
+
+    class Meta:
+        model = EmergencyProfile
+        fields = [
+            'share_with_samu',
+            'allergies',
+            'conditions',
+            'medications',
+            'contacts',
+            'notify_contacts',
+            'updated_at',
+        ]
+        read_only_fields = ['updated_at']
+
+    def validate_contacts(self, value):
+        if len(value) > EmergencyProfile.MAX_CONTACTS:
+            raise serializers.ValidationError(f"{EmergencyProfile.MAX_CONTACTS} contacts au plus.")
+        return value

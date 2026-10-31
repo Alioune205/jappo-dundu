@@ -95,6 +95,16 @@ export function formatRelative(value: string | Date | null | undefined, now: num
   return formatDate(date.toISOString())
 }
 
+/** Arrivée estimée : « dans 7 min », « imminente » ; '' sans estimation. */
+export function formatEta(value: string | null | undefined, now: number): string {
+  const date = toDate(value)
+  if (!date) return ''
+  const minutes = Math.round((date.getTime() - now) / 60_000)
+  if (minutes <= 1) return 'imminente'
+  if (minutes < 60) return `dans ${minutes} min`
+  return `dans ${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`
+}
+
 /** +221771234567 → +221 77 123 45 67 */
 export function formatPhone(value: string | null | undefined): string {
   if (!value) return '—'

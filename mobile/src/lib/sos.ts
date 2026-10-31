@@ -48,6 +48,10 @@ export interface SosAlert {
   cancelled_at: string | null
   cancellation_reason: string
   ambulance: { plate_number: string; ambulance_type_display: string; distance_km: number | null } | null
+  /** Consignes en attendant l'ambulance, selon le type d'urgence (même source que la régulation). */
+  instructions?: { code: string; title: string; steps: string[] }[]
+  /** Arrivée estimée de l'ambulance sur place (durée par la route ou estimée). */
+  eta_at?: string | null
 }
 
 export const isActiveSos = (alert: SosAlert | null | undefined) =>
@@ -99,6 +103,26 @@ export function useCancelSos() {
     onSuccess: (alert) => client.setQueryData(QK.sos, alert),
   })
 }
+
+/**
+ * Sans Internet : l'alerte part par SMS au 1515, avec la position GPS (le
+ * GPS fonctionne sans réseau de données) et le repère.
+ */
+export async function smsSamu(kind: SosKind, landmark: string) {
+  const label = SOS_KINDS.find((k) => k.value === kind)?.label ?? 'Urgence'
+  let position = ''
+  try {
+    const { latitude, longitude } = await preciseCoords()
+    position = ` Position : ${latitude.toFixed(5)},${longitude.toFixed(5)}.`
+  } catch {
+    // Sans position, le repère et le rappel du régulateur suffisent.
+  }
+  const body = `SOS Jappo Dundu : ${label}.${position}${landmark.trim() ? ` Repère : ${landmark.trim()}.` : ''}`
+  await Linking.openURL(`sms:${SAMU_NUMBER}?body=${encodeURIComponent(body)}`).catch(() => callSamu())
+}
+
+/** Échec réseau (pas de réponse du serveur), à distinguer d'un refus de l'API. */
+export const isNetworkFailure = (error: unknown) => !!error && !(error instanceof ApiError)
 
 export function callSamu() {
   Linking.openURL(`tel:${SAMU_NUMBER}`).catch(() => undefined)

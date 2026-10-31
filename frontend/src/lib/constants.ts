@@ -7,13 +7,16 @@ import type {
   AmbulanceType,
   BedCategory,
   BloodGroup,
+  BloodComponent,
   BloodRequestStatus,
+  Capability,
   DonorResponseStatus,
   FacilityType,
   MissionStatus,
   RegionCode,
   RiskLevel,
   Role,
+  SupplyOrderStatus,
   Urgency,
 } from '@/types/api'
 
@@ -113,6 +116,41 @@ export const RESPONSE_STATUSES: (Option<DonorResponseStatus> & { tone: Tone })[]
   { value: 'cancelled', label: 'Désistement', tone: 'neutral' },
   { value: 'no_show', label: 'Absent', tone: 'warning' },
 ]
+
+/** Produits sanguins (même liste que Component, backend sang/models.py). */
+export const COMPONENTS: Option<BloodComponent>[] = [
+  { value: 'red_cells', label: 'Globules rouges (CGR)' },
+  { value: 'plasma', label: 'Plasma (PFC)' },
+  { value: 'platelets', label: 'Plaquettes' },
+  { value: 'whole_blood', label: 'Sang total' },
+]
+
+export const SUPPLY_ORDER_STATUSES: (Option<SupplyOrderStatus> & { tone: Tone })[] = [
+  { value: 'requested', label: 'Envoyée', tone: 'warning' },
+  { value: 'accepted', label: 'Acceptée', tone: 'info' },
+  { value: 'dispatched', label: 'En route', tone: 'brand' },
+  { value: 'delivered', label: 'Reçue', tone: 'success' },
+  { value: 'refused', label: 'Refusée', tone: 'danger' },
+  { value: 'cancelled', label: 'Annulée', tone: 'neutral' },
+]
+
+/** Plateau technique d'un établissement : même liste que CAPABILITIES (backend users/models.py). */
+export const CAPABILITIES: Option<Capability>[] = [
+  { value: 'ventilator', label: 'Ventilation' },
+  { value: 'operating_room', label: 'Bloc opératoire' },
+  { value: 'ct_scan', label: 'Scanner' },
+  { value: 'dialysis', label: 'Dialyse' },
+  { value: 'incubator', label: 'Couveuses' },
+  { value: 'obstetrics', label: 'Urgences obstétricales' },
+  { value: 'trauma', label: 'Traumatologie' },
+  { value: 'neurosurgery', label: 'Neurochirurgie' },
+  { value: 'cardiology', label: 'Cardiologie interventionnelle' },
+  { value: 'burns', label: 'Grands brûlés' },
+  { value: 'pediatric_icu', label: 'Réa pédiatrique' },
+  { value: 'transfusion', label: 'Dépôt de sang' },
+]
+
+export const capabilityLabel = (code: Capability) => CAPABILITIES.find((c) => c.value === code)?.label ?? code
 
 export const BED_CATEGORIES: (Option<BedCategory> & { vital: boolean })[] = [
   { value: 'emergency', label: 'Urgences', vital: true },

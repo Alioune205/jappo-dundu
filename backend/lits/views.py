@@ -34,7 +34,8 @@ from geo.serializers import parse_nearby_query
 from ml.constants import REGION_CODES, REGION_LABELS
 from security.permissions import role_permission
 from security.roles import DOMAIN_ROLES, Domain, Role, manages
-from users.filters import boolean_param, choice_param, int_param
+from users.filters import boolean_param, capabilities_param, choice_param, int_param
+from users.serializers import HealthFacilitySummarySerializer
 from users.permissions import facility_for_write, facility_permission, in_scope, is_admin, scope_to_facility
 
 from . import services
@@ -78,7 +79,7 @@ class BedCapacityViewSet(
     lookup_value_regex = r'\d+'
     default_radius_km = 50.0
 
-    READ_ACTIONS = ('list', 'retrieve', 'summary', 'nearest')
+    READ_ACTIONS = ('list', 'retrieve', 'summary', 'nearest', 'stale', 'tension')
 
     def get_permissions(self):
         if self.action in self.READ_ACTIONS:
@@ -89,7 +90,7 @@ class BedCapacityViewSet(
         queryset = BedCapacity.objects.select_related('facility', 'updated_by').filter(
             facility__is_active=True
         )
-        if self.action not in ('list', 'summary'):
+        if self.action not in ('list', 'summary', 'tension'):
             return queryset
         params = self.request.query_params
         region = choice_param(params, 'region', REGION_CODES)
@@ -135,6 +136,37 @@ class BedCapacityViewSet(
         capacity = services.discharge(self.get_object(), updated_by=request.user)
         return Response(self.get_serializer(capacity).data)
 
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        """Chiffres inchangés mais vérifiés : renouvelle leur fraîcheur."""
+        capacity = services.confirm_capacity(self.get_object(), updated_by=request.user)
+        return Response(self.get_serializer(capacity).data)
+
+    @action(detail=False, methods=['get'])
+    def tension(self, request):
+        """Niveau de tension (1 à 4) de chaque établissement, les plus tendus d'abord.
+
+        GET /api/lits/capacities/tension/ ?region=dakar &facility=3
+        """
+        by_facility = {}
+        for capacity in self.get_queryset():
+            by_facility.setdefault(capacity.facility_id, (capacity.facility, []))[1].append(capacity)
+        rows = [
+            {'facility': HealthFacilitySummarySerializer(facility).data, **services.tension_of(capacities)}
+            for facility, capacities in by_facility.values()
+        ]
+        rows.sort(key=lambda row: (-row['level'], -row['occupancy_rate']))
+        return Response(rows)
+
+    @action(detail=False, methods=['get'])
+    def stale(self, request):
+        """Services à reconfirmer, les plus anciens d'abord (`?facility=` pour un établissement)."""
+        queryset = services.stale_capacities().filter(pk__in=self.get_queryset().values('pk'))
+        facility = int_param(request.query_params, 'facility')
+        if facility is not None:
+            queryset = queryset.filter(facility_id=facility)
+        return Response(self.get_serializer(queryset.order_by('confirmed_at'), many=True).data)
+
     @action(detail=False, methods=['get'])
     def summary(self, request):
         """Synthèse par région et service (tableau de bord).
@@ -174,7 +206,7 @@ class BedCapacityViewSet(
         """Établissements les plus proches avec des lits libres.
 
         GET /api/lits/capacities/nearest/ ?latitude=&longitude= &category=emergency
-            &radius_km=50 &limit=10 &min_available=1
+            &radius_km=50 &limit=10 &min_available=1 &capability=ct_scan,trauma
         """
         params = request.query_params
         query = parse_nearby_query(params, default_radius_km=self.default_radius_km)
@@ -185,6 +217,7 @@ class BedCapacityViewSet(
             radius_m=query['radius_m'],
             limit=query['limit'],
             min_available=int_param(params, 'min_available', default=1, maximum=500),
+            capabilities=capabilities_param(params),
         )
         return Response(NearbyBedFacilitySerializer(facilities, many=True).data)
 

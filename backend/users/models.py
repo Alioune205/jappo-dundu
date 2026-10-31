@@ -24,6 +24,27 @@ from ml.constants import REGIONS
 from .validators import validate_phone_number
 
 
+# Plateau technique : ce qu'un établissement peut prendre en charge. Un lit
+# libre ne suffit pas, il faut l'équipement adapté au patient (orientation
+# par la régulation, recherche des destinations d'une mission).
+CAPABILITIES = [
+    ('ventilator', "Ventilation (respirateurs)"),
+    ('operating_room', "Bloc opératoire"),
+    ('ct_scan', "Scanner"),
+    ('dialysis', "Dialyse"),
+    ('incubator', "Couveuses (néonatologie)"),
+    ('obstetrics', "Urgences obstétricales / césarienne"),
+    ('trauma', "Traumatologie"),
+    ('neurosurgery', "Neurochirurgie"),
+    ('cardiology', "Cardiologie interventionnelle"),
+    ('burns', "Grands brûlés"),
+    ('pediatric_icu', "Réanimation pédiatrique"),
+    ('transfusion', "Dépôt de sang"),
+]
+CAPABILITY_CODES = frozenset(code for code, _ in CAPABILITIES)
+CAPABILITY_LABELS = dict(CAPABILITIES)
+
+
 class HealthFacility(models.Model):
     """Établissement de santé géolocalisé."""
 
@@ -56,6 +77,19 @@ class HealthFacility(models.Model):
         default=True,
         verbose_name="Actif",
         help_text="Un établissement inactif n'apparaît plus dans les recherches.",
+    )
+    capabilities = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Plateau technique",
+        help_text="Codes de CAPABILITIES : équipements et spécialités disponibles.",
+    )
+    on_call_phone = models.CharField(
+        max_length=13,
+        blank=True,
+        validators=[validate_phone_number],
+        verbose_name="Téléphone de garde",
+        help_text="Ligne directe joignable 24 h/24 par la régulation.",
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Créé le")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Modifié le")

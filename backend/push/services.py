@@ -164,11 +164,12 @@ URGENCY_TITLES = {
 }
 
 
-def notify_blood_request(blood_request):
-    """Prévient les donneurs compatibles, éligibles et à portée d'une nouvelle demande.
+def notify_blood_request(blood_request, donors=None):
+    """Prévient les donneurs compatibles, éligibles et à portée d'une demande.
 
-    Même sélection que l'appariement (sang.services.find_matching_donors) :
-    seuls les donneurs qui peuvent réellement répondre sont sollicités. Le
+    ``donors`` : la vague choisie par ``sang.alerts`` ; sans liste, la même
+    sélection que l'appariement (``sang.services.find_matching_donors``).
+    Seuls les donneurs qui peuvent réellement répondre sont sollicités. Le
     message ne contient aucune donnée personnelle ni précision clinique.
     """
     if not _setting('PUSH_ENABLED', True):
@@ -176,9 +177,10 @@ def notify_blood_request(blood_request):
     if not PushDevice.objects.filter(is_active=True).exists():
         return 0
 
-    from sang.services import find_matching_donors
+    if donors is None:
+        from sang.services import find_matching_donors
 
-    donors = find_matching_donors(blood_request, limit=_setting('PUSH_MAX_DONORS', 50))
+        donors = find_matching_donors(blood_request, limit=_setting('PUSH_MAX_DONORS', 50))
     facility = blood_request.facility
     title = f"{URGENCY_TITLES.get(blood_request.urgency, 'Demande de sang')} — groupe {blood_request.blood_group}"
     body = (
@@ -190,6 +192,16 @@ def notify_blood_request(blood_request):
         title=title,
         body=body,
         data={'type': 'blood_request', 'request_id': blood_request.pk},
+    )
+
+
+def notify_can_donate_again(user_ids):
+    """« Vous pouvez de nouveau donner » : le délai depuis le dernier don est écoulé."""
+    return send_to_users(
+        user_ids,
+        title="Vous pouvez de nouveau donner",
+        body="Votre délai de repos est terminé. Un don aujourd'hui peut sauver jusqu'à trois vies.",
+        data={'type': 'eligible_again'},
     )
 
 
@@ -227,6 +239,20 @@ def notify_mission_cancelled(mission):
         [ambulance.driver_id],
         title=f"Mission annulée — {ambulance.plate_number}",
         body="La régulation a annulé votre intervention. Votre ambulance est de nouveau disponible.",
+        data={'type': 'mission', 'mission_id': mission.pk},
+        channel=MISSION_CHANNEL,
+    )
+
+
+def notify_destination_refused(mission):
+    """Prévient l'équipage que l'hôpital de destination ne peut pas accueillir le patient."""
+    ambulance = mission.ambulance
+    if ambulance is None or ambulance.driver_id is None:
+        return 0
+    return send_to_users(
+        [ambulance.driver_id],
+        title=f"Destination refusée — {ambulance.plate_number}",
+        body="L'hôpital ne peut pas accueillir le patient. La régulation vous indique une autre destination.",
         data={'type': 'mission', 'mission_id': mission.pk},
         channel=MISSION_CHANNEL,
     )

@@ -19,6 +19,7 @@ from rest_framework.exceptions import NotFound
 from lits.models import BedCapacity
 from lits.services import notify_capacity, release_for_physical_capacity
 from ml.models import BloodStockRecord
+from sang.stocks import set_stock
 from realtime.broadcast import broadcast_dashboard
 from users.exceptions import Conflict
 
@@ -73,7 +74,11 @@ def sync_beds_batch(facility, services_data, *, api_key=None, ip_address=None):
                 )
                 capacity.total_beds = total
                 capacity.occupied_beds = occupied
-                capacity.save(update_fields=['total_beds', 'occupied_beds', 'updated_at'])
+                capacity.expected_discharges = min(capacity.expected_discharges, occupied)
+                capacity.confirmed_at = timezone.now()
+                capacity.save(
+                    update_fields=['total_beds', 'occupied_beds', 'expected_discharges', 'confirmed_at', 'updated_at']
+                )
                 notify_capacity(capacity, previous_available)
             else:
                 capacity = BedCapacity.objects.create(
@@ -161,7 +166,9 @@ def process_bed_event(facility, category, action, *, delta=1, patient_ref=None, 
         else:
             raise Conflict(f"Action « {action} » inconnue.")
 
-        capacity.save(update_fields=['occupied_beds', 'updated_at'])
+        capacity.expected_discharges = min(capacity.expected_discharges, capacity.occupied_beds)
+        capacity.confirmed_at = timezone.now()
+        capacity.save(update_fields=['occupied_beds', 'expected_discharges', 'confirmed_at', 'updated_at'])
         notify_capacity(capacity, previous_available)
 
         result_data = {
@@ -230,6 +237,14 @@ def sync_blood_stocks_batch(facility, stocks_data, *, target_date=None, api_key=
                     'units_expired': expired,
                     'source': source_val,
                 },
+            )
+            # Stock opérationnel (commandes de poches) : globules rouges par défaut.
+            set_stock(
+                facility,
+                blood_group=bg,
+                component=item.get('component') or 'red_cells',
+                units_available=available,
+                units_expiring_soon=min(item.get('units_expiring_soon', 0), available),
             )
 
             results.append({

@@ -3,6 +3,7 @@ import { api } from '@/lib/api'
 import { openRealtimeSocket, type RealtimeMessage } from '@/lib/realtimeSocket'
 import { useAuth } from './AuthContext'
 import { canManage, rolesOf } from '@/lib/access'
+import { notifyInBackground } from '@/lib/browserNotifications'
 
 export interface RealtimeAlert {
   id: string
@@ -12,6 +13,8 @@ export interface RealtimeAlert {
   timestamp: string
   data?: unknown
   isRead?: boolean
+  /** Urgence vitale, service vital saturé, SOS : notification persistante. */
+  critical?: boolean
 }
 
 type RealtimeListener = (event: string, data: Record<string, unknown>) => void
@@ -78,23 +81,34 @@ function toAlert(message: RealtimeMessage): Omit<RealtimeAlert, 'id' | 'timestam
       }
       return {
         type: 'blood',
+        critical: data.urgency === 'critical' && data.event === 'blood_request_created',
         title: 'Demande de sang',
         message: `${data.blood_group || ''} — ${data.units_remaining ?? data.units_needed ?? 0} poche(s) à ${data.facility?.name || 'un établissement'}.`,
         data,
       }
     case 'bed_alert':
+      if (data.event === 'bed_capacity_stale') {
+        return {
+          type: 'bed',
+          title: 'Chiffres de lits à reconfirmer',
+          message: `${data.facility?.name || 'Établissement'} : ${data.category || 'un service'} n’a pas été mis à jour depuis plusieurs heures.`,
+          data,
+        }
+      }
       return {
         type: 'bed',
         title: data.event === 'bed_capacity_saturated' ? 'Service saturé' : 'Lits de nouveau disponibles',
         message: `${data.facility?.name || 'Établissement'} : ${data.available_beds ?? 0} lit(s) disponible(s).`,
         data,
+        critical: data.event === 'bed_capacity_saturated',
       }
     case 'ambulance_alert':
       return {
         type: 'ambulance',
-        title: 'Mission ambulance',
+        title: data.source === 'sos' ? 'Alerte SOS d’un citoyen' : 'Mission ambulance',
         message: `Priorité ${data.priority || '—'} : ${data.pickup?.address || 'lieu non précisé'}.`,
         data,
+        critical: data.event === 'mission_created' && (data.priority === 'critical' || data.source === 'sos'),
       }
     case 'alert_message':
       return { type: 'general', title: 'Message', message: data.message || '', data }
@@ -129,11 +143,16 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (!withAlert) return
       const alert = toAlert(message)
       if (!alert) return
+      const id = message.id || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+      // Le système ne montre que les nouveautés (création, saturation, rappel), pas chaque mise à jour.
+      if (alert.critical || /_(created|saturated|stale)$/.test(eventName(message))) {
+        notifyInBackground({ id, title: alert.title, message: alert.message, critical: !!alert.critical })
+      }
       setAlerts((prev) =>
         [
           {
             ...alert,
-            id: message.id || `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            id,
             timestamp: message.sent_at || new Date().toISOString(),
             isRead: false,
           },

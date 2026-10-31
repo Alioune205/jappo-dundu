@@ -10,7 +10,7 @@ from ambulances.models import Mission
 from users.models import HealthFacility
 from users.serializers import HealthFacilitySummarySerializer, NearbyFacilitySerializer
 
-from .models import BedCapacity, BedReservation
+from .models import BedCapacity, BedReservation, freshness_of
 from .services import DEFAULT_HOLD_MINUTES, MAX_HOLD_MINUTES
 
 
@@ -28,6 +28,7 @@ class BedCapacitySerializer(serializers.ModelSerializer):
     category_display = serializers.CharField(source='get_category_display', read_only=True)
     available_beds = serializers.IntegerField(read_only=True)
     occupancy_rate = serializers.FloatField(read_only=True)
+    freshness = serializers.CharField(read_only=True)
     updated_by = serializers.SerializerMethodField()
 
     class Meta:
@@ -43,10 +44,13 @@ class BedCapacitySerializer(serializers.ModelSerializer):
             'reserved_beds',
             'available_beds',
             'occupancy_rate',
+            'expected_discharges',
+            'confirmed_at',
+            'freshness',
             'updated_at',
             'updated_by',
         ]
-        read_only_fields = ['id', 'reserved_beds', 'updated_at']
+        read_only_fields = ['id', 'reserved_beds', 'confirmed_at', 'updated_at']
         # Unicité (établissement, service) vérifiée par le service métier (409).
         validators = []
 
@@ -71,6 +75,11 @@ class BedCapacitySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {'occupied_beds': ["Ne peut pas dépasser le nombre de lits installés."]}
             )
+        discharges = attrs.get('expected_discharges', getattr(self.instance, 'expected_discharges', 0))
+        if discharges > occupied:
+            raise serializers.ValidationError(
+                {'expected_discharges': ["Ne peut pas dépasser le nombre de lits occupés."]}
+            )
         return attrs
 
 
@@ -78,10 +87,22 @@ class NearbyBedFacilitySerializer(NearbyFacilitySerializer):
     """Établissement proche disposant de lits libres dans le service demandé."""
 
     available_beds = serializers.IntegerField(read_only=True)
+    expected_discharges = serializers.IntegerField(read_only=True)
+    confirmed_at = serializers.DateTimeField(read_only=True)
+    freshness = serializers.SerializerMethodField()
 
     class Meta(NearbyFacilitySerializer.Meta):
-        fields = [*NearbyFacilitySerializer.Meta.fields, 'available_beds']
+        fields = [
+            *NearbyFacilitySerializer.Meta.fields,
+            'available_beds',
+            'expected_discharges',
+            'confirmed_at',
+            'freshness',
+        ]
         read_only_fields = fields
+
+    def get_freshness(self, obj):
+        return freshness_of(getattr(obj, 'confirmed_at', None))
 
 
 def _person(user):

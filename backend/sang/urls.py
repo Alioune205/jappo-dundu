@@ -10,6 +10,8 @@ from rest_framework.routers import SimpleRouter
 from .views import (
     BadgeListView,
     BloodRequestViewSet,
+    BloodStockViewSet,
+    BloodSupplyOrderViewSet,
     CompatibilityView,
     DonationViewSet,
     DonorGamificationView,
@@ -24,6 +26,8 @@ app_name = 'sang'
 router = SimpleRouter()
 router.register('requests', BloodRequestViewSet, basename='blood-request')
 router.register('donations', DonationViewSet, basename='donation')
+router.register('stocks', BloodStockViewSet, basename='blood-stock')
+router.register('orders', BloodSupplyOrderViewSet, basename='blood-order')
 
 urlpatterns = [
     path('donors/me/', DonorProfileView.as_view(), name='donor-profile'),

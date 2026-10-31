@@ -21,14 +21,21 @@ from django.db.models import Count
 from django.utils import timezone
 
 from geo.distance import GeoPoint
+from geo.routing import travel_time, travel_times_to
 from geo.search import nearest
 from lits.services import close_mission_reservation
-from push.services import notify_mission_assigned, notify_mission_cancelled, notify_sos_assigned
+from push.services import (
+    notify_destination_refused,
+    notify_mission_assigned,
+    notify_mission_cancelled,
+    notify_sos_assigned,
+)
 from realtime.broadcast import broadcast_alert, broadcast_dashboard
 from users.exceptions import Conflict
 from users.models import HealthFacility
 
 from .models import Ambulance, Mission
+from .triage import SOS_ANSWERS
 
 logger = logging.getLogger('jappo_dundu.ambulances')
 
@@ -57,6 +64,12 @@ def mission_payload(mission, event):
         'mission_id': mission.pk,
         'status': mission.status,
         'priority': mission.priority,
+        'source': mission.source,
+        # Ni constantes ni observations dans le flux (il atteint aussi les
+        # citoyens) : les écrans autorisés relisent la mission par l'API.
+        'destination_status': mission.destination_status,
+        'eta_at': mission.eta_at.isoformat() if mission.eta_at else None,
+        'bilan_updated_at': mission.bilan_updated_at.isoformat() if mission.bilan_updated_at else None,
         'region': mission.region,
         'pickup': {
             'address': mission.pickup_address,
@@ -124,6 +137,62 @@ def notify_ambulance(ambulance, event):
 # =============================================================
 
 
+def rank_by_travel_time(ambulances, point):
+    """Trie des ambulances par durée de trajet jusqu'au point (chacune porte ``travel``).
+
+    Les plus proches à vol d'oiseau ne sont pas toujours les plus rapides par
+    la route : on les départage par la durée réelle (ou estimée).
+    """
+    ambulances = list(ambulances)
+    times = travel_times_to(point, [(a.latitude, a.longitude) for a in ambulances])
+    for ambulance, travel in zip(ambulances, times, strict=True):
+        ambulance.travel = travel
+    return sorted(ambulances, key=lambda a: a.travel.minutes)
+
+
+# Une estimation recalculée au plus une fois par minute au fil des positions.
+ETA_REFRESH_SECONDS = 60
+
+
+def target_of(mission):
+    """Point vers lequel roule l'ambulance : l'hôpital pendant le transport, sinon le lieu."""
+    if mission.status == MissionStatus.TRANSPORTING and mission.destination is not None:
+        return (mission.destination.latitude, mission.destination.longitude)
+    if mission.status == MissionStatus.ASSIGNED:
+        return (mission.pickup_latitude, mission.pickup_longitude)
+    return None
+
+
+def refresh_eta(mission, *, force=False, now=None):
+    """Recalcule l'heure d'arrivée estimée ; efface-la quand l'ambulance n'est plus en route.
+
+    Retourne True si l'estimation a changé (à enregistrer par l'appelant).
+    """
+    now = now or timezone.now()
+    target = target_of(mission)
+    ambulance = mission.ambulance
+    if target is None or ambulance is None or ambulance.latitude is None:
+        if mission.eta_at is None:
+            return False
+        mission.eta_at = mission.eta_updated_at = None
+        mission.eta_source = ''
+        return True
+    if (
+        not force
+        and mission.eta_updated_at is not None
+        and (now - mission.eta_updated_at).total_seconds() < ETA_REFRESH_SECONDS
+    ):
+        return False
+    travel = travel_time(GeoPoint(ambulance.latitude, ambulance.longitude), *target)
+    mission.eta_at = now + timedelta(minutes=travel.minutes)
+    mission.eta_source = travel.source
+    mission.eta_updated_at = now
+    return True
+
+
+ETA_FIELDS = ['eta_at', 'eta_source', 'eta_updated_at']
+
+
 def find_nearest_available(point, *, radius_m, limit, ambulance_type=None, facility=None):
     """Ambulances disponibles les plus proches (chacune porte ``distance_m``).
 
@@ -149,6 +218,17 @@ def update_position(ambulance, point):
             update_fields=['latitude', 'longitude', 'location_updated_at', 'updated_at']
         )
         notify_ambulance(ambulance, AMBULANCE_POSITION)
+        # Arrivée estimée de la mission en cours, au fil des positions.
+        mission = (
+            Mission.objects.filter(ambulance=ambulance, status__in=(MissionStatus.ASSIGNED, MissionStatus.TRANSPORTING))
+            .select_related('destination')
+            .first()
+        )
+        if mission is not None:
+            mission.ambulance = ambulance
+            if refresh_eta(mission):
+                mission.save(update_fields=[*ETA_FIELDS, 'updated_at'])
+                notify_mission(mission, MISSION_UPDATED)
     return ambulance
 
 
@@ -223,7 +303,10 @@ def assign(
             ambulance_type=ambulance_type,
             facility=facility,
         )
-        chosen = next((candidate for candidate in candidates if _claim(candidate)), None)
+        ranked = rank_by_travel_time(
+            candidates, GeoPoint(mission.pickup_latitude, mission.pickup_longitude)
+        )
+        chosen = next((candidate for candidate in ranked if _claim(candidate)), None)
         if chosen is None:
             raise Conflict(f"Aucune ambulance disponible à moins de {radius_km:g} km.")
 
@@ -231,7 +314,8 @@ def assign(
     mission.ambulance = chosen
     mission.status = MissionStatus.ASSIGNED
     mission.assigned_at = timezone.now()
-    mission.save(update_fields=['ambulance', 'status', 'assigned_at', 'updated_at'])
+    refresh_eta(mission, force=True)
+    mission.save(update_fields=['ambulance', 'status', 'assigned_at', *ETA_FIELDS, 'updated_at'])
     notify_mission(mission, MISSION_UPDATED)
     notify_ambulance(chosen, AMBULANCE_STATUS)
     # L'ambulancier est prévenu même application fermée ; le citoyen d'une
@@ -265,6 +349,7 @@ def advance(mission, status, *, destination=None, cancellation_reason=''):
     setattr(mission, Mission.TIMESTAMP_FIELDS[status], timezone.now())
     if status == MissionStatus.CANCELLED:
         mission.cancellation_reason = cancellation_reason
+    refresh_eta(mission, force=True)
     mission.save()
 
     if mission.is_final:
@@ -307,6 +392,78 @@ def region_at(point, default=None):
     return closest[0].region if closest else default
 
 
+CALLER_CANCELLATION = "Alerte retirée par l'appelant"
+
+
+def caller_history(user_id, days=30):
+    """Alertes SOS d'un citoyen sur ``days`` jours : la régulation repère les fausses alertes répétées."""
+    since = timezone.now() - timedelta(days=days)
+    alerts = Mission.objects.filter(created_by_id=user_id, source=Mission.Source.SOS, created_at__gte=since)
+    return {
+        'days': days,
+        'alerts': alerts.count(),
+        'cancelled_by_regulation': alerts.filter(status=MissionStatus.CANCELLED)
+        .exclude(cancellation_reason=CALLER_CANCELLATION)
+        .count(),
+    }
+
+
+@transaction.atomic
+def create_transfer(*, origin, destination, category, priority, description, created_by):
+    """Transfert d'un patient vers un autre établissement : mission + lit réservé à l'arrivée.
+
+    La mission part de l'établissement d'origine (lieu d'intervention) vers la
+    destination, déjà fixée ; la régulation n'a plus qu'à affecter
+    l'ambulance. L'hôpital d'arrivée reçoit la pré-alerte (accepter, refuser).
+    """
+    from lits.models import BedCapacity
+    from lits.services import reserve
+
+    if origin.pk == destination.pk:
+        raise Conflict("L'établissement d'arrivée doit être différent de celui de départ.")
+    if not destination.is_active:
+        raise Conflict("L'établissement de destination est désactivé.")
+    capacity = BedCapacity.objects.filter(facility=destination, category=category).first()
+    if capacity is None:
+        raise Conflict("Ce service n'existe pas dans l'établissement de destination.")
+    mission = Mission.objects.create(
+        created_by=created_by,
+        source=Mission.Source.TRANSFER,
+        priority=priority,
+        description=description or f"Transfert vers {destination.name}",
+        pickup_address=origin.address or origin.name,
+        pickup_latitude=origin.latitude,
+        pickup_longitude=origin.longitude,
+        region=origin.region,
+        origin_facility=origin,
+    )
+    # Fixe aussi la destination (pré-alerte en attente) ; 409 sans lit libre.
+    reserve(capacity, created_by=created_by, mission=mission, reference=f"Transfert depuis {origin.name}")
+    mission.refresh_from_db()
+    notify_mission(mission, MISSION_CREATED)
+    logger.info("Transfert %s : %s → %s", mission.pk, origin.pk, destination.pk)
+    return mission
+
+
+def notify_emergency_contacts(mission):
+    """SMS aux contacts d'urgence du citoyen, s'il l'a demandé (consentement explicite)."""
+    from identity.sms import send_sms
+
+    from .models import EmergencyProfile
+
+    profile = EmergencyProfile.objects.filter(user_id=mission.created_by_id, notify_contacts=True).first()
+    if profile is None or not profile.contacts:
+        return 0
+    name = mission.created_by.get_full_name() or mission.created_by.get_username()
+    body = (
+        f"Jappo Dundu : {name} a déclenché une alerte SOS ({mission.description.replace('SOS — ', '')}). "
+        "Le SAMU est prévenu et le rappelle."
+    )
+    for contact in profile.contacts:
+        send_sms(contact['phone'], body)
+    return len(profile.contacts)
+
+
 def active_sos(user):
     return (
         Mission.objects.filter(created_by=user, source=Mission.Source.SOS)
@@ -341,8 +498,10 @@ def create_sos(user, point, *, kind, landmark=''):
             pickup_longitude=point.longitude,
             region=region,
             caller_phone=getattr(profile, 'phone_number', '') or '',
+            triage=dict(SOS_ANSWERS.get(kind, {})),
         )
         notify_mission(mission, MISSION_CREATED)
+        transaction.on_commit(lambda: notify_emergency_contacts(mission))
     logger.info("Alerte SOS %s (%s, %s)", mission.pk, kind, region)
     return mission, True
 
@@ -353,7 +512,7 @@ def cancel_sos(mission):
     mission = _locked_mission(mission)
     if mission.status != MissionStatus.PENDING:
         raise Conflict("Une ambulance est déjà en route : appelez le SAMU au 1515 pour l'annuler.")
-    return advance(mission, MissionStatus.CANCELLED, cancellation_reason="Alerte retirée par l'appelant")
+    return advance(mission, MissionStatus.CANCELLED, cancellation_reason=CALLER_CANCELLATION)
 
 
 @transaction.atomic
@@ -367,7 +526,64 @@ def update_mission(mission, **changes):
         raise Conflict("L'établissement de destination est désactivé.")
     for field, value in changes.items():
         setattr(mission, field, value)
+    if 'destination' in changes:
+        refresh_eta(mission, force=True)
     mission.save()
+    notify_mission(mission, MISSION_UPDATED)
+    return mission
+
+
+@transaction.atomic
+def answer_destination(mission, *, user, accepted, note=''):
+    """Pré-alerte : l'hôpital de destination accepte ou refuse le patient.
+
+    Un refus libère le lit réservé pour la mission et prévient l'équipage ; la
+    régulation choisit une autre destination (qui repasse « en attente »).
+    """
+    from lits.models import BedReservation
+    from lits.services import cancel_reservation
+
+    mission = _locked_mission(mission)
+    if mission.is_final:
+        raise Conflict("Cette mission est clôturée.")
+    if mission.destination_id is None:
+        raise Conflict("Aucun établissement de destination n'est indiqué pour cette mission.")
+    Status = Mission.DestinationStatus
+    mission.destination_status = Status.ACCEPTED if accepted else Status.REFUSED
+    mission.destination_note = note.strip()
+    mission.destination_answered_at = timezone.now()
+    mission.destination_answered_by = user
+    mission.save(
+        update_fields=[
+            'destination_status',
+            'destination_note',
+            'destination_answered_at',
+            'destination_answered_by',
+            'updated_at',
+        ]
+    )
+    if not accepted:
+        reservation = BedReservation.objects.filter(mission=mission, status=BedReservation.Status.ACTIVE).first()
+        if reservation is not None:
+            cancel_reservation(reservation, closed_by=user, reason=f"Refusé par l'hôpital : {mission.destination_note}")
+        transaction.on_commit(lambda: notify_destination_refused(mission))
+    notify_mission(mission, MISSION_UPDATED)
+    logger.info("Mission %s : destination %s (%s)", mission.pk, mission.destination_status, mission.destination_id)
+    return mission
+
+
+@transaction.atomic
+def update_bilan(mission, *, vitals=None, notes=None):
+    """Bilan de l'équipage (constantes, observations), transmis à l'hôpital de destination."""
+    mission = _locked_mission(mission)
+    if mission.is_final:
+        raise Conflict("Cette mission est clôturée.")
+    if vitals is not None:
+        mission.vitals = {**mission.vitals, **vitals}
+    if notes is not None:
+        mission.bilan_notes = notes.strip()
+    mission.bilan_updated_at = timezone.now()
+    mission.save(update_fields=['vitals', 'bilan_notes', 'bilan_updated_at', 'updated_at'])
     notify_mission(mission, MISSION_UPDATED)
     return mission
 

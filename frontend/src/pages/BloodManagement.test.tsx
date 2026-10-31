@@ -19,7 +19,12 @@ function mockApi() {
     if (path === '/api/sang/requests/') return { results: REQUESTS }
     // Même forme que le backend (sang/views.py, action « matches »).
     if (path.endsWith('/matches/'))
-      return { request_id: 1, search_radius_km: 20, count: 1, results: [{ donor_id: 41, blood_group: 'O-', distance_km: 2.4 }] }
+      return {
+        request_id: 1,
+        search_radius_km: 20,
+        count: 1,
+        results: [{ donor_id: 41, blood_group: 'O-', distance_km: 2.4 }],
+      }
     if (path.endsWith('/responses/')) {
       return {
         results: [
@@ -32,13 +37,15 @@ function mockApi() {
         ],
       }
     }
+    if (path === '/api/sang/stocks/nearby/') return []
+    if (path === '/api/sang/stocks/' || path === '/api/sang/orders/') return { results: [] }
     throw new Error(`GET inattendu : ${path}`)
   })
   api.post.mockResolvedValue({})
 }
 
 async function selectRequest(bloodGroup: string) {
-  const table = await screen.findByRole('table')
+  const table = await screen.findByRole('table', { name: 'Demandes de sang' })
   const row = within(table)
     .getAllByRole('row')
     .find((r) => within(r).queryByText(bloodGroup))!
@@ -53,8 +60,10 @@ describe('BloodManagement', () => {
 
   it('signale les demandes critiques et en compte les urgences vitales', async () => {
     renderWithProviders(<BloodManagement />)
-    const table = await screen.findByRole('table')
-    const critical = within(table).getAllByRole('row').find((r) => within(r).queryByText('O-'))!
+    const table = await screen.findByRole('table', { name: 'Demandes de sang' })
+    const critical = within(table)
+      .getAllByRole('row')
+      .find((r) => within(r).queryByText('O-'))!
     expect(critical).toHaveAttribute('data-severity', 'critical')
     expect(screen.getByText('Mobiliser')).toBeInTheDocument()
   })
@@ -67,6 +76,30 @@ describe('BloodManagement', () => {
     const detail = await screen.findByRole('region', { name: 'Demande 100' })
     expect(await within(detail).findByText('Donneur #41')).toBeInTheDocument()
     expect(within(detail).getByText('Ousmane Gueye')).toBeInTheDocument()
+  })
+
+  it('trouve des poches en stock à proximité et les commande pour la demande', async () => {
+    const cnts = { id: 9, name: 'CNTS Dakar', city: 'Dakar', distance_km: 3.2, total_units: 5 }
+    api.get.mockImplementation(async (path: string) => {
+      if (path === '/api/sang/requests/') return { results: REQUESTS }
+      if (path === '/api/sang/stocks/nearby/')
+        return [{ ...cnts, stock_lines: [{ blood_group: 'O-', units_available: 5, units_expiring_soon: 0 }] }]
+      if (path.endsWith('/matches/')) return { results: [] }
+      return { results: [] }
+    })
+    api.post.mockResolvedValue({ id: 1, supplier: cnts, units: 2, blood_group: 'O-' })
+    renderWithProviders(<BloodManagement />)
+    await selectRequest('O-')
+    const detail = await screen.findByRole('region', { name: 'Demande 100' })
+    expect(await within(detail).findByText('CNTS Dakar')).toBeInTheDocument()
+    fireEvent.click(within(detail).getByRole('button', { name: 'Commander' }))
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/sang/orders/',
+        expect.objectContaining({ supplier_id: 9, blood_group: 'O-', blood_request_id: 100 }),
+      ),
+    )
+    expect(await within(detail).findByText(/Commande envoyée à CNTS Dakar/)).toBeInTheDocument()
   })
 
   it('confirme le don d’un donneur engagé', async () => {

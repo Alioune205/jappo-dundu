@@ -12,10 +12,28 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator
 from django.db import models
 from django.db.models import F, Q
+from django.utils import timezone
 
 from users.models import HealthFacility
 
 MAX_BEDS_PER_SERVICE = 2000
+
+def freshness_of(confirmed_at, now=None):
+    """``fresh`` (récent), ``aging`` (à reconfirmer) ou ``stale`` (périmé).
+
+    Au-delà de ``BED_STALE_MINUTES`` sans confirmation, un lit « libre » n'est
+    plus une information sûre (réglages : ``BED_FRESH_MINUTES``, 4 h par défaut,
+    et ``BED_STALE_MINUTES``, 12 h).
+    """
+    if confirmed_at is None:
+        return 'stale'
+    age_minutes = ((now or timezone.now()) - confirmed_at).total_seconds() / 60
+    if age_minutes <= getattr(settings, 'BED_FRESH_MINUTES', 240):
+        return 'fresh'
+    if age_minutes <= getattr(settings, 'BED_STALE_MINUTES', 720):
+        return 'aging'
+    return 'stale'
+
 
 # Établissements disposant de lits d'hospitalisation.
 BED_FACILITY_TYPES = (
@@ -73,6 +91,14 @@ class BedCapacity(models.Model):
         related_name='+',
         verbose_name="Mis à jour par",
     )
+    # Dernière fois qu'une personne ou le SIH a confirmé ces chiffres. Les
+    # réservations ne la changent pas : seul l'état physique du service compte.
+    confirmed_at = models.DateTimeField(default=timezone.now, verbose_name="Chiffres confirmés le")
+    expected_discharges = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name="Sorties prévues",
+        help_text="Patients dont la sortie est prévue dans les prochaines heures.",
+    )
 
     class Meta:
         verbose_name = "Capacité en lits"
@@ -100,6 +126,11 @@ class BedCapacity(models.Model):
                 name='bed_capacity_reserved_lte_free',
                 violation_error_message="Les lits réservés ne peuvent pas dépasser les lits libres.",
             ),
+            models.CheckConstraint(
+                condition=Q(expected_discharges__lte=F('occupied_beds')),
+                name='bed_capacity_discharges_lte_occupied',
+                violation_error_message="Les sorties prévues ne peuvent pas dépasser les lits occupés.",
+            ),
         ]
         indexes = [
             models.Index(fields=['category'], name='idx_bed_capacity_category'),
@@ -115,6 +146,10 @@ class BedCapacity(models.Model):
     def available_beds(self):
         """Lits ni occupés ni réservés : ceux qu'on peut encore attribuer."""
         return self.total_beds - self.occupied_beds - self.reserved_beds
+
+    @property
+    def freshness(self):
+        return freshness_of(self.confirmed_at)
 
     @property
     def occupancy_rate(self):

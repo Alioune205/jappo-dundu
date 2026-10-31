@@ -121,6 +121,11 @@ class Donor(models.Model):
     last_donation_date = models.DateField(
         null=True, blank=True, verbose_name="Date du dernier don"
     )
+    # Don après lequel le rappel « vous pouvez de nouveau donner » est parti :
+    # un seul rappel par don (sang/reminders.py).
+    eligibility_reminded_for = models.DateField(
+        null=True, blank=True, editable=False, verbose_name="Rappel d'éligibilité envoyé pour le don du"
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Créé le")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Modifié le")
 
@@ -166,6 +171,15 @@ class Donor(models.Model):
             self.save(update_fields=['last_donation_date', 'updated_at'])
 
 
+class Component(models.TextChoices):
+    """Produit sanguin : une demande et un stock portent sur un produit précis."""
+
+    RED_CELLS = 'red_cells', "Globules rouges (CGR)"
+    PLASMA = 'plasma', "Plasma frais congelé (PFC)"
+    PLATELETS = 'platelets', "Plaquettes"
+    WHOLE_BLOOD = 'whole_blood', "Sang total"
+
+
 class BloodRequest(models.Model):
     """Demande de sang émise par un établissement de santé."""
 
@@ -205,6 +219,12 @@ class BloodRequest(models.Model):
         default=Status.OPEN,
         verbose_name="Statut",
     )
+    component = models.CharField(
+        max_length=12,
+        choices=Component.choices,
+        default=Component.RED_CELLS,
+        verbose_name="Produit sanguin",
+    )
     notes = models.CharField(
         max_length=500,
         blank=True,
@@ -229,6 +249,9 @@ class BloodRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Créée le")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Modifiée le")
     closed_at = models.DateTimeField(null=True, blank=True, verbose_name="Clôturée le")
+    # Alertes par vagues (sang/alerts.py) : numéro de la dernière vague envoyée.
+    alert_wave = models.PositiveSmallIntegerField(default=0, verbose_name="Vagues d'alerte envoyées")
+    last_alert_at = models.DateTimeField(null=True, blank=True, verbose_name="Dernière vague le")
 
     class Meta:
         verbose_name = "Demande de sang"
@@ -429,3 +452,145 @@ class DonorBadge(models.Model):
     def __str__(self):
         return f"{self.donor} — {self.badge.name}"
 
+
+class DonorAlert(models.Model):
+    """Donneur prévenu d'une demande (notification push ou SMS).
+
+    Garantit qu'un donneur n'est alerté qu'une fois par demande, et permet de
+    limiter le nombre d'alertes reçues par semaine (sang/alerts.py).
+    """
+
+    class Channel(models.TextChoices):
+        PUSH = 'push', 'Notification'
+        SMS = 'sms', 'SMS'
+
+    blood_request = models.ForeignKey(
+        BloodRequest, on_delete=models.CASCADE, related_name='alerts', verbose_name="Demande"
+    )
+    donor = models.ForeignKey(Donor, on_delete=models.CASCADE, related_name='alerts', verbose_name="Donneur")
+    wave = models.PositiveSmallIntegerField(verbose_name="Vague")
+    channel = models.CharField(max_length=5, choices=Channel.choices, verbose_name="Canal")
+    sent_at = models.DateTimeField(auto_now_add=True, verbose_name="Envoyée le")
+
+    class Meta:
+        verbose_name = "Alerte donneur"
+        verbose_name_plural = "Alertes donneurs"
+        constraints = [
+            models.UniqueConstraint(fields=['blood_request', 'donor'], name='uniq_donor_alert_request'),
+        ]
+        indexes = [models.Index(fields=['donor', 'sent_at'], name='idx_donor_alert_sent')]
+
+    def __str__(self):
+        return f"Vague {self.wave} — {self.donor} ({self.get_channel_display()})"
+
+
+class BloodStock(models.Model):
+    """Poches disponibles d'un établissement (centre de transfusion ou dépôt hospitalier).
+
+    Une ligne par groupe et par produit, tenue à jour par l'administrateur du
+    sang ou le SIH. Les commandes expédiées la décrémentent (sang/stocks.py).
+    """
+
+    facility = models.ForeignKey(
+        HealthFacility, on_delete=models.PROTECT, related_name='blood_stocks', verbose_name="Établissement"
+    )
+    blood_group = models.CharField(max_length=3, choices=BLOOD_GROUPS, verbose_name="Groupe sanguin")
+    component = models.CharField(max_length=12, choices=Component.choices, verbose_name="Produit sanguin")
+    units_available = models.PositiveIntegerField(default=0, verbose_name="Poches disponibles")
+    units_expiring_soon = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Poches périmant sous 72 h",
+        help_text="À utiliser ou transférer en priorité.",
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Mis à jour le")
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+
+    class Meta:
+        verbose_name = "Stock de sang"
+        verbose_name_plural = "Stocks de sang"
+        ordering = ['facility__name', 'component', 'blood_group']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['facility', 'blood_group', 'component'], name='uniq_blood_stock_line'
+            ),
+            models.CheckConstraint(
+                condition=Q(units_expiring_soon__lte=F('units_available')),
+                name='blood_stock_expiring_lte_available',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.facility.name} — {self.blood_group} {self.get_component_display()} : {self.units_available}"
+
+
+class BloodSupplyOrder(models.Model):
+    """Commande de poches d'un hôpital à un centre de transfusion (ou un autre dépôt).
+
+    Le stock répond à l'urgence immédiate : une poche donnée aujourd'hui doit
+    encore être qualifiée (analyses) avant d'être transfusée.
+    """
+
+    class Status(models.TextChoices):
+        REQUESTED = 'requested', "Envoyée"
+        ACCEPTED = 'accepted', "Acceptée"
+        DISPATCHED = 'dispatched', "En route"
+        DELIVERED = 'delivered', "Reçue"
+        REFUSED = 'refused', "Refusée"
+        CANCELLED = 'cancelled', "Annulée"
+
+    OPEN_STATUSES = (Status.REQUESTED, Status.ACCEPTED, Status.DISPATCHED)
+
+    requester = models.ForeignKey(
+        HealthFacility, on_delete=models.PROTECT, related_name='blood_orders_sent', verbose_name="Demandeur"
+    )
+    supplier = models.ForeignKey(
+        HealthFacility, on_delete=models.PROTECT, related_name='blood_orders_received', verbose_name="Fournisseur"
+    )
+    blood_request = models.ForeignKey(
+        BloodRequest,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='supply_orders',
+        verbose_name="Demande couverte",
+    )
+    blood_group = models.CharField(max_length=3, choices=BLOOD_GROUPS, verbose_name="Groupe des poches")
+    component = models.CharField(max_length=12, choices=Component.choices, verbose_name="Produit sanguin")
+    units = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(MAX_UNITS_PER_REQUEST)], verbose_name="Poches"
+    )
+    urgency = models.CharField(
+        max_length=10, choices=BloodRequest.Urgency.choices, default=BloodRequest.Urgency.URGENT
+    )
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.REQUESTED)
+    note = models.CharField(max_length=255, blank=True, verbose_name="Précisions du demandeur")
+    answer_note = models.CharField(
+        max_length=255, blank=True, verbose_name="Réponse du fournisseur (motif, transport)"
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    dispatched_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Commande de poches"
+        verbose_name_plural = "Commandes de poches"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['supplier', 'status'], name='idx_order_supplier_status'),
+            models.Index(fields=['requester', 'status'], name='idx_order_requester_status'),
+        ]
+
+    def __str__(self):
+        return f"{self.units} × {self.blood_group} ({self.component}) — {self.requester} → {self.supplier}"
+
+    @property
+    def is_open(self):
+        return self.status in self.OPEN_STATUSES

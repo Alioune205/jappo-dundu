@@ -64,7 +64,7 @@ describe('Alerte SOS', () => {
     expect(send).toBeDisabled()
     await fireEvent.press(screen.getByLabelText('Accident'))
     await fireEvent.changeText(screen.getByPlaceholderText('ex. devant la pharmacie, 2e étage'), ' Devant la pharmacie ')
-    await fireEvent.press(screen.getByLabelText('Envoyer l’alerte SOS'))
+    await fireEvent(screen.getByLabelText('Envoyer l’alerte SOS'), 'longPress')
 
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith('/api/ambulances/sos/', {

@@ -6,13 +6,16 @@ import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { BED_CATEGORIES, DAKAR_CENTER } from '@/lib/constants'
 import { formatDistance } from '@/lib/format'
+import { useNow } from '@/lib/useNow'
 import type { BedCategory, NearbyBedFacility } from '@/types/api'
+import { FreshnessBadge } from './FreshnessBadge'
 
 /**
  * Orientation : établissements les plus proches (de l'établissement de
  * l'utilisateur, ou de Dakar) disposant de lits libres dans une spécialité.
  */
 export const NearestBedsPanel: React.FC = () => {
+  const now = useNow(60_000)
   const { user } = useAuth()
   const [category, setCategory] = useState<BedCategory>('emergency')
   const [radius, setRadius] = useState(50)
@@ -118,6 +121,14 @@ export const NearestBedsPanel: React.FC = () => {
                   <div className="shrink-0 text-right">
                     <div className="num text-base leading-tight text-ok">{facility.available_beds}</div>
                     <div className="text-2xs text-muted">libres</div>
+                    {facility.freshness !== 'fresh' && (
+                      <FreshnessBadge
+                        freshness={facility.freshness}
+                        confirmedAt={facility.confirmed_at}
+                        now={now}
+                        showAge={false}
+                      />
+                    )}
                   </div>
                 </li>
               ))}

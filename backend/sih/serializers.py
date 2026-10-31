@@ -98,6 +98,10 @@ class BloodStockSyncItemSerializer(serializers.Serializer):
     units_donated = serializers.IntegerField(min_value=0, default=0)
     units_used = serializers.IntegerField(min_value=0, default=0)
     units_expired = serializers.IntegerField(min_value=0, default=0)
+    component = serializers.ChoiceField(
+        choices=['red_cells', 'plasma', 'platelets', 'whole_blood'], required=False, default='red_cells'
+    )
+    units_expiring_soon = serializers.IntegerField(min_value=0, default=0)
 
 
 class BloodStockSyncBatchSerializer(serializers.Serializer):

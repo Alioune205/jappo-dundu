@@ -8,13 +8,25 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
-import { BED_CATEGORIES, MISSION_STATUSES, URGENCIES, toneOf } from '@/lib/constants'
-import { formatDistance, formatPhone, formatRelative } from '@/lib/format'
+import { BED_CATEGORIES, CAPABILITIES, MISSION_STATUSES, URGENCIES, toneOf } from '@/lib/constants'
+import { formatDistance, formatEta, formatPhone, formatRelative } from '@/lib/format'
 import { QK } from '@/lib/queryKeys'
 import { useNow } from '@/lib/useNow'
+import { FreshnessBadge } from '@/pages/beds/FreshnessBadge'
 import { canReserveAt, remainingLabel } from '@/pages/beds/reservationAccess'
-import type { BedCategory, BedReservation, Mission, MissionDestinations, NearbyAmbulance, Urgency } from '@/types/api'
+import type {
+  BedCategory,
+  BedReservation,
+  Capability,
+  Mission,
+  MissionDestinations,
+  NearbyAmbulance,
+  Urgency,
+} from '@/types/api'
+import { BilanSummary, CapabilityChips, DestinationStatusBadge } from './MissionClinical'
 import { isActiveMission } from './missionUtils'
+import { TriageInstructions } from './TriageInstructions'
+import { useTriageProtocol } from './useTriage'
 
 /** Rayon de recherche (km) des ambulances et des lits, comme l'affectation automatique de la page. */
 const DISPATCH_RADIUS_KM = 60
@@ -87,6 +99,11 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
           {mission.status_display}
         </Badge>
         <span>Déclenchée {formatRelative(mission.created_at, now)}</span>
+        {mission.eta_at && (
+          <span className="font-semibold text-fg" title={mission.eta_source === 'osrm' ? 'Durée par la route' : 'Durée estimée'}>
+            · Arrivée {mission.status === 'transporting' ? 'à l’hôpital' : 'sur place'} {formatEta(mission.eta_at, now)}
+          </span>
+        )}
         {mission.caller_phone && <span className="num">· Appelant {formatPhone(mission.caller_phone)}</span>}
       </div>
       {mission.source === 'sos' ? (
@@ -97,10 +114,52 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
             ({mission.pickup_latitude.toFixed(5)}, {mission.pickup_longitude.toFixed(5)})
           </span>
           . Rappelez la personne avant d’envoyer une ambulance.
+          {mission.caller_history && mission.caller_history.cancelled_by_regulation > 0 && (
+            <span className="mt-1 block text-xs font-semibold text-warning">
+              Attention : {mission.caller_history.cancelled_by_regulation} alerte(s) de cet appelant annulée(s) par
+              la régulation en {mission.caller_history.days} jours.
+            </span>
+          )}
         </p>
       ) : (
         mission.description && <p className="text-sm text-fg">{mission.description}</p>
       )}
+
+      {mission.caller_card && (
+        <section className="rounded-lg border border-info/40 bg-info/5 px-4 py-3 text-xs" aria-label="Fiche d’urgence">
+          <h3 className="font-semibold uppercase tracking-wide text-muted">Fiche d’urgence de l’appelant</h3>
+          <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1">
+            {mission.caller_card.blood_group && (
+              <>
+                <dt className="text-muted">Groupe sanguin</dt>
+                <dd className="num font-semibold text-fg">{mission.caller_card.blood_group}</dd>
+              </>
+            )}
+            {mission.caller_card.allergies && (
+              <>
+                <dt className="text-muted">Allergies</dt>
+                <dd className="font-semibold text-critical">{mission.caller_card.allergies}</dd>
+              </>
+            )}
+            {mission.caller_card.conditions && (
+              <>
+                <dt className="text-muted">Maladies</dt>
+                <dd className="text-fg">{mission.caller_card.conditions}</dd>
+              </>
+            )}
+            {mission.caller_card.medications && (
+              <>
+                <dt className="text-muted">Traitements</dt>
+                <dd className="text-fg">{mission.caller_card.medications}</dd>
+              </>
+            )}
+          </dl>
+        </section>
+      )}
+
+      {mission.triage_assessment && <TriageSummary mission={mission} />}
+
+      <BilanSummary mission={mission} now={now} />
 
       {mission.source === 'sos' && mission.status === 'pending' && (
         <QualifySos mission={mission} onSaved={refresh} onError={fail('Enregistrement impossible.')} />
@@ -122,6 +181,23 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
 
       {active && <CancelMission mission={mission} onCancelled={() => (refresh(), onDone())} onError={fail('Annulation impossible.')} />}
     </div>
+  )
+}
+
+/** Raisons de la priorité et consignes à rappeler à l'appelant, issues du tri de l'appel. */
+const TriageSummary: React.FC<{ mission: Mission }> = ({ mission }) => {
+  const { data: protocol } = useTriageProtocol()
+  const assessment = mission.triage_assessment
+  if (!assessment) return null
+  return (
+    <section className="space-y-2 rounded-lg border border-line px-4 py-3">
+      {assessment.reasons.length > 0 && (
+        <p className="text-xs text-muted">
+          Tri de l’appel : <span className="text-fg">{assessment.reasons.join(', ')}</span>
+        </p>
+      )}
+      <TriageInstructions codes={assessment.instructions} protocol={protocol} />
+    </section>
   )
 }
 
@@ -227,6 +303,11 @@ const AmbulancePicker: React.FC<{ mission: Mission; onAssigned: () => void; onEr
                 </p>
                 <p className="truncate text-xs text-muted">
                   <Navigation className="mr-1 inline h-3 w-3" aria-hidden="true" />
+                  {amb.travel_minutes !== null && (
+                    <span className="font-semibold text-fg" title={amb.travel_source === 'osrm' ? 'Par la route' : 'Estimation'}>
+                      ~{Math.round(amb.travel_minutes)} min ·{' '}
+                    </span>
+                  )}
                   {formatDistance(amb.distance_km)} · {amb.facility?.name}
                   {amb.driver ? ` · ${amb.driver.full_name}` : ' · sans chauffeur'}
                 </p>
@@ -258,14 +339,16 @@ const DestinationPicker: React.FC<{ mission: Mission; onReserved: () => void; on
   const auth = useAuth()
   const now = useNow(30_000)
   const [category, setCategory] = useState<BedCategory>('emergency')
+  const [required, setRequired] = useState<Capability[]>([])
 
   const { data: destinations, isLoading } = useQuery<MissionDestinations>({
-    queryKey: [...QK.missionDestinations, mission.id, category],
+    queryKey: [...QK.missionDestinations, mission.id, category, required.join(',')],
     queryFn: () =>
       api.get<MissionDestinations>(`/api/ambulances/missions/${mission.id}/destinations/`, {
         category,
         radius_km: DISPATCH_RADIUS_KM,
         limit: 6,
+        ...(required.length > 0 ? { capability: required.join(',') } : {}),
       }),
   })
 
@@ -299,7 +382,8 @@ const DestinationPicker: React.FC<{ mission: Mission; onReserved: () => void; on
           <p className="text-xs text-muted">
             {mission.destination ? (
               <>
-                Actuelle : <span className="font-medium text-fg">{mission.destination.name}</span>
+                Actuelle : <span className="font-medium text-fg">{mission.destination.name}</span>{' '}
+                <DestinationStatusBadge mission={mission} />
                 {held
                   ? ` · lit réservé en ${held.capacity.category_display.toLowerCase()}, expire dans ${remainingLabel(held.expires_at, now)}`
                   : ' · aucun lit réservé'}
@@ -323,10 +407,33 @@ const DestinationPicker: React.FC<{ mission: Mission; onReserved: () => void; on
         </Select>
       </div>
 
+      <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Plateau technique requis">
+        <span className="mr-1 text-2xs text-muted">Il faut :</span>
+        {CAPABILITIES.map((c) => {
+          const on = required.includes(c.value)
+          return (
+            <button
+              key={c.value}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setRequired((list) => (on ? list.filter((v) => v !== c.value) : [...list, c.value]))}
+              className={`cursor-pointer rounded-md border px-2 py-0.5 text-2xs transition-colors ${
+                on ? 'border-brand bg-brand text-on-brand' : 'border-line text-muted hover:text-fg'
+              }`}
+            >
+              {c.label}
+            </button>
+          )
+        })}
+      </div>
+
       {isLoading ? (
         <p className="text-xs text-muted">Recherche des lits libres…</p>
       ) : results.length === 0 ? (
-        <p className="text-sm text-muted">Aucun lit libre dans ce service à moins de {DISPATCH_RADIUS_KM} km.</p>
+        <p className="text-sm text-muted">
+          Aucun lit libre dans ce service à moins de {DISPATCH_RADIUS_KM} km
+          {required.length > 0 ? ' avec ce plateau technique' : ''}.
+        </p>
       ) : (
         <ul className="divide-y divide-line rounded-lg border border-line">
           {results.map((facility) => {
@@ -351,6 +458,10 @@ const DestinationPicker: React.FC<{ mission: Mission; onReserved: () => void; on
                       {facility.available_beds > 1 ? 's' : ''}
                     </span>
                   </p>
+                  {facility.freshness !== 'fresh' && (
+                    <FreshnessBadge freshness={facility.freshness} confirmedAt={facility.confirmed_at} now={now} />
+                  )}
+                  <CapabilityChips codes={facility.capabilities} highlight={required} />
                 </div>
                 <Button
                   size="sm"

@@ -13,7 +13,20 @@ import { TextField } from '@/components/ui/TextField'
 import { useAuth } from '@/context/AuthContext'
 import { timeAgo } from '@/lib/dates'
 import { formatDistance } from '@/lib/location'
-import { callSamu, isActiveSos, SAMU_NUMBER, SOS_KINDS, useCancelSos, useMySos, useSendSos, type SosAlert, type SosKind } from '@/lib/sos'
+import {
+  callSamu,
+  isActiveSos,
+  isNetworkFailure,
+  SAMU_NUMBER,
+  smsSamu,
+  SOS_KINDS,
+  useCancelSos,
+  useMySos,
+  useSendSos,
+  type SosAlert,
+  type SosKind,
+} from '@/lib/sos'
+import { HoldButton } from '@/components/ui/HoldButton'
 import { useNow } from '@/lib/useNow'
 import { motion, radius, space, useTheme } from '@/theme'
 
@@ -26,6 +39,26 @@ import { motion, radius, space, useTheme } from '@/theme'
  *
  * Responsable du domaine : Pape Alioune Sene (application mobile)
  */
+/** « dans 7 min », « imminente ». */
+function etaLabel(value: string, now: number) {
+  const minutes = Math.round((new Date(value).getTime() - now) / 60_000)
+  return minutes <= 1 ? 'imminente' : `dans ${minutes} min environ`
+}
+
+/** Conseils généraux si l'alerte ne porte pas encore de consignes (ancienne version du serveur). */
+const FALLBACK_INSTRUCTIONS = [
+  {
+    code: 'stay_safe',
+    title: 'En attendant les secours',
+    steps: [
+      'Restez auprès de la personne et parlez-lui.',
+      'Après un accident, ne déplacez pas un blessé sauf danger immédiat.',
+      'Si la personne est inconsciente mais respire, tournez-la sur le côté.',
+      'Dégagez l’accès et envoyez quelqu’un guider l’ambulance.',
+    ],
+  },
+]
+
 export default function SosScreen() {
   const { colors } = useTheme()
   const router = useRouter()
@@ -63,6 +96,7 @@ export default function SosScreen() {
 
 function SendForm({ last }: { last: SosAlert | null }) {
   const { colors } = useTheme()
+  const router = useRouter()
   const send = useSendSos()
   const [kind, setKind] = useState<SosKind | null>(null)
   const [landmark, setLandmark] = useState('')
@@ -126,15 +160,24 @@ function SendForm({ last }: { last: SosAlert | null }) {
         hint="Aide l’ambulance à vous trouver."
       />
 
-      {send.error ? (
+      {send.error && isNetworkFailure(send.error) && kind ? (
+        <Card style={[styles.block, { borderColor: colors.brand }]}>
+          <Text variant="heading">Pas de connexion Internet</Text>
+          <Text variant="body" tone="muted">
+            Envoyez l’alerte par SMS au {SAMU_NUMBER} (votre position GPS est jointe), ou appelez directement.
+          </Text>
+          <Button label={`Envoyer par SMS au ${SAMU_NUMBER}`} onPress={() => smsSamu(kind, landmark)} haptic />
+        </Card>
+      ) : send.error ? (
         <Text variant="caption" tone="brand" accessibilityLiveRegion="polite">
           {send.error.message}
         </Text>
       ) : null}
 
-      <Button
+      <HoldButton
         label={kind ? 'Envoyer l’alerte SOS' : 'Choisissez ce qui se passe'}
-        onPress={() =>
+        hint={kind ? 'Maintenez appuyé pour envoyer' : 'Puis maintenez le bouton appuyé'}
+        onConfirm={() =>
           kind &&
           send.mutate(
             { kind, landmark },
@@ -146,10 +189,13 @@ function SendForm({ last }: { last: SosAlert | null }) {
         }
         disabled={!kind}
         loading={send.isPending}
-        haptic
-        style={styles.sos}
       />
       <Button label={`Appeler le SAMU · ${SAMU_NUMBER}`} variant="secondary" onPress={callSamu} />
+      <Pressable onPress={() => router.push({ pathname: '/emergency-card' })} accessibilityRole="button" style={styles.withdraw}>
+        <Text variant="label" tone="brand">
+          Ma fiche d’urgence (allergies, contacts)
+        </Text>
+      </Pressable>
       <Text variant="caption" tone="subtle" style={styles.center}>
         Votre position précise n’est envoyée qu’au SAMU, pour cette alerte.
       </Text>
@@ -181,7 +227,11 @@ function Tracking({ alert }: { alert: SosAlert }) {
       ? `Un régulateur va vous rappeler${phone ? ` au ${phone}` : ''}. Gardez votre téléphone près de vous.`
       : alert.ambulance
         ? `${alert.ambulance.ambulance_type_display} ${alert.ambulance.plate_number}${
-            alert.status === 'assigned' && alert.ambulance.distance_km !== null ? ` · à ${formatDistance(alert.ambulance.distance_km)}` : ''
+            alert.status === 'assigned' && alert.eta_at
+              ? ` · arrivée ${etaLabel(alert.eta_at, now)}`
+              : alert.status === 'assigned' && alert.ambulance.distance_km !== null
+                ? ` · à ${formatDistance(alert.ambulance.distance_km)}`
+                : ''
           }`
         : 'Les secours sont pris en charge par le SAMU.'
 
@@ -214,22 +264,19 @@ function Tracking({ alert }: { alert: SosAlert }) {
 
       <Button label={`Appeler le SAMU · ${SAMU_NUMBER}`} onPress={callSamu} haptic />
 
-      <Card style={styles.block}>
-        <Text variant="heading">En attendant les secours</Text>
-        {[
-          'Restez auprès de la personne et parlez-lui.',
-          'Après un accident, ne déplacez pas un blessé sauf danger immédiat.',
-          'Si la personne est inconsciente mais respire, tournez-la sur le côté.',
-          'Dégagez l’accès et envoyez quelqu’un guider l’ambulance.',
-        ].map((tip) => (
-          <View key={tip} style={styles.tip}>
-            <Icon name="check" size={16} color="ok" />
-            <Text variant="body" style={styles.flex}>
-              {tip}
-            </Text>
-          </View>
-        ))}
-      </Card>
+      {(alert.instructions?.length ? alert.instructions : FALLBACK_INSTRUCTIONS).map((item, index) => (
+        <Card key={item.code} style={[styles.block, index === 0 && item.code !== 'stay_safe' && { borderColor: colors.brand }]}>
+          <Text variant="heading">{item.title}</Text>
+          {item.steps.map((step) => (
+            <View key={step} style={styles.tip}>
+              <Icon name="check" size={16} color="ok" />
+              <Text variant="body" style={styles.flex}>
+                {step}
+              </Text>
+            </View>
+          ))}
+        </Card>
+      ))}
 
       {alert.status === 'pending' ? (
         <Pressable

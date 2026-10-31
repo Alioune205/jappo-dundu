@@ -97,6 +97,12 @@ class Mission(models.Model):
     class Source(models.TextChoices):
         DISPATCH = 'dispatch', "Régulation (appel au SAMU)"
         SOS = 'sos', "Alerte SOS d'un citoyen"
+        TRANSFER = 'transfer', "Transfert entre établissements"
+
+    class DestinationStatus(models.TextChoices):
+        PENDING = 'pending', "En attente de réponse"
+        ACCEPTED = 'accepted', "Patient accepté"
+        REFUSED = 'refused', "Patient refusé"
 
     class Status(models.TextChoices):
         PENDING = 'pending', "En attente d'une ambulance"
@@ -177,6 +183,38 @@ class Mission(models.Model):
     cancellation_reason = models.CharField(
         max_length=255, blank=True, verbose_name="Motif d'annulation"
     )
+    # Pré-alerte : l'hôpital de destination accepte ou refuse le patient.
+    # Remis à « en attente » à chaque changement de destination (save).
+    destination_status = models.CharField(
+        max_length=10,
+        choices=DestinationStatus.choices,
+        blank=True,
+        verbose_name="Réponse de l'hôpital de destination",
+    )
+    destination_note = models.CharField(
+        max_length=255, blank=True, verbose_name="Motif ou consigne de l'hôpital"
+    )
+    destination_answered_at = models.DateTimeField(null=True, blank=True, verbose_name="Réponse de l'hôpital le")
+    destination_answered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+        verbose_name="Réponse de l'hôpital par",
+    )
+    # Tri de l'appel (questions clés) et bilan transmis à l'hôpital : jamais
+    # de nom de patient, seulement l'état clinique utile à l'accueil.
+    triage = models.JSONField(default=dict, blank=True, verbose_name="Tri de l'appel")
+    vitals = models.JSONField(default=dict, blank=True, verbose_name="Bilan (constantes)")
+    bilan_notes = models.CharField(max_length=500, blank=True, verbose_name="Bilan (observations)")
+    bilan_updated_at = models.DateTimeField(null=True, blank=True, verbose_name="Bilan mis à jour le")
+    # Heure d'arrivée estimée de l'ambulance à sa cible du moment : lieu
+    # d'intervention (affectée) puis hôpital (transport). Durée par la route
+    # (geo/routing.py), recalculée au fil des positions.
+    eta_at = models.DateTimeField(null=True, blank=True, verbose_name="Arrivée estimée à")
+    eta_source = models.CharField(max_length=10, blank=True, verbose_name="Source de l'estimation")
+    eta_updated_at = models.DateTimeField(null=True, blank=True, verbose_name="Estimation calculée le")
     # SOS : créée par le citoyen depuis l'application (position GPS du
     # téléphone), à qualifier par la régulation avant l'envoi d'une ambulance.
     source = models.CharField(
@@ -184,6 +222,15 @@ class Mission(models.Model):
         choices=Source.choices,
         default=Source.DISPATCH,
         verbose_name="Origine",
+    )
+    # Transfert : établissement d'où part le patient (lieu d'intervention).
+    origin_facility = models.ForeignKey(
+        HealthFacility,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='outgoing_transfers',
+        verbose_name="Établissement d'origine (transfert)",
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -229,6 +276,31 @@ class Mission(models.Model):
     def __str__(self):
         return f"Mission {self.pk} — {self.get_priority_display()} — {self.get_status_display()}"
 
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super().from_db(db, field_names, values)
+        instance._loaded_destination_id = instance.__dict__.get('destination_id')
+        return instance
+
+    def save(self, *args, **kwargs):
+        # Nouvelle destination : l'hôpital n'a pas encore répondu.
+        if self.destination_id != getattr(self, '_loaded_destination_id', None):
+            self.destination_status = self.DestinationStatus.PENDING if self.destination_id else ''
+            self.destination_note = ''
+            self.destination_answered_at = None
+            self.destination_answered_by = None
+            update_fields = kwargs.get('update_fields')
+            if update_fields is not None:
+                kwargs['update_fields'] = {
+                    *update_fields,
+                    'destination_status',
+                    'destination_note',
+                    'destination_answered_at',
+                    'destination_answered_by',
+                }
+        super().save(*args, **kwargs)
+        self._loaded_destination_id = self.destination_id
+
     @property
     def is_active(self):
         return self.status in self.ACTIVE_STATUSES
@@ -239,3 +311,32 @@ class Mission(models.Model):
 
     def can_transition_to(self, status):
         return status in self.TRANSITIONS[self.status]
+
+
+class EmergencyProfile(models.Model):
+    """Fiche d'urgence d'un citoyen, partagée avec le SAMU seulement s'il l'accepte.
+
+    Deux consentements distincts : la fiche médicale n'est visible par la
+    régulation, lors d'une alerte SOS, que si ``share_with_samu`` ; les
+    contacts ne sont prévenus par SMS que si ``notify_contacts``.
+    """
+
+    MAX_CONTACTS = 3
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='emergency_profile'
+    )
+    share_with_samu = models.BooleanField(default=False, verbose_name="Fiche partagée avec le SAMU")
+    allergies = models.CharField(max_length=255, blank=True, verbose_name="Allergies")
+    conditions = models.CharField(max_length=255, blank=True, verbose_name="Maladies chroniques")
+    medications = models.CharField(max_length=255, blank=True, verbose_name="Traitements en cours")
+    contacts = models.JSONField(default=list, blank=True, verbose_name="Contacts d'urgence")
+    notify_contacts = models.BooleanField(default=False, verbose_name="Prévenir les contacts lors d'une alerte")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Fiche d'urgence"
+        verbose_name_plural = "Fiches d'urgence"
+
+    def __str__(self):
+        return f"Fiche d'urgence — {self.user}"

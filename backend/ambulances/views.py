@@ -37,7 +37,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
@@ -51,17 +51,22 @@ from lits.services import find_facilities_with_beds
 from ml.constants import REGION_CODES
 from security.permissions import ManagesAmbulances, role_permission
 from security.roles import DOMAIN_ROLES, Domain, Role, manages, user_has_role
+from users.models import HealthFacility
 from users.permissions import user_facility
 from users.services import user_facility_id
-from users.filters import boolean_param, choice_param, int_param
+from users.filters import boolean_param, capabilities_param, choice_param, int_param
 
-from . import services
-from .models import Ambulance, Mission
+from . import services, triage
+from .models import Ambulance, EmergencyProfile, Mission
 from .serializers import (
     AmbulanceSerializer,
     AssignSerializer,
     AvailabilitySerializer,
+    BilanSerializer,
     CitizenSosSerializer,
+    DestinationAnswerSerializer,
+    TransferSerializer,
+    EmergencyProfileSerializer,
     MissionSerializer,
     MissionStatusSerializer,
     NearbyAmbulanceSerializer,
@@ -238,7 +243,10 @@ class AmbulanceViewSet(
     @action(detail=False, methods=['get'])
     def nearest(self, request):
         """GET /api/ambulances/vehicles/nearest/ ?latitude=&longitude= &radius_km=50
-        &limit=10 &ambulance_type=medicalized"""
+        &limit=10 &ambulance_type=medicalized
+
+        Triées par durée de trajet jusqu'au point (``travel_minutes``).
+        """
         params = request.query_params
         query = parse_nearby_query(params, default_radius_km=self.default_radius_km)
         ambulances = services.find_nearest_available(
@@ -248,6 +256,8 @@ class AmbulanceViewSet(
             ambulance_type=choice_param(params, 'ambulance_type', Ambulance.AmbulanceType.values),
             facility=service_of(request.user),
         )
+        # Les plus rapides par la route d'abord (durée réelle ou estimée).
+        ambulances = services.rank_by_travel_time(ambulances, query['point'])
         return Response(NearbyAmbulanceSerializer(ambulances, many=True).data)
 
     @action(detail=False, methods=['get'])
@@ -363,7 +373,8 @@ class MissionViewSet(
         if facility is not None and user_has_role(user, *SCOPED_DISPATCHER_ROLES):
             visible |= Q(region=facility.region)
         if facility is not None and user_has_role(user, Role.BED_MANAGER):
-            visible |= Q(destination_id=facility.pk)
+            # Patients attendus, et transferts demandés par l'établissement.
+            visible |= Q(destination_id=facility.pk) | Q(origin_facility_id=facility.pk)
         if user_has_role(user, Role.AMBULANCE_DRIVER):
             # Un conducteur ne voit que les missions de son ambulance.
             visible |= Q(ambulance__driver=user)
@@ -430,13 +441,80 @@ class MissionViewSet(
         )
         return Response(self.get_serializer(self._reloaded(mission)).data)
 
+    @action(detail=False, methods=['post'])
+    def transfer(self, request):
+        """Transfert vers un autre établissement, demandé par l'hôpital de départ.
+
+        POST /api/ambulances/missions/transfer/ {"destination_id", "category",
+             "priority", "description", "origin_id" (admin)}
+        Crée la mission (lieu : l'établissement de départ) et réserve un lit à
+        l'arrivée ; la régulation affecte ensuite l'ambulance.
+        """
+        serializer = TransferSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        requested_origin = data.pop('origin', None)
+        if user_has_role(request.user, Role.ADMIN):
+            if requested_origin is None:
+                raise ValidationError({'origin_id': ["Obligatoire pour un administrateur."]})
+            origin = requested_origin
+        else:
+            origin = user_facility(request.user)
+            if origin is None or not user_has_role(request.user, Role.BED_MANAGER, Role.HOSPITAL_STAFF):
+                raise PermissionDenied("Seul le personnel d'un établissement demande un transfert.")
+            origin = HealthFacility.objects.get(pk=origin.pk)
+        mission = services.create_transfer(origin=origin, created_by=request.user, **data)
+        return Response(self.get_serializer(self._reloaded(mission)).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='destination-response')
+    def destination_response(self, request, pk=None):
+        """Pré-alerte : l'hôpital de destination accepte ou refuse le patient.
+
+        POST /api/ambulances/missions/<id>/destination-response/
+        {"accepted": true} | {"accepted": false, "note": "scanner en panne"}
+        Réservé au personnel (lits) de l'établissement de destination et à l'admin.
+        """
+        mission = self.get_object()
+        facility = user_facility(request.user)
+        receives = (
+            facility is not None
+            and facility.pk == mission.destination_id
+            and user_has_role(request.user, Role.BED_MANAGER, Role.HOSPITAL_STAFF)
+        )
+        if not (user_has_role(request.user, Role.ADMIN) or receives):
+            raise PermissionDenied("Seul l'hôpital de destination répond à la pré-alerte.")
+        serializer = DestinationAnswerSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        mission = services.answer_destination(mission, user=request.user, **serializer.validated_data)
+        return Response(self.get_serializer(self._reloaded(mission)).data)
+
+    @action(detail=True, methods=['post'])
+    def bilan(self, request, pk=None):
+        """Bilan de l'équipage : POST /api/ambulances/missions/<id>/bilan/ {"vitals": {...}, "notes"}
+
+        Conducteur de l'ambulance affectée ou régulation.
+        """
+        mission = self.get_object()
+        ambulance = mission.ambulance
+        is_crew = ambulance is not None and ambulance.driver_id == request.user.pk
+        if not (is_crew or is_dispatcher(request.user)):
+            raise PermissionDenied("Seul l'équipage ou la régulation transmet le bilan.")
+        serializer = BilanSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        mission = services.update_bilan(
+            mission,
+            vitals=serializer.validated_data.get('vitals'),
+            notes=serializer.validated_data.get('notes'),
+        )
+        return Response(self.get_serializer(self._reloaded(mission)).data)
+
     @action(detail=True, methods=['get'])
     def destinations(self, request, pk=None):
         """Établissements proches ayant des lits libres, depuis l'ambulance
         (position connue) ou le lieu d'intervention.
 
         GET /api/ambulances/missions/<id>/destinations/ ?category=emergency
-            &radius_km=50 &limit=5
+            &radius_km=50 &limit=5 &capability=ct_scan,trauma
         """
         mission = self.get_object()
         ambulance = mission.ambulance
@@ -454,6 +532,7 @@ class MissionViewSet(
             category=category,
             radius_m=int_param(params, 'radius_km', default=50, maximum=500) * 1000,
             limit=int_param(params, 'limit', default=5, maximum=50),
+            capabilities=capabilities_param(params),
         )
         return Response(
             {
@@ -525,6 +604,29 @@ class SosView(APIView):
         )
 
 
+class EmergencyProfileView(APIView):
+    """Fiche d'urgence du citoyen connecté.
+
+    GET /api/ambulances/sos/profile/   (fiche vide si jamais remplie)
+    PUT /api/ambulances/sos/profile/   {"share_with_samu", "allergies", "conditions",
+                                        "medications", "contacts": [{"name", "phone", "relation"}],
+                                        "notify_contacts"}
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile = EmergencyProfile.objects.filter(user=request.user).first() or EmergencyProfile(user=request.user)
+        return Response(EmergencyProfileSerializer(profile).data)
+
+    def put(self, request):
+        profile, _ = EmergencyProfile.objects.get_or_create(user=request.user)
+        serializer = EmergencyProfileSerializer(profile, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+
 class SosCancelView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -536,3 +638,19 @@ class SosCancelView(APIView):
             source=Mission.Source.SOS,
         )
         return Response(CitizenSosSerializer(services.cancel_sos(mission)).data)
+
+
+class TriageView(APIView):
+    """Tri de l'appel : questions, consignes et priorité suggérée (source unique web et mobile).
+
+    GET  /api/ambulances/triage/                      questions et consignes
+    POST /api/ambulances/triage/ {"answers": {...}}   priorité suggérée et consignes
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(triage.protocol())
+
+    def post(self, request):
+        return Response(triage.assess(request.data.get('answers') or {}))

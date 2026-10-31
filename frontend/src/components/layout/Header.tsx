@@ -6,6 +6,7 @@ import { primaryRoleLabel } from '@/lib/access'
 import { useRealtime } from '@/context/RealtimeContext'
 import { useTheme } from '@/context/ThemeContext'
 import { formatTime } from '@/lib/format'
+import { notificationPermission, requestNotificationPermission } from '@/lib/browserNotifications'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { FALLBACK_POLL_MS } from '@/lib/useFallbackPolling'
 import type { RealtimeStatus } from '@/context/RealtimeContext'
@@ -135,6 +136,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
                 )}
               </div>
 
+              <SystemNotificationsPrompt />
               <ul className="max-h-80 divide-y divide-line overflow-y-auto">
                 {alerts.length === 0 ? (
                   <li className="px-3 py-6 text-center text-xs text-muted">Aucune alerte en cours.</li>
@@ -224,6 +226,24 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ online, status, int
       {online && status === 'interrupted' && (
         <span className="hidden text-2xs text-subtle lg:inline">· relevé toutes les {pollSeconds} s</span>
       )}
+    </div>
+  )
+}
+
+/** Propose d'activer les notifications du système : une alerte reçue onglet caché reste visible. */
+const SystemNotificationsPrompt: React.FC = () => {
+  const [permission, setPermission] = useState(notificationPermission)
+  if (permission !== 'default') return null
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-line bg-raised px-3 py-2 text-xs">
+      <span className="text-muted">Être prévenu même quand cet onglet est en arrière-plan.</span>
+      <button
+        type="button"
+        className="shrink-0 cursor-pointer font-semibold text-brand hover:underline"
+        onClick={() => requestNotificationPermission().then(setPermission)}
+      >
+        Activer
+      </button>
     </div>
   )
 }

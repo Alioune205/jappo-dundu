@@ -6,8 +6,11 @@ import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { DAKAR_CENTER, REGIONS, URGENCIES } from '@/lib/constants'
-import type { FacilitySummary, Mission, MissionInput, RegionCode, Urgency } from '@/types/api'
+import type { FacilitySummary, Mission, MissionInput, RegionCode, TriageAnswers, Urgency } from '@/types/api'
 import { QK } from '@/lib/queryKeys'
+import { TriageInstructions } from './TriageInstructions'
+import { TriageQuestions } from './TriageQuestions'
+import { useTriageAssessment, useTriageProtocol } from './useTriage'
 
 const EMPTY_MISSION: MissionInput = {
   priority: 'urgent',
@@ -33,8 +36,8 @@ export const NewMissionModal: React.FC<NewMissionModalProps> = ({ isOpen, onClos
     isOpen={isOpen}
     onClose={onClose}
     title="Nouvelle mission"
-    description="L'ambulance disponible la plus proche du lieu est affectée automatiquement."
-    maxWidth="lg"
+    description="Posez les questions du tri : la priorité se propose seule, les consignes s'affichent."
+    maxWidth="xl"
   >
     {isOpen && (
       <NewMissionForm
@@ -56,6 +59,13 @@ const NewMissionForm: React.FC<{ onCancel: () => void; onCreated: (mission: Miss
   const [form, setForm] = useState<MissionInput>(EMPTY_MISSION)
   const set = (patch: Partial<MissionInput>) => setForm((current) => ({ ...current, ...patch }))
   const canDeploy = form.pickup_address.trim().length > 0
+  const [answers, setAnswers] = useState<TriageAnswers>({})
+  // Tant que le régulateur ne l'a pas choisie lui-même, la priorité suit le tri.
+  const [priorityTouched, setPriorityTouched] = useState(false)
+  const { data: protocol } = useTriageProtocol()
+  const { data: assessment } = useTriageAssessment(answers)
+  const suggested = Object.keys(answers).length > 0 ? assessment?.priority : undefined
+  const priority = !priorityTouched && suggested ? suggested : form.priority
 
   const { data: hospitals = [] } = useQuery<FacilitySummary[]>({
     queryKey: QK.facilitiesHospitals,
@@ -64,7 +74,7 @@ const NewMissionForm: React.FC<{ onCancel: () => void; onCreated: (mission: Miss
   })
 
   const create = useMutation({
-    mutationFn: () => api.post<Mission>('/api/ambulances/missions/', form),
+    mutationFn: () => api.post<Mission>('/api/ambulances/missions/', { ...form, priority, triage: answers }),
     onSuccess: (mission) => {
       queryClient.invalidateQueries({ queryKey: QK.missionsAll })
       queryClient.invalidateQueries({ queryKey: QK.missionsActive })
@@ -86,8 +96,20 @@ const NewMissionForm: React.FC<{ onCancel: () => void; onCreated: (mission: Miss
         </Alert>
       )}
 
+      <div className="grid gap-4 lg:grid-cols-[1.15fr_1fr]">
+        <TriageQuestions protocol={protocol} answers={answers} onChange={setAnswers} assessment={assessment} />
+        <TriageInstructions codes={Object.keys(answers).length > 0 ? (assessment?.instructions ?? []) : []} protocol={protocol} />
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
-        <Select label="Priorité" value={form.priority} onChange={(e) => set({ priority: e.target.value as Urgency })}>
+        <Select
+          label="Priorité"
+          value={priority}
+          onChange={(e) => {
+            setPriorityTouched(true)
+            set({ priority: e.target.value as Urgency })
+          }}
+        >
           {URGENCIES.map((u) => (
             <option key={u.value} value={u.value}>
               {u.label}

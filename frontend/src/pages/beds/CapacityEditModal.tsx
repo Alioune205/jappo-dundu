@@ -15,7 +15,7 @@ interface CapacityEditModalProps {
 }
 
 /**
- * Ajustement manuel des lits installés et occupés d'un service. Le
+ * Ajustement manuel des lits installés, occupés et des sorties prévues d'un service. Le
  * formulaire est remonté à chaque ouverture (clé = service) : il part
  * toujours des valeurs actuelles.
  */
@@ -34,13 +34,16 @@ const CapacityForm: React.FC<{ capacity: BedCapacity; onDone: () => void }> = ({
   const queryClient = useQueryClient()
   const [total, setTotal] = useState(capacity.total_beds)
   const [occupied, setOccupied] = useState(capacity.occupied_beds)
+  const [discharges, setDischarges] = useState(capacity.expected_discharges)
   const error = occupied > total ? 'Ne peut pas dépasser le total de lits.' : undefined
+  const dischargesError = discharges > occupied ? 'Ne peut pas dépasser les lits occupés.' : undefined
 
   const mutation = useMutation({
     mutationFn: () =>
       api.patch<BedCapacity>(`/api/lits/capacities/${capacity.id}/`, {
         total_beds: total,
         occupied_beds: occupied,
+        expected_discharges: discharges,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QK.bedCapacities })
@@ -54,7 +57,7 @@ const CapacityForm: React.FC<{ capacity: BedCapacity; onDone: () => void }> = ({
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
-        if (!error) mutation.mutate()
+        if (!error && !dischargesError) mutation.mutate()
       }}
     >
       {mutation.error && (
@@ -80,6 +83,16 @@ const CapacityForm: React.FC<{ capacity: BedCapacity; onDone: () => void }> = ({
           error={error}
         />
       </div>
+      <Input
+        label="Sorties prévues"
+        helperText="Patients qui quittent le service dans les prochaines heures : le réseau voit les lits bientôt libres."
+        type="number"
+        min={0}
+        max={occupied}
+        value={discharges}
+        onChange={(e) => setDischarges(parseInt(e.target.value, 10) || 0)}
+        error={dischargesError}
+      />
       <p className="text-xs text-muted">
         Lits libres après modification : <span className="num text-fg">{Math.max(0, total - occupied)}</span>
       </p>
@@ -87,7 +100,7 @@ const CapacityForm: React.FC<{ capacity: BedCapacity; onDone: () => void }> = ({
         <Button variant="ghost" onClick={onDone}>
           Annuler
         </Button>
-        <Button type="submit" variant="primary" disabled={!!error} isLoading={mutation.isPending}>
+        <Button type="submit" variant="primary" disabled={!!error || !!dischargesError} isLoading={mutation.isPending}>
           Enregistrer
         </Button>
       </div>

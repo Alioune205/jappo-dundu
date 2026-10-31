@@ -529,3 +529,10 @@ GOOGLE_CLIENT_IDS = config('GOOGLE_CLIENT_IDS', default='', cast=Csv())
 APPLE_AUDIENCES = config('APPLE_AUDIENCES', default='', cast=Csv())
 FACEBOOK_APP_ID = config('FACEBOOK_APP_ID', default='')
 FACEBOOK_APP_SECRET = config('FACEBOOK_APP_SECRET', default='')
+
+# --- Temps de trajet (geo/routing.py) ---
+# Serveur OSRM (carte OpenStreetMap du Sénégal) ; vide : durées estimées.
+OSRM_URL = config('OSRM_URL', default='')
+OSRM_TIMEOUT_SECONDS = config('OSRM_TIMEOUT_SECONDS', default=1.5, cast=float)
+ROUTING_DETOUR_FACTOR = config('ROUTING_DETOUR_FACTOR', default=1.4, cast=float)
+ROUTING_SPEED_KMH = config('ROUTING_SPEED_KMH', default=35, cast=float)

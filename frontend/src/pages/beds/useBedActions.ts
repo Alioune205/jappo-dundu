@@ -5,7 +5,7 @@ import type { BedCapacity, BedReservation } from '@/types/api'
 
 /**
  * Actions sur les lits partagées par « Mes lits », « Trouver un lit » et le
- * tableau de bord : admission, sortie, arrivée du patient attendu, libération
+ * tableau de bord : admission, sortie, confirmation des chiffres, arrivée du patient attendu, libération
  * d'un lit réservé. Chaque action rafraîchit les lits et les réservations.
  */
 export function useBedActions() {
@@ -24,6 +24,10 @@ export function useBedActions() {
     mutationFn: (capacityId: number) => api.post<BedCapacity>(`/api/lits/capacities/${capacityId}/discharge/`),
     onSuccess: refresh,
   })
+  const confirm = useMutation({
+    mutationFn: (capacityId: number) => api.post<BedCapacity>(`/api/lits/capacities/${capacityId}/confirm/`),
+    onSuccess: refresh,
+  })
   const fulfill = useMutation({
     mutationFn: (reservationId: number) => api.post<BedReservation>(`/api/lits/reservations/${reservationId}/fulfill/`),
     onSuccess: refresh,
@@ -33,10 +37,11 @@ export function useBedActions() {
     onSuccess: refresh,
   })
 
-  const all = [admit, discharge, fulfill, cancel]
+  const all = [admit, discharge, confirm, fulfill, cancel]
   return {
     admit,
     discharge,
+    confirm,
     fulfill,
     cancel,
     /** Une action est en cours : on évite les doubles clics. */

@@ -15,14 +15,19 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from geo.serializers import MAX_LIMIT, MIN_RADIUS_KM, distance_km, validate_finite
+from ml.constants import BLOOD_GROUPS
 from users.models import HealthFacility
 from users.serializers import HealthFacilitySummarySerializer
 
 from . import eligibility
 from .models import (
     MAX_SEARCH_RADIUS_KM,
+    MAX_UNITS_PER_REQUEST,
     Badge,
     BloodRequest,
+    BloodStock,
+    BloodSupplyOrder,
+    Component,
     Donation,
     Donor,
     DonorBadge,
@@ -194,6 +199,7 @@ class BloodRequestSerializer(serializers.ModelSerializer):
         help_text="Obligatoire pour un administrateur ; ignoré pour le personnel.",
     )
     blood_group_display = serializers.CharField(source='get_blood_group_display', read_only=True)
+    component_display = serializers.CharField(source='get_component_display', read_only=True)
     urgency_display = serializers.CharField(source='get_urgency_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     units_remaining = serializers.IntegerField(read_only=True)
@@ -208,6 +214,8 @@ class BloodRequestSerializer(serializers.ModelSerializer):
             'facility_id',
             'blood_group',
             'blood_group_display',
+            'component',
+            'component_display',
             'units_needed',
             'units_collected',
             'units_remaining',
@@ -220,6 +228,8 @@ class BloodRequestSerializer(serializers.ModelSerializer):
             'search_radius_km',
             'created_by',
             'response_counts',
+            'alert_wave',
+            'last_alert_at',
             'created_at',
             'updated_at',
             'closed_at',
@@ -228,6 +238,8 @@ class BloodRequestSerializer(serializers.ModelSerializer):
             'id',
             'units_collected',
             'status',
+            'alert_wave',
+            'last_alert_at',
             'created_at',
             'updated_at',
             'closed_at',
@@ -238,6 +250,7 @@ class BloodRequestSerializer(serializers.ModelSerializer):
         # Le groupe et l'établissement d'une demande existante ne changent pas.
         if isinstance(self.instance, BloodRequest):
             fields['blood_group'].read_only = True
+            fields['component'].read_only = True
             fields['facility_id'].read_only = True
         return fields
 
@@ -508,3 +521,133 @@ class GamificationProfileSerializer(serializers.Serializer):
     earned_badges_count = serializers.IntegerField()
     badges = serializers.ListField(child=serializers.DictField())
     locked_badges = serializers.ListField(child=serializers.DictField())
+
+
+# =============================================================
+# STOCK ET COMMANDES DE POCHES
+# =============================================================
+
+
+class BloodStockSerializer(serializers.ModelSerializer):
+    """Ligne de stock (groupe × produit) d'un établissement."""
+
+    facility = HealthFacilitySummarySerializer(read_only=True)
+    facility_id = serializers.PrimaryKeyRelatedField(
+        source='facility', queryset=HealthFacility.objects.all(), write_only=True, required=False
+    )
+    component_display = serializers.CharField(source='get_component_display', read_only=True)
+
+    class Meta:
+        model = BloodStock
+        fields = [
+            'id',
+            'facility',
+            'facility_id',
+            'blood_group',
+            'component',
+            'component_display',
+            'units_available',
+            'units_expiring_soon',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'updated_at']
+        validators = []
+
+    def validate(self, attrs):
+        if attrs.get('units_expiring_soon', 0) > attrs.get('units_available', 0):
+            raise serializers.ValidationError(
+                {'units_expiring_soon': ["Ne peut pas dépasser les poches disponibles."]}
+            )
+        return attrs
+
+
+class StockSearchSerializer(serializers.Serializer):
+    """Recherche de poches compatibles autour d'un établissement ou d'un point."""
+
+    blood_group = serializers.ChoiceField(choices=BLOOD_GROUPS)
+    component = serializers.ChoiceField(choices=Component.choices, default=Component.RED_CELLS)
+    units = serializers.IntegerField(min_value=1, max_value=MAX_UNITS_PER_REQUEST, default=1)
+    radius_km = serializers.IntegerField(min_value=1, max_value=500, default=100)
+    facility = serializers.PrimaryKeyRelatedField(queryset=HealthFacility.objects.filter(is_active=True), required=False)
+
+
+class NearbyStockFacilitySerializer(HealthFacilitySummarySerializer):
+    """Établissement ayant des poches compatibles en stock."""
+
+    distance_km = serializers.SerializerMethodField()
+    stock_lines = serializers.ListField(read_only=True)
+    total_units = serializers.IntegerField(read_only=True)
+
+    class Meta(HealthFacilitySummarySerializer.Meta):
+        fields = [*HealthFacilitySummarySerializer.Meta.fields, 'distance_km', 'stock_lines', 'total_units']
+        read_only_fields = fields
+
+    def get_distance_km(self, obj):
+        return distance_km(obj)
+
+
+class BloodSupplyOrderSerializer(serializers.ModelSerializer):
+    """Commande de poches entre deux établissements."""
+
+    requester = HealthFacilitySummarySerializer(read_only=True)
+    supplier = HealthFacilitySummarySerializer(read_only=True)
+    requester_id = serializers.PrimaryKeyRelatedField(
+        source='requester', queryset=HealthFacility.objects.all(), write_only=True, required=False
+    )
+    supplier_id = serializers.PrimaryKeyRelatedField(
+        source='supplier', queryset=HealthFacility.objects.filter(is_active=True), write_only=True
+    )
+    blood_request_id = serializers.PrimaryKeyRelatedField(
+        source='blood_request',
+        queryset=BloodRequest.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    component_display = serializers.CharField(source='get_component_display', read_only=True)
+    urgency_display = serializers.CharField(source='get_urgency_display', read_only=True)
+
+    class Meta:
+        model = BloodSupplyOrder
+        fields = [
+            'id',
+            'requester',
+            'requester_id',
+            'supplier',
+            'supplier_id',
+            'blood_request',
+            'blood_request_id',
+            'blood_group',
+            'component',
+            'component_display',
+            'units',
+            'urgency',
+            'urgency_display',
+            'status',
+            'status_display',
+            'note',
+            'answer_note',
+            'created_at',
+            'accepted_at',
+            'dispatched_at',
+            'delivered_at',
+            'closed_at',
+        ]
+        read_only_fields = [
+            'id',
+            'blood_request',
+            'status',
+            'answer_note',
+            'created_at',
+            'accepted_at',
+            'dispatched_at',
+            'delivered_at',
+            'closed_at',
+        ]
+
+
+class OrderAnswerSerializer(serializers.Serializer):
+    """Réponse du fournisseur : précisions (transport) ou motif de refus."""
+
+    note = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')

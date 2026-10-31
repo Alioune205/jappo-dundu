@@ -1,14 +1,16 @@
 import React, { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Phone } from 'lucide-react'
+import { BellRing, Phone } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { formatDistance } from '@/lib/format'
+import { formatDistance, formatRelative } from '@/lib/format'
+import { useNow } from '@/lib/useNow'
 import type { BloodRequest, DonorMatch, DonorResponse } from '@/types/api'
 import { responseTone } from './bloodStats'
 import { QK } from '@/lib/queryKeys'
+import { StockSourcing } from './StockSourcing'
 
 interface RequestDetailPanelProps {
   request: BloodRequest
@@ -56,7 +58,16 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
     },
   })
 
-  const actionError = confirmDonation.error ?? cancel.error
+  const relaunch = useMutation({
+    mutationFn: () => api.post<BloodRequest & { alerted_donors: number }>(`/api/sang/requests/${request.id}/alert-next-wave/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QK.bloodRequests })
+      queryClient.invalidateQueries({ queryKey: [...QK.requestMatches, request.id] })
+    },
+  })
+  const now = useNow(30_000)
+
+  const actionError = confirmDonation.error ?? cancel.error ?? relaunch.error
 
   return (
     <section className="panel" aria-label={`Demande ${request.id}`}>
@@ -108,6 +119,39 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
       </dl>
 
       {request.notes && <p className="border-b border-line px-5 py-3 text-xs text-muted">{request.notes}</p>}
+
+      {request.status === 'open' && <StockSourcing request={request} />}
+
+      {request.status === 'open' && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5">
+          <p className="text-xs text-muted">
+            {request.alert_wave === 0 ? (
+              'Aucune alerte envoyée pour l’instant.'
+            ) : (
+              <>
+                Vague d’alerte <span className="num font-semibold text-fg">{request.alert_wave}</span>
+                {request.last_alert_at && <> · {formatRelative(request.last_alert_at, now)}</>}
+              </>
+            )}
+            {relaunch.data && (
+              <span className="ml-1 text-fg">
+                · {relaunch.data.alerted_donors} donneur{relaunch.data.alerted_donors > 1 ? 's' : ''} prévenu
+                {relaunch.data.alerted_donors > 1 ? 's' : ''}
+              </span>
+            )}
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<BellRing className="h-3.5 w-3.5" />}
+            onClick={() => relaunch.mutate()}
+            isLoading={relaunch.isPending}
+            title="Prévenir les donneurs compatibles suivants sans attendre la relance automatique"
+          >
+            Alerter d’autres donneurs
+          </Button>
+        </div>
+      )}
 
       {request.status === 'open' && (
         <div className="border-b border-line px-4 py-3">

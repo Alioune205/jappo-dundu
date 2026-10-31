@@ -239,6 +239,25 @@ export interface Mission {
   completed_at: string | null
   cancelled_at: string | null
   response_time_minutes: number | null
+  /** Pré-alerte : réponse de l'hôpital de destination ('' sans destination). */
+  destination_status?: '' | 'pending' | 'accepted' | 'refused'
+  destination_status_display?: string
+  destination_note?: string
+  /** Bilan de l'équipage transmis à l'hôpital. */
+  vitals?: Vitals
+  bilan_notes?: string
+  bilan_updated_at?: string | null
+}
+
+export interface Vitals {
+  pulse?: number
+  systolic?: number
+  diastolic?: number
+  spo2?: number
+  resp_rate?: number
+  temperature?: number
+  gcs?: number
+  glucose?: number
 }
 
 /** Établissement proche avec des lits libres (GET /api/ambulances/missions/<id>/destinations/). */

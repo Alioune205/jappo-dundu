@@ -45,14 +45,16 @@ def facility_point(facility):
 # =============================================================
 
 
-def find_matching_donors(blood_request, *, radius_km=None, limit=20, today=None):
+def find_matching_donors(blood_request, *, radius_km=None, limit=20, today=None, queryset=None):
     """Donneurs éligibles et compatibles les plus proches de l'établissement.
 
-    Chaque donneur retourné porte ``distance_m``.
+    Chaque donneur retourné porte ``distance_m``. ``queryset`` restreint les
+    candidats (ex. donneurs pas encore alertés, voir ``sang.alerts``).
     """
     radius_km = min(radius_km or blood_request.search_radius_km, blood_request.search_radius_km)
     queryset = (
-        Donor.objects.eligible(today)
+        (queryset if queryset is not None else Donor.objects.all())
+        .eligible(today)
         .filter(blood_group__in=compatible_donor_groups(blood_request.blood_group))
         .exclude(responses__blood_request=blood_request)
         .exclude(

@@ -11,6 +11,7 @@ import { formatTime, timeAgo } from '@/lib/dates'
 import type { DriverStep } from '@/lib/missions'
 import { motion, radius, space, useTheme } from '@/theme'
 import type { Mission } from '@/types/api'
+import { BilanCard } from './BilanCard'
 import { currentTarget, nextAction, PRIORITY, stepIndex, STEPS } from './format'
 
 interface MissionPanelProps {
@@ -78,6 +79,22 @@ export function MissionPanel({ mission, now, busy, error, onAdvance, onChooseDes
           </View>
         ) : null}
 
+        {mission.destination_status === 'refused' ? (
+          <View style={[styles.destination, { backgroundColor: colors.brandSoft, borderRadius: 8, padding: 8 }]}>
+            <Icon name="alert" size={18} color="brand" />
+            <Text variant="label" tone="brand" style={styles.destinationText}>
+              Destination refusée{mission.destination_note ? ` : ${mission.destination_note}` : ''}. La régulation vous réoriente.
+            </Text>
+          </View>
+        ) : mission.destination_status === 'accepted' ? (
+          <View style={styles.destination}>
+            <Icon name="check" size={18} color="ok" />
+            <Text variant="label" tone="ok" style={styles.destinationText}>
+              L’hôpital attend le patient
+            </Text>
+          </View>
+        ) : null}
+
         {target ? (
           <View style={styles.actions}>
             <ActionButton icon="route" label="Itinéraire" onPress={() => openDirections(target)} />
@@ -100,6 +117,8 @@ export function MissionPanel({ mission, now, busy, error, onAdvance, onChooseDes
           haptic
         />
       ) : null}
+
+      {mission.status === 'on_site' || mission.status === 'transporting' ? <BilanCard mission={mission} now={now} /> : null}
 
       {mission.status === 'on_site' ? (
         <Pressable

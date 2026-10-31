@@ -16,6 +16,9 @@ export const QK = {
   bloodRequests: ['blood-requests'],
   requestMatches: ['request-matches'],
   requestResponses: ['request-responses'],
+  bloodInventory: ['blood-inventory'],
+  bloodOrders: ['blood-orders'],
+  stockNearby: ['stock-nearby'],
   // Lits
   bedCapacities: ['bed-capacities'],
   bedsSummary: ['beds-summary'],
@@ -30,6 +33,8 @@ export const QK = {
   missionStats: ['mission-stats'],
   ambulancesNearest: ['ambulances-nearest'],
   missionDestinations: ['mission-destinations'],
+  triageProtocol: ['triage-protocol'],
+  triageAssessment: ['triage-assessment'],
   // Prévisions
   predictionsSummary: ['predictions-summary'],
   mlPredictionsList: ['ml-predictions-list'],

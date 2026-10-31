@@ -19,6 +19,7 @@ import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MapView } from '@/components/map/MapView'
@@ -28,8 +29,12 @@ import { BED_CATEGORIES } from '@/lib/constants'
 import { useNow } from '@/lib/useNow'
 import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
 import { BED_EVENTS, MISSION_EVENTS } from '@/lib/realtimeEvents'
-import { formatDistance, formatNumber, formatPercent, formatRelative } from '@/lib/format'
+import { formatDistance, formatEta, formatNumber, formatPercent, formatRelative } from '@/lib/format'
 import { QK } from '@/lib/queryKeys'
+import { BilanSummary, DestinationStatusBadge } from '@/pages/ambulances/MissionClinical'
+import { PrealertActions } from './PrealertActions'
+import { TechnicalPanel } from './TechnicalPanel'
+import { TensionBanner } from './TensionBanner'
 import type {
   Ambulance,
   BedCapacity,
@@ -173,6 +178,8 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
           </Link>
         }
       />
+
+      <TensionBanner facility={facility} />
 
       {saturatedVital.length > 0 && (
         <Alert tone="danger" title="Service vital saturé">
@@ -377,8 +384,17 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                       </ol>
                       <p className="flex justify-between text-2xs text-muted">
                         <span className="font-semibold text-fg">{MISSION_STEPS[step]}</span>
-                        <span>Créée {formatRelative(m.created_at, now)}</span>
+                        <span>
+                          {m.status === 'transporting' && m.eta_at
+                            ? `Arrivée ${formatEta(m.eta_at, now)}`
+                            : `Créée ${formatRelative(m.created_at, now)}`}
+                        </span>
                       </p>
+                      {m.destination_status && m.destination_status !== 'pending' && (
+                        <DestinationStatusBadge mission={m} />
+                      )}
+                      <PrealertActions mission={m} />
+                      <BilanSummary mission={m} now={now} />
                     </li>
                   )
                 })}
@@ -387,6 +403,8 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
           </section>
 
           <TransferPanel facility={facility} services={services} />
+
+          <TechnicalPanel facility={facility} />
         </div>
       </div>
 
@@ -455,6 +473,21 @@ const TransferPanel: React.FC<{
     enabled: located,
   })
   const others = nearby.filter((f) => f.id !== facility.id).slice(0, 4)
+  const queryClient = useQueryClient()
+  const [sent, setSent] = useState<number | null>(null)
+  const transfer = useMutation({
+    mutationFn: (destinationId: number) =>
+      api.post<Mission>('/api/ambulances/missions/transfer/', {
+        destination_id: destinationId,
+        category,
+        priority: 'urgent',
+      }),
+    onSuccess: (_, destinationId) => {
+      setSent(destinationId)
+      queryClient.invalidateQueries({ queryKey: QK.missionsActive })
+      queryClient.invalidateQueries({ queryKey: QK.bedsNearest })
+    },
+  })
 
   return (
     <section className="panel">
@@ -463,7 +496,14 @@ const TransferPanel: React.FC<{
           <Route className="h-4 w-4 text-muted" aria-hidden="true" />
           Solutions de transfert
         </h2>
-        <p className="text-xs text-muted">Établissements proches avec des lits libres, dans un rayon de 50 km.</p>
+        <p className="text-xs text-muted">
+          Établissements proches avec des lits libres (50 km). « Transférer » réserve le lit et demande l’ambulance.
+        </p>
+        {transfer.error && (
+          <p role="alert" className="mt-1 text-xs text-critical">
+            {transfer.error instanceof Error ? transfer.error.message : 'Transfert impossible.'}
+          </p>
+        )}
       </div>
       <div className="flex flex-wrap gap-1.5 px-5 pt-3" role="group" aria-label="Service">
         {BED_CATEGORIES.filter((c) => c.vital).map((c) => (
@@ -504,9 +544,25 @@ const TransferPanel: React.FC<{
                   )}
                 </p>
               </div>
-              <div className="shrink-0 text-right">
-                <p className="num text-base font-semibold leading-tight text-ok">{f.available_beds}</p>
-                <p className="text-2xs text-muted">libres</p>
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="text-right">
+                  <p className="num text-base font-semibold leading-tight text-ok">{f.available_beds}</p>
+                  <p className="text-2xs text-muted">libres</p>
+                </div>
+                {sent === f.id ? (
+                  <span className="text-2xs font-semibold text-ok">Transfert demandé</span>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    isLoading={transfer.isPending && transfer.variables === f.id}
+                    disabled={transfer.isPending || sent !== null}
+                    onClick={() => transfer.mutate(f.id)}
+                    title="Réserve un lit là-bas et demande une ambulance à la régulation"
+                  >
+                    Transférer
+                  </Button>
+                )}
               </div>
             </li>
           ))}

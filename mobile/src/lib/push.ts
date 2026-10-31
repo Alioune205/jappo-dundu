@@ -44,6 +44,7 @@ export function configureNotificationHandler() {
 }
 
 /** Canal Android des alertes : importance maximale, vibration, couleur de marque. */
+/* eslint-disable import/namespace -- SDK 58 : énumérations réexportées que le plugin ne résout pas (le typage les voit). */
 async function ensureChannel() {
   if (Platform.OS !== 'android') return
   await Notifications.setNotificationChannelAsync(ALERT_CHANNEL, {
@@ -63,6 +64,7 @@ async function ensureChannel() {
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
   })
 }
+/* eslint-enable import/namespace */
 
 export async function getPushStatus(): Promise<PushStatus> {
   if (!pushSupported) return 'unsupported'
@@ -124,6 +126,12 @@ export function requestIdOf(response: Notifications.NotificationResponse | null 
 export function isSosNotification(response: Notifications.NotificationResponse | null | undefined) {
   const data = response?.notification.request.content.data as { type?: string } | undefined
   return data?.type === 'sos'
+}
+
+/** Rappel « vous pouvez de nouveau donner » (délai depuis le dernier don écoulé). */
+export function isEligibleAgainNotification(response: Notifications.NotificationResponse | null | undefined) {
+  const data = response?.notification.request.content.data as { type?: string } | undefined
+  return data?.type === 'eligible_again'
 }
 
 /** Identifiant de mission porté par une notification (ambulancier), s'il y en a un. */

@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { BookmarkPlus, Clock, Minus, MoreHorizontal, Plus, Siren } from 'lucide-react'
+import { BookmarkPlus, CheckCheck, Clock, LogOut, Minus, MoreHorizontal, Plus, Siren } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { BED_CATEGORIES } from '@/lib/constants'
 import type { BedCapacity, BedReservation } from '@/types/api'
 import { CapacityBar } from './CapacityBar'
+import { FreshnessBadge } from './FreshnessBadge'
 import { canCancel, canFulfill, remainingLabel, type ReservationViewer } from './reservationAccess'
 import type { BedActions } from './useBedActions'
 
@@ -41,6 +42,16 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ cap, reservations, vie
               </Badge>
             )}
           </h3>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <FreshnessBadge freshness={cap.freshness} confirmedAt={cap.confirmed_at} now={now} />
+            {cap.expected_discharges > 0 && (
+              <span className="inline-flex items-center gap-1 text-2xs text-muted">
+                <LogOut className="h-3 w-3" aria-hidden="true" />
+                {cap.expected_discharges} sortie{cap.expected_discharges > 1 ? 's' : ''} prévue
+                {cap.expected_discharges > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-start gap-3">
           <p className="text-right leading-tight">
@@ -54,6 +65,23 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ cap, reservations, vie
       </header>
 
       <CapacityBar cap={cap} className="px-4 pt-3" />
+
+      {cap.freshness !== 'fresh' && (
+        <div className="mx-4 mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2">
+          <p className="text-xs text-fg">Ces chiffres sont-ils toujours justes ?</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<CheckCheck className="h-3.5 w-3.5" />}
+            disabled={actions.busy && !pending(actions.confirm)}
+            isLoading={pending(actions.confirm)}
+            onClick={() => actions.confirm.mutate(cap.id)}
+            title="Les lits n'ont pas changé : confirmer les chiffres"
+          >
+            Oui, confirmer
+          </Button>
+        </div>
+      )}
 
       {reservations.length > 0 && (
         <ul className="mx-4 mt-3 space-y-2 rounded-lg border border-info/30 bg-info/5 p-2.5" aria-label="Patients attendus">

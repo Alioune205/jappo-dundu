@@ -14,6 +14,8 @@ import { RequestTable } from './blood/RequestTable'
 import { RequestDetailPanel } from './blood/RequestDetailPanel'
 import { DonationLookupPanel } from './blood/DonationLookupPanel'
 import { CreateRequestModal } from './blood/CreateRequestModal'
+import { StockInventoryPanel } from './blood/StockInventoryPanel'
+import { SupplyOrdersPanel } from './blood/SupplyOrdersPanel'
 import { QK } from '@/lib/queryKeys'
 
 /** Page « Banque de sang » : liste des demandes, sélection, filtres. */
@@ -24,6 +26,11 @@ export const BloodManagement: React.FC = () => {
     {
       events: [RealtimeEvent.bloodResponseUpdated],
       queryKeys: [QK.bloodRequests, QK.requestResponses, QK.requestMatches],
+    },
+    { events: [RealtimeEvent.bloodStockUpdated], queryKeys: [QK.bloodInventory, QK.stockNearby] },
+    {
+      events: [RealtimeEvent.bloodOrderCreated, RealtimeEvent.bloodOrderUpdated],
+      queryKeys: [QK.bloodOrders, QK.bloodRequests],
     },
   ])
 
@@ -58,7 +65,7 @@ export const BloodManagement: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Banque de sang"
-        description="Demandes de poches, donneurs compatibles à proximité et enregistrement des dons."
+        description="Demandes, poches en stock à proximité, commandes entre établissements, donneurs et dons."
         actions={
           <>
             <Button
@@ -94,6 +101,12 @@ export const BloodManagement: React.FC = () => {
           )}
           <DonationLookupPanel />
         </div>
+      </div>
+
+      {/* Stock et commandes : l'urgence immédiate se traite avec les poches déjà qualifiées. */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <SupplyOrdersPanel />
+        <StockInventoryPanel />
       </div>
 
       <CreateRequestModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} />

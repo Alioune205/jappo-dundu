@@ -19,6 +19,7 @@ from datetime import timedelta
 
 from django.db import IntegrityError, transaction
 from django.db.models import F, OuterRef, Subquery
+from django.db.models.functions import Least
 from django.utils import timezone
 
 from geo.search import nearest
@@ -33,6 +34,7 @@ logger = logging.getLogger('jappo_dundu.lits')
 CAPACITY_UPDATED = 'bed_capacity_updated'
 CAPACITY_SATURATED = 'bed_capacity_saturated'
 CAPACITY_RESTORED = 'bed_capacity_restored'
+CAPACITY_STALE = 'bed_capacity_stale'
 
 DEFAULT_HOLD_MINUTES = 45
 MAX_HOLD_MINUTES = 240
@@ -57,6 +59,9 @@ def capacity_payload(capacity, event):
         'reserved_beds': capacity.reserved_beds,
         'available_beds': capacity.available_beds,
         'occupancy_rate': capacity.occupancy_rate,
+        'expected_discharges': capacity.expected_discharges,
+        'confirmed_at': capacity.confirmed_at.isoformat() if capacity.confirmed_at else None,
+        'freshness': capacity.freshness,
         'facility': {
             'id': facility.pk,
             'name': facility.name,
@@ -112,6 +117,7 @@ def create_capacity(*, facility, category, total_beds, occupied_beds=0, updated_
                 total_beds=total_beds,
                 occupied_beds=occupied_beds,
                 updated_by=updated_by,
+                confirmed_at=timezone.now(),
             )
             notify_capacity(capacity, previous_available=None)
     except IntegrityError as exc:
@@ -128,6 +134,8 @@ def update_capacity(capacity, *, updated_by, **changes):
         setattr(locked, field, value)
     if locked.occupied_beds > locked.total_beds:
         raise Conflict("Les lits occupés ne peuvent pas dépasser les lits installés.")
+    if locked.expected_discharges > locked.occupied_beds:
+        raise Conflict("Les sorties prévues ne peuvent pas dépasser les lits occupés.")
     if locked.occupied_beds + locked.reserved_beds > locked.total_beds:
         # Un ajustement manuel ne supprime jamais en silence le lit promis à un
         # patient en route : la réservation doit être traitée d'abord.
@@ -136,23 +144,74 @@ def update_capacity(capacity, *, updated_by, **changes):
             "ces réservations avant de réduire les lits disponibles."
         )
     locked.updated_by = updated_by
+    locked.confirmed_at = timezone.now()
     locked.save()
     locked.facility = capacity.facility
     notify_capacity(locked, previous_available)
     return locked
 
 
+def confirm_capacity(capacity, *, updated_by):
+    """« Les chiffres sont toujours justes » : renouvelle leur fraîcheur sans les changer."""
+    now = timezone.now()
+    BedCapacity.objects.filter(pk=capacity.pk).update(confirmed_at=now, updated_by=updated_by, updated_at=now)
+    capacity.refresh_from_db(fields=['confirmed_at', 'updated_by', 'updated_at'])
+    notify_capacity(capacity, capacity.available_beds)
+    return capacity
+
+
+def stale_capacities(facility=None):
+    """Services dont les chiffres n'ont pas été confirmés depuis ``BED_STALE_MINUTES``."""
+    from django.conf import settings
+
+    limit = timezone.now() - timedelta(minutes=getattr(settings, 'BED_STALE_MINUTES', 720))
+    queryset = BedCapacity.objects.filter(confirmed_at__lt=limit, facility__is_active=True)
+    if facility is not None:
+        queryset = queryset.filter(facility=facility)
+    return queryset.select_related('facility')
+
+
+def remind_stale():
+    """Alerte chaque établissement dont des services ne sont plus confirmés.
+
+    Diffusée sur le flux d'alertes de l'établissement : le tableau de bord des
+    lits affiche le rappel et le bouton « Confirmer ». Retourne le nombre de
+    services concernés.
+    """
+    stale = list(stale_capacities())
+    for capacity in stale:
+        broadcast_alert(
+            'bed',
+            capacity_payload(capacity, CAPACITY_STALE),
+            region=capacity.facility.region,
+            hospital_id=capacity.facility_id,
+        )
+    return len(stale)
+
+
 def _shift_occupancy(capacity, delta, condition, error, updated_by):
     with transaction.atomic():
+        now = timezone.now()
         updated = BedCapacity.objects.filter(pk=capacity.pk, **condition).update(
             occupied_beds=F('occupied_beds') + delta,
+            # Une sortie consomme une sortie prévue.
+            expected_discharges=Least(F('expected_discharges'), F('occupied_beds') + delta),
             updated_by=updated_by,
-            updated_at=timezone.now(),
+            updated_at=now,
+            confirmed_at=now,
         )
         if not updated:
             raise Conflict(error)
         capacity.refresh_from_db(
-            fields=['total_beds', 'occupied_beds', 'reserved_beds', 'updated_at', 'updated_by']
+            fields=[
+                'total_beds',
+                'occupied_beds',
+                'reserved_beds',
+                'expected_discharges',
+                'updated_at',
+                'updated_by',
+                'confirmed_at',
+            ]
         )
         notify_capacity(capacity, capacity.available_beds + delta)
     return capacity
@@ -185,27 +244,81 @@ def discharge(capacity, *, updated_by):
 
 
 # =============================================================
+# NIVEAU DE TENSION
+# =============================================================
+
+# Consignes associées à chaque niveau (inspirées des niveaux d'escalade
+# hospitaliers OPEL) ; à adapter avec chaque établissement.
+TENSION_LEVELS = {
+    1: ("Normal", "Activité habituelle."),
+    2: ("Tension modérée", "Anticiper les sorties du jour ; confirmer les chiffres toutes les 2 h."),
+    3: ("Tension forte", "Accélérer les sorties ; prévenir la régulation ; reporter les admissions programmées."),
+    4: ("Saturation", "Plan blanc à envisager ; la régulation oriente les patients vers d'autres hôpitaux."),
+}
+
+
+def tension_of(capacities):
+    """Niveau de tension (1 à 4) d'un établissement à partir de ses services, et ses raisons.
+
+    - 4 : un service vital plein et l'établissement occupé à 95 % ou plus ;
+    - 3 : un service vital plein, ou 90 % d'occupation ;
+    - 2 : un service vital à 90 %, ou 80 % d'occupation ;
+    - 1 : sinon.
+    """
+    capacities = list(capacities)
+    total = sum(c.total_beds for c in capacities)
+    used = sum(c.occupied_beds + c.reserved_beds for c in capacities)
+    rate = used / total if total else 0
+    vital = [c for c in capacities if c.category in BedCapacity.CRITICAL_CATEGORIES and c.total_beds]
+    vital_full = [c for c in vital if c.available_beds == 0]
+    vital_high = [c for c in vital if (c.occupied_beds + c.reserved_beds) / c.total_beds >= 0.9]
+    reasons = [f"{c.get_category_display()} plein" for c in vital_full]
+    if rate >= 0.8:
+        reasons.append(f"Occupation {round(rate * 100)} %")
+    if vital_full and rate >= 0.95:
+        level = 4
+    elif vital_full or rate >= 0.9:
+        level = 3
+    elif vital_high or rate >= 0.8:
+        level = 2
+        reasons.extend(f"{c.get_category_display()} à 90 %" for c in vital_high if c not in vital_full)
+    else:
+        level = 1
+    label, action = TENSION_LEVELS[level]
+    return {'level': level, 'label': label, 'action': action, 'occupancy_rate': round(rate, 4), 'reasons': reasons}
+
+
+# =============================================================
 # RECHERCHE
 # =============================================================
 
 
-def find_facilities_with_beds(point, *, category, radius_m, limit, min_available=1):
+def find_facilities_with_beds(point, *, category, radius_m, limit, min_available=1, capabilities=()):
     """Établissements actifs les plus proches ayant ``min_available`` lits libres.
 
-    Chaque établissement retourné porte ``distance_m`` et ``available_beds``.
+    Chaque établissement retourné porte ``distance_m``, ``available_beds``,
+    ``expected_discharges`` et ``confirmed_at``. ``capabilities`` : plateau
+    technique exigé (tous les codes doivent être déclarés par l'établissement).
     """
     release_expired()
-    available = (
-        BedCapacity.objects.filter(facility=OuterRef('pk'), category=category)
-        .annotate(free=FREE_BEDS)
-        .values('free')[:1]
-    )
+    service = BedCapacity.objects.filter(facility=OuterRef('pk'), category=category)
     queryset = (
         HealthFacility.objects.filter(is_active=True, facility_type__in=BED_FACILITY_TYPES)
-        .annotate(available_beds=Subquery(available))
+        .annotate(
+            available_beds=Subquery(service.annotate(free=FREE_BEDS).values('free')[:1]),
+            expected_discharges=Subquery(service.values('expected_discharges')[:1]),
+            # Fraîcheur des chiffres : l'écran signale un lit « libre » non reconfirmé.
+            confirmed_at=Subquery(service.values('confirmed_at')[:1]),
+        )
         .filter(available_beds__gte=min_available)
     )
-    return nearest(queryset, point, radius_m=radius_m, limit=limit)
+    if not capabilities:
+        return nearest(queryset, point, radius_m=radius_m, limit=limit)
+    # Plateau technique requis (liste JSON, filtrée ici pour rester portable) :
+    # on élargit la recherche puis on garde les établissements équipés.
+    required = set(capabilities)
+    candidates = nearest(queryset, point, radius_m=radius_m, limit=max(limit * 10, 50))
+    return [facility for facility in candidates if required <= set(facility.capabilities or ())][:limit]
 
 
 # =============================================================

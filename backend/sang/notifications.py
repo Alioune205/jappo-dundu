@@ -15,7 +15,6 @@ Auteur : Ibrahima Khalilou Diallo
 from django.db import transaction
 from django.db.models import Count, Q
 
-from push.services import notify_blood_request as notify_push
 from realtime.broadcast import broadcast_alert, broadcast_dashboard
 
 from .models import DonorResponse
@@ -59,10 +58,13 @@ def notify_request(blood_request, event):
         broadcast_alert('blood', payload, region=region, hospital_id=hospital_id)
         broadcast_dashboard('dashboard', payload, hospital_id=hospital_id)
         if event == REQUEST_CREATED:
-            # Notification push aux donneurs compatibles à portée (application
-            # mobile) : ils sont prévenus même application fermée.
-            notify_push(blood_request)
-            notify_blood_request_sms(blood_request)
+            # Première vague d'alertes : les donneurs compatibles les plus
+            # proches, par notification push (application fermée) ou par SMS.
+            # Les vagues suivantes partent si les engagements manquent
+            # (sang/alerts.py, commande escalate_blood_alerts).
+            from .alerts import send_wave
+
+            send_wave(blood_request)
 
     transaction.on_commit(send)
 
@@ -89,12 +91,17 @@ def notify_response(response):
         lambda: broadcast_dashboard('dashboard', payload, hospital_id=hospital_id)
     )
 
-def notify_blood_request_sms(blood_request):
-    """Envoie un SMS d'alerte aux 10 donneurs les plus proches (solution de repli sans internet)."""
+def notify_blood_request_sms(blood_request, donors=None):
+    """SMS d'alerte aux donneurs sans téléphone enregistré pour les notifications.
+
+    Solution de repli sans Internet. Sans liste, les 10 donneurs compatibles
+    les plus proches (appel historique).
+    """
     from sang.services import find_matching_donors
     from users.models import UserProfile
 
-    donors = find_matching_donors(blood_request, limit=10)
+    if donors is None:
+        donors = find_matching_donors(blood_request, limit=10)
     if not donors:
         return
 
