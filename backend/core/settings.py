@@ -273,6 +273,7 @@ REST_FRAMEWORK = {
         'donor_lookup': config('THROTTLE_DONOR_LOOKUP_RATE', default='120/hour'),
         # Alerte SOS d'un citoyen (une seule active à la fois, voir ambulances.services).
         'sos': config('THROTTLE_SOS_RATE', default='10/hour'),
+        'locate': config('THROTTLE_LOCATE_RATE', default='30/hour'),
         # Récupération de compte : demandes de code et essais, par adresse IP.
         'password_reset': config('THROTTLE_PASSWORD_RESET_RATE', default='5/hour'),
         'password_reset_confirm': config('THROTTLE_PASSWORD_RESET_CONFIRM_RATE', default='20/hour'),
@@ -536,3 +537,6 @@ OSRM_URL = config('OSRM_URL', default='')
 OSRM_TIMEOUT_SECONDS = config('OSRM_TIMEOUT_SECONDS', default=1.5, cast=float)
 ROUTING_DETOUR_FACTOR = config('ROUTING_DETOUR_FACTOR', default=1.4, cast=float)
 ROUTING_SPEED_KMH = config('ROUTING_SPEED_KMH', default=35, cast=float)
+
+# Adresse publique du site web (liens envoyés par SMS, ex. localisation de l'appelant).
+PUBLIC_WEB_URL = config('PUBLIC_WEB_URL', default='http://localhost:3000')

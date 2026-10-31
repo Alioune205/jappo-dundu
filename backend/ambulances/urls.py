@@ -7,7 +7,15 @@ Auteur : Ibrahima Khalilou Diallo
 from django.urls import path
 from rest_framework.routers import SimpleRouter
 
-from .views import AmbulanceViewSet, EmergencyProfileView, MissionViewSet, SosCancelView, SosView, TriageView
+from .views import (
+    AmbulanceViewSet,
+    EmergencyProfileView,
+    MissionViewSet,
+    PublicLocationView,
+    SosCancelView,
+    SosView,
+    TriageView,
+)
 
 app_name = 'ambulances'
 
@@ -19,6 +27,7 @@ urlpatterns = [
     path('sos/', SosView.as_view(), name='sos'),
     path('sos/profile/', EmergencyProfileView.as_view(), name='sos-profile'),
     path('triage/', TriageView.as_view(), name='triage'),
+    path('locate/<str:token>/', PublicLocationView.as_view(), name='locate'),
     path('sos/<int:pk>/cancel/', SosCancelView.as_view(), name='sos-cancel'),
     *router.urls,
 ]

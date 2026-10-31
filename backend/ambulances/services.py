@@ -137,6 +137,27 @@ def notify_ambulance(ambulance, event):
 # =============================================================
 
 
+SHIFT_CHECK_HOURS = 12
+
+
+def readiness_of(ambulance, now=None):
+    """État de préparation : vérifiée depuis moins de 12 h et sans défaut."""
+    check = ambulance.checks.order_by('-checked_at').first()
+    if check is None:
+        return {'ready': False, 'checked_at': None, 'issues': ["Pas de vérification de garde"]}
+    stale = (now or timezone.now()) - check.checked_at > timedelta(hours=SHIFT_CHECK_HOURS)
+    issues = [*check.issues, *(["Vérification de plus de 12 h"] if stale else [])]
+    return {'ready': not issues, 'checked_at': check.checked_at, 'issues': issues}
+
+
+def record_check(ambulance, *, checked_by, **data):
+    from .models import ShiftCheck
+
+    check = ShiftCheck.objects.create(ambulance=ambulance, checked_by=checked_by, **data)
+    notify_ambulance(ambulance, AMBULANCE_STATUS)
+    return check
+
+
 def rank_by_travel_time(ambulances, point):
     """Trie des ambulances par durée de trajet jusqu'au point (chacune porte ``travel``).
 
@@ -147,7 +168,9 @@ def rank_by_travel_time(ambulances, point):
     times = travel_times_to(point, [(a.latitude, a.longitude) for a in ambulances])
     for ambulance, travel in zip(ambulances, times, strict=True):
         ambulance.travel = travel
-    return sorted(ambulances, key=lambda a: a.travel.minutes)
+        ambulance.readiness = readiness_of(ambulance)
+    # Les ambulances prêtes d'abord (vérifiées, sans défaut), puis la plus rapide.
+    return sorted(ambulances, key=lambda a: (not a.readiness['ready'], a.travel.minutes))
 
 
 # Une estimation recalculée au plus une fois par minute au fil des positions.
@@ -392,6 +415,58 @@ def region_at(point, default=None):
     return closest[0].region if closest else default
 
 
+LOCATION_LINK_MINUTES = 30
+
+
+def send_location_link(mission, *, phone_number, created_by, base_url):
+    """Envoie par SMS un lien qui fait remonter la position GPS de l'appelant."""
+    import secrets
+
+    from identity.sms import send_sms
+
+    from .models import LocationLink
+
+    if mission.is_final:
+        raise Conflict("Cette mission est clôturée.")
+    link = LocationLink.objects.create(
+        token=secrets.token_urlsafe(32),
+        mission=mission,
+        phone_number=phone_number,
+        created_by=created_by,
+        expires_at=timezone.now() + timedelta(minutes=LOCATION_LINK_MINUTES),
+    )
+    url = f"{base_url.rstrip('/')}/localiser/{link.token}"
+    transaction.on_commit(
+        lambda: send_sms(
+            phone_number,
+            f"SAMU / Jappo Dundu : touchez ce lien pour envoyer votre position aux secours : {url}",
+        )
+    )
+    return link
+
+
+@transaction.atomic
+def receive_location(token, point, *, accuracy_m=None):
+    """Position transmise depuis le lien : met à jour le lieu d'une mission pas encore sur place."""
+    from .models import LocationLink
+
+    link = LocationLink.objects.select_for_update().select_related('mission').filter(token=token).first()
+    if link is None or link.used_at is not None or link.expires_at < timezone.now():
+        raise Conflict("Ce lien a expiré : rappelez le SAMU au 1515.")
+    mission = _locked_mission(link.mission)
+    if mission.status not in (MissionStatus.PENDING, MissionStatus.ASSIGNED):
+        raise Conflict("Les secours sont déjà sur place.")
+    mission.pickup_latitude = point.latitude
+    mission.pickup_longitude = point.longitude
+    refresh_eta(mission, force=True)
+    mission.save(update_fields=['pickup_latitude', 'pickup_longitude', *ETA_FIELDS, 'updated_at'])
+    link.used_at = timezone.now()
+    link.accuracy_m = accuracy_m
+    link.save(update_fields=['used_at', 'accuracy_m'])
+    notify_mission(mission, MISSION_UPDATED)
+    return mission
+
+
 CALLER_CANCELLATION = "Alerte retirée par l'appelant"
 
 
@@ -406,6 +481,54 @@ def caller_history(user_id, days=30):
         .exclude(cancellation_reason=CALLER_CANCELLATION)
         .count(),
     }
+
+
+MAX_INCIDENT_AMBULANCES = 10
+
+
+def create_incident(*, victims, ambulances, priority, description, pickup_address, pickup_latitude,
+                    pickup_longitude, region, created_by, triage=None, caller_phone=''):
+    """Plusieurs victimes : un incident, une mission par ambulance demandée, affectées aussitôt.
+
+    Les ambulances sont affectées une par une (les plus rapides d'abord) ;
+    celles qui manquent laissent leur mission en attente, visible par la
+    régulation. Retourne l'incident.
+    """
+    from .models import Incident
+
+    ambulances = max(1, min(ambulances, victims, MAX_INCIDENT_AMBULANCES))
+    with transaction.atomic():
+        incident = Incident.objects.create(
+            description=description,
+            victims=victims,
+            region=region,
+            pickup_address=pickup_address,
+            pickup_latitude=pickup_latitude,
+            pickup_longitude=pickup_longitude,
+            created_by=created_by,
+        )
+        missions = [
+            create_mission(
+                created_by=created_by,
+                priority=priority,
+                description=f"{description} — victime {index + 1}/{victims}",
+                pickup_address=pickup_address,
+                pickup_latitude=pickup_latitude,
+                pickup_longitude=pickup_longitude,
+                region=region,
+                caller_phone=caller_phone,
+                triage=triage or {},
+                incident=incident,
+            )
+            for index in range(ambulances)
+        ]
+    for mission in missions:
+        try:
+            assign(mission)
+        except Conflict:
+            break  # plus d'ambulance disponible : les suivantes restent en attente
+    logger.info("Incident %s : %d victimes, %d missions", incident.pk, victims, len(missions))
+    return incident
 
 
 @transaction.atomic
@@ -591,6 +714,44 @@ def update_bilan(mission, *, vitals=None, notes=None):
 # =============================================================
 # INDICATEURS
 # =============================================================
+
+# Maille des zones d'appels : 0,02° ≈ 2 km.
+DEMAND_GRID_DEG = 0.02
+MAX_DEMAND_MISSIONS = 20_000
+
+
+def demand_profile(missions, *, top=5):
+    """Où et quand les appels arrivent : par heure, par jour de la semaine, zones les plus actives.
+
+    Sert au pré-positionnement : placer les ambulances disponibles près des
+    zones chaudes de l'heure à venir.
+    """
+    by_hour = [0] * 24
+    by_weekday = [0] * 7
+    zones = {}
+    rows = missions.order_by('-created_at').values_list('created_at', 'pickup_latitude', 'pickup_longitude')
+    for created_at, latitude, longitude in rows[:MAX_DEMAND_MISSIONS]:
+        local = timezone.localtime(created_at)
+        by_hour[local.hour] += 1
+        by_weekday[local.weekday()] += 1
+        cell = (round(latitude / DEMAND_GRID_DEG), round(longitude / DEMAND_GRID_DEG))
+        zone = zones.setdefault(cell, {'count': 0, 'hours': [0] * 24})
+        zone['count'] += 1
+        zone['hours'][local.hour] += 1
+    hottest = sorted(zones.items(), key=lambda item: -item[1]['count'])[:top]
+    return {
+        'by_hour': by_hour,
+        'by_weekday': by_weekday,
+        'zones': [
+            {
+                'latitude': round(cell[0] * DEMAND_GRID_DEG, 4),
+                'longitude': round(cell[1] * DEMAND_GRID_DEG, 4),
+                'count': zone['count'],
+                'peak_hour': max(range(24), key=lambda h: zone['hours'][h]),
+            }
+            for cell, zone in hottest
+        ],
+    }
 
 
 def _minutes(deltas):

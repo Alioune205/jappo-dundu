@@ -341,6 +341,8 @@ export interface NearbyAmbulance extends Ambulance {
   /** Durée de trajet jusqu'au lieu, par la route (osrm) ou estimée. */
   travel_minutes: number | null
   travel_source: 'osrm' | 'estimate' | null
+  /** Vérification de garde : prête (moins de 12 h, sans défaut) ou non. */
+  readiness?: { ready: boolean; checked_at: string | null; issues: string[] }
 }
 
 export interface AmbulanceInput {
@@ -408,6 +410,8 @@ export interface Mission {
     conditions: string
     medications: string
   } | null
+  /** Plusieurs victimes : l'incident et l'avancement de ses missions. */
+  incident_summary?: { id: number; victims: number; missions: number; assigned: number; destinations: string[] } | null
   /** Alertes SOS de l'appelant sur 30 jours (fausses alertes répétées). */
   caller_history?: { days: number; alerts: number; cancelled_by_regulation: number } | null
 }

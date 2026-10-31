@@ -12,6 +12,7 @@ import {
   Login,
   NotFound,
   Landing,
+  Locate,
 } from '@/pages/lazy'
 
 export const routes = [
@@ -22,6 +23,16 @@ export const routes = [
     element: (
       <SuspenseWrapper>
         <Landing />
+      </SuspenseWrapper>
+    ),
+  },
+  {
+    // Lien envoyé par SMS à un appelant du SAMU : page publique, sans compte.
+    path: '/localiser/:token',
+    errorElement: <RouteError />,
+    element: (
+      <SuspenseWrapper>
+        <Locate />
       </SuspenseWrapper>
     ),
   },

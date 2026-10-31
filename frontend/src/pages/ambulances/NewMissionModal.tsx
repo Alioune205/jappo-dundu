@@ -66,6 +66,10 @@ const NewMissionForm: React.FC<{ onCancel: () => void; onCreated: (mission: Miss
   const { data: assessment } = useTriageAssessment(answers)
   const suggested = Object.keys(answers).length > 0 ? assessment?.priority : undefined
   const priority = !priorityTouched && suggested ? suggested : form.priority
+  // Plusieurs victimes (tri) : un incident, une mission par ambulance envoyée.
+  const several = answers.victims === '2-4' || answers.victims === '5+'
+  const [victims, setVictims] = useState(3)
+  const [ambulances, setAmbulances] = useState(2)
 
   const { data: hospitals = [] } = useQuery<FacilitySummary[]>({
     queryKey: QK.facilitiesHospitals,
@@ -74,7 +78,17 @@ const NewMissionForm: React.FC<{ onCancel: () => void; onCreated: (mission: Miss
   })
 
   const create = useMutation({
-    mutationFn: () => api.post<Mission>('/api/ambulances/missions/', { ...form, priority, triage: answers }),
+    mutationFn: async () => {
+      if (!several) return api.post<Mission>('/api/ambulances/missions/', { ...form, priority, triage: answers })
+      const missions = await api.post<Mission[]>('/api/ambulances/missions/incident/', {
+        ...form,
+        priority,
+        triage: answers,
+        victims,
+        ambulances,
+      })
+      return missions[0]
+    },
     onSuccess: (mission) => {
       queryClient.invalidateQueries({ queryKey: QK.missionsAll })
       queryClient.invalidateQueries({ queryKey: QK.missionsActive })
@@ -172,6 +186,30 @@ const NewMissionForm: React.FC<{ onCancel: () => void; onCreated: (mission: Miss
         </Select>
       </div>
 
+      {several && (
+        <div className="grid grid-cols-2 gap-3 rounded-lg border border-critical/40 bg-critical/5 p-3">
+          <Input
+            label="Victimes annoncées"
+            type="number"
+            min={2}
+            max={200}
+            value={victims}
+            onChange={(e) => setVictims(Math.max(2, parseInt(e.target.value, 10) || 2))}
+          />
+          <Input
+            label="Ambulances à envoyer"
+            type="number"
+            min={1}
+            max={10}
+            value={ambulances}
+            onChange={(e) => setAmbulances(Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 1)))}
+          />
+          <p className="col-span-2 text-2xs text-muted">
+            Une mission par ambulance, affectées aussitôt ; répartissez ensuite les victimes entre plusieurs hôpitaux.
+          </p>
+        </div>
+      )}
+
       <Textarea
         label="Motif de l'appel"
         placeholder="ex. détresse respiratoire aiguë, patient inconscient"
@@ -184,7 +222,7 @@ const NewMissionForm: React.FC<{ onCancel: () => void; onCreated: (mission: Miss
           Annuler
         </Button>
         <Button type="submit" variant="danger" disabled={!canDeploy} isLoading={create.isPending}>
-          Déclencher
+          {several ? `Déclencher ${ambulances} ambulances` : 'Déclencher'}
         </Button>
       </div>
     </form>

@@ -86,6 +86,33 @@ class Ambulance(models.Model):
         return f"{self.plate_number} ({self.get_status_display()})"
 
 
+class Incident(models.Model):
+    """Accident à plusieurs victimes : un appel, plusieurs missions liées.
+
+    Chaque mission porte une ambulance ; la régulation répartit ensuite les
+    victimes entre plusieurs hôpitaux pour ne saturer aucun service.
+    """
+
+    description = models.CharField(max_length=255, verbose_name="Description")
+    victims = models.PositiveSmallIntegerField(verbose_name="Victimes annoncées")
+    region = models.CharField(max_length=50, choices=REGIONS, verbose_name="Région")
+    pickup_address = models.CharField(max_length=255, verbose_name="Lieu")
+    pickup_latitude = latitude_field()
+    pickup_longitude = longitude_field()
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Incident à plusieurs victimes"
+        verbose_name_plural = "Incidents à plusieurs victimes"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Incident #{self.pk} — {self.victims} victimes ({self.pickup_address})"
+
+
 class Mission(models.Model):
     """Intervention d'urgence d'une ambulance."""
 
@@ -223,6 +250,14 @@ class Mission(models.Model):
         default=Source.DISPATCH,
         verbose_name="Origine",
     )
+    incident = models.ForeignKey(
+        Incident,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='missions',
+        verbose_name="Incident à plusieurs victimes",
+    )
     # Transfert : établissement d'où part le patient (lieu d'intervention).
     origin_facility = models.ForeignKey(
         HealthFacility,
@@ -340,3 +375,69 @@ class EmergencyProfile(models.Model):
 
     def __str__(self):
         return f"Fiche d'urgence — {self.user}"
+
+
+class LocationLink(models.Model):
+    """Lien envoyé par SMS à l'appelant : sa position GPS remonte en un geste.
+
+    Jeton aléatoire à usage unique, valable ``LOCATION_LINK_MINUTES`` ; la page
+    publique (web, sans compte) ne montre ni nom ni détail de la mission.
+    """
+
+    token = models.CharField(max_length=43, unique=True)
+    mission = models.ForeignKey(Mission, on_delete=models.CASCADE, related_name='location_links')
+    phone_number = models.CharField(max_length=13, verbose_name="Envoyé au")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    accuracy_m = models.FloatField(null=True, blank=True, verbose_name="Précision (m)")
+
+    class Meta:
+        verbose_name = "Lien de localisation"
+        verbose_name_plural = "Liens de localisation"
+
+
+class ShiftCheck(models.Model):
+    """Vérification de l'ambulance en début de garde : prête à partir, ou pas.
+
+    Une ambulance sans vérification depuis ``SHIFT_CHECK_HOURS`` (12 h) ou
+    avec un défaut signalé passe après les autres à l'affectation automatique.
+    """
+
+    class Fuel(models.TextChoices):
+        FULL = 'full', "Plein"
+        HALF = 'half', "Moitié"
+        LOW = 'low', "Réserve"
+
+    ambulance = models.ForeignKey(Ambulance, on_delete=models.CASCADE, related_name='checks')
+    checked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    checked_at = models.DateTimeField(auto_now_add=True)
+    oxygen_ok = models.BooleanField(verbose_name="Oxygène suffisant")
+    equipment_ok = models.BooleanField(verbose_name="Matériel complet (brancard, défibrillateur, trousse)")
+    fuel = models.CharField(max_length=5, choices=Fuel.choices, verbose_name="Carburant")
+    crew_count = models.PositiveSmallIntegerField(default=2, verbose_name="Équipage")
+    notes = models.CharField(max_length=255, blank=True, verbose_name="Observations")
+
+    class Meta:
+        verbose_name = "Vérification de garde"
+        verbose_name_plural = "Vérifications de garde"
+        ordering = ['-checked_at']
+        indexes = [models.Index(fields=['ambulance', '-checked_at'], name='idx_check_ambulance_date')]
+
+    @property
+    def issues(self):
+        problems = []
+        if not self.oxygen_ok:
+            problems.append("Oxygène insuffisant")
+        if not self.equipment_ok:
+            problems.append("Matériel incomplet")
+        if self.fuel == self.Fuel.LOW:
+            problems.append("Carburant en réserve")
+        if self.crew_count < 2:
+            problems.append("Équipage incomplet")
+        return problems

@@ -17,6 +17,7 @@ import { PermissionCard, type PermissionState } from '@/features/donor/Permissio
 import { DestinationSheet } from '@/features/mission/DestinationSheet'
 import { outcome, PRIORITY } from '@/features/mission/format'
 import { MissionPanel } from '@/features/mission/MissionPanel'
+import { ShiftCheckCard } from '@/features/mission/ShiftCheckCard'
 import { formatDate, formatTime, timeAgo } from '@/lib/dates'
 import { openSettings, type LocationStatus } from '@/lib/location'
 import { isMissingAmbulance, useAdvanceMission, useMyAmbulance, useMyMissions, useSetAvailability, type DriverStep } from '@/lib/missions'
@@ -185,6 +186,7 @@ function DriverHome({ ambulance }: { ambulance: Ambulance }) {
                   {availability.error.message}
                 </Text>
               ) : null}
+              {ambulance.status === 'available' ? <ShiftCheckCard ambulanceId={ambulance.id} now={now} /> : null}
             </View>
           ) : null}
 

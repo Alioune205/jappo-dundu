@@ -11,13 +11,14 @@ from rest_framework import serializers
 
 from geo.distance import GeoPoint, haversine_m
 from geo.serializers import distance_km, validate_finite
+from ml.constants import REGIONS
 from security.roles import Role
 from users.models import HealthFacility
 from users.serializers import HealthFacilitySummarySerializer, PhoneNumberField
 from users.services import roles_of
 
 from . import triage as triage_protocol
-from .models import Ambulance, EmergencyProfile, Mission
+from .models import Ambulance, EmergencyProfile, Mission, ShiftCheck
 
 User = get_user_model()
 
@@ -124,9 +125,10 @@ class NearbyAmbulanceSerializer(AmbulanceSerializer):
     distance_km = serializers.SerializerMethodField()
     travel_minutes = serializers.SerializerMethodField()
     travel_source = serializers.SerializerMethodField()
+    readiness = serializers.SerializerMethodField()
 
     class Meta(AmbulanceSerializer.Meta):
-        fields = [*AmbulanceSerializer.Meta.fields, 'distance_km', 'travel_minutes', 'travel_source']
+        fields = [*AmbulanceSerializer.Meta.fields, 'distance_km', 'travel_minutes', 'travel_source', 'readiness']
         read_only_fields = fields
 
     def get_distance_km(self, obj):
@@ -139,6 +141,11 @@ class NearbyAmbulanceSerializer(AmbulanceSerializer):
     def get_travel_source(self, obj):
         travel = getattr(obj, 'travel', None)
         return travel.source if travel else None
+
+    def get_readiness(self, obj):
+        from .services import readiness_of
+
+        return getattr(obj, 'readiness', None) or readiness_of(obj)
 
 
 class PositionSerializer(serializers.Serializer):
@@ -180,6 +187,7 @@ class MissionSerializer(serializers.ModelSerializer):
     triage = serializers.JSONField(required=False)
     triage_assessment = serializers.SerializerMethodField()
     destination_status_display = serializers.CharField(source='get_destination_status_display', read_only=True)
+    incident_summary = serializers.SerializerMethodField()
     caller_card = serializers.SerializerMethodField()
     caller_history = serializers.SerializerMethodField()
 
@@ -227,6 +235,7 @@ class MissionSerializer(serializers.ModelSerializer):
             'caller_card',
             'caller_history',
             'origin_facility',
+            'incident_summary',
         ]
         read_only_fields = [
             'id',
@@ -284,6 +293,19 @@ class MissionSerializer(serializers.ModelSerializer):
             'allergies': profile.allergies,
             'conditions': profile.conditions,
             'medications': profile.medications,
+        }
+
+    def get_incident_summary(self, obj):
+        """Plusieurs victimes : l'incident et l'avancement de ses missions."""
+        if obj.incident_id is None:
+            return None
+        missions = obj.incident.missions.all()
+        return {
+            'id': obj.incident_id,
+            'victims': obj.incident.victims,
+            'missions': missions.count(),
+            'assigned': missions.exclude(ambulance=None).count(),
+            'destinations': sorted({m.destination.name for m in missions if m.destination_id}),
         }
 
     def get_caller_history(self, obj):
@@ -481,3 +503,40 @@ class EmergencyProfileSerializer(serializers.ModelSerializer):
         if len(value) > EmergencyProfile.MAX_CONTACTS:
             raise serializers.ValidationError(f"{EmergencyProfile.MAX_CONTACTS} contacts au plus.")
         return value
+
+
+class LocationLinkSerializer(serializers.Serializer):
+    phone_number = PhoneNumberField(required=False, allow_blank=True)
+
+
+class PublicLocationSerializer(serializers.Serializer):
+    latitude = serializers.FloatField(min_value=-90, max_value=90, validators=[validate_finite])
+    longitude = serializers.FloatField(min_value=-180, max_value=180, validators=[validate_finite])
+    accuracy = serializers.FloatField(min_value=0, required=False)
+
+
+class ShiftCheckSerializer(serializers.ModelSerializer):
+    issues = serializers.ListField(read_only=True)
+
+    class Meta:
+        model = ShiftCheck
+        fields = ['id', 'oxygen_ok', 'equipment_ok', 'fuel', 'crew_count', 'notes', 'checked_at', 'issues']
+        read_only_fields = ['id', 'checked_at', 'issues']
+
+
+class IncidentSerializer(serializers.Serializer):
+    """Appel pour plusieurs victimes : une mission par ambulance demandée."""
+
+    victims = serializers.IntegerField(min_value=2, max_value=200)
+    ambulances = serializers.IntegerField(min_value=1, max_value=10)
+    priority = serializers.ChoiceField(choices=Mission.Priority.choices, default=Mission.Priority.CRITICAL)
+    description = serializers.CharField(max_length=200)
+    pickup_address = serializers.CharField(max_length=255)
+    pickup_latitude = serializers.FloatField(min_value=-90, max_value=90, validators=[validate_finite])
+    pickup_longitude = serializers.FloatField(min_value=-180, max_value=180, validators=[validate_finite])
+    region = serializers.ChoiceField(choices=REGIONS)
+    caller_phone = PhoneNumberField(required=False, allow_blank=True, default='')
+    triage = serializers.JSONField(required=False, default=dict)
+
+    def validate_triage(self, value):
+        return triage_protocol.clean_answers(value)

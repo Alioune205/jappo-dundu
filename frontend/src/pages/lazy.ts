@@ -21,3 +21,4 @@ export const Profile = lazy(() => import('@/pages/Profile').then(m => ({ default
 export const Landing = lazy(() => import('@/pages/Landing').then(m => ({ default: m.Landing })))
 export const Login = lazy(() => import('@/pages/Login').then(m => ({ default: m.Login })))
 export const NotFound = lazy(() => import('@/pages/NotFound').then(m => ({ default: m.NotFound })))
+export const Locate = lazy(() => import('@/pages/Locate').then(m => ({ default: m.Locate })))

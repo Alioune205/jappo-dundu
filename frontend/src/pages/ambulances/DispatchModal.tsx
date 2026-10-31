@@ -125,6 +125,16 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
         mission.description && <p className="text-sm text-fg">{mission.description}</p>
       )}
 
+      {mission.incident_summary && (
+        <p className="rounded-lg border border-critical/40 bg-critical/5 px-4 py-2 text-xs text-fg">
+          <span className="font-semibold text-critical">Incident #{mission.incident_summary.id}</span> ·{' '}
+          {mission.incident_summary.victims} victimes · {mission.incident_summary.assigned}/
+          {mission.incident_summary.missions} ambulances affectées
+          {mission.incident_summary.destinations.length > 0 &&
+            ` · hôpitaux : ${mission.incident_summary.destinations.join(', ')}`}
+        </p>
+      )}
+
       {mission.caller_card && (
         <section className="rounded-lg border border-info/40 bg-info/5 px-4 py-3 text-xs" aria-label="Fiche d’urgence">
           <h3 className="font-semibold uppercase tracking-wide text-muted">Fiche d’urgence de l’appelant</h3>
@@ -165,6 +175,8 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
         <QualifySos mission={mission} onSaved={refresh} onError={fail('Enregistrement impossible.')} />
       )}
 
+      {(mission.status === 'pending' || mission.status === 'assigned') && <LocationLinkButton mission={mission} />}
+
       {mission.status === 'pending' ? (
         <AmbulancePicker mission={mission} onAssigned={refresh} onError={fail('Affectation impossible.')} />
       ) : mission.ambulance ? (
@@ -181,6 +193,43 @@ const DispatchPanel: React.FC<{ missionId: number; fallback: Mission; onDone: ()
 
       {active && <CancelMission mission={mission} onCancelled={() => (refresh(), onDone())} onError={fail('Annulation impossible.')} />}
     </div>
+  )
+}
+
+/** SMS à l'appelant : un lien qui fait remonter sa position GPS exacte (sans application). */
+const LocationLinkButton: React.FC<{ mission: Mission }> = ({ mission }) => {
+  const [phone, setPhone] = useState(mission.caller_phone || '')
+  const send = useMutation({
+    mutationFn: () =>
+      api.post<{ sent_to: string }>(`/api/ambulances/missions/${mission.id}/location-link/`, { phone_number: phone }),
+  })
+  return (
+    <section className="flex flex-wrap items-end gap-2 rounded-lg border border-line px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Position exacte de l’appelant</h3>
+        <p className="text-xs text-muted">
+          {send.data
+            ? `Lien envoyé au ${formatPhone(send.data.sent_to)} : le lieu se mettra à jour dès qu’il le touche.`
+            : 'Un SMS avec un lien : l’appelant touche, sa position GPS remonte (sans application).'}
+        </p>
+        {send.error && (
+          <p role="alert" className="text-xs text-critical">
+            {send.error instanceof Error ? send.error.message : 'Envoi impossible.'}
+          </p>
+        )}
+      </div>
+      <Input
+        aria-label="Téléphone de l’appelant"
+        type="tel"
+        className="h-9 w-40"
+        placeholder="77 123 45 67"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+      />
+      <Button size="sm" variant="secondary" isLoading={send.isPending} disabled={!phone.trim()} onClick={() => send.mutate()}>
+        Envoyer le lien
+      </Button>
+    </section>
   )
 }
 
@@ -309,6 +358,11 @@ const AmbulancePicker: React.FC<{ mission: Mission; onAssigned: () => void; onEr
                     </span>
                   )}
                   {formatDistance(amb.distance_km)} · {amb.facility?.name}
+                  {amb.readiness && !amb.readiness.ready && (
+                    <span className="ml-1 font-semibold text-warning" title={amb.readiness.issues.join(', ')}>
+                      · {amb.readiness.issues[0]}
+                    </span>
+                  )}
                   {amb.driver ? ` · ${amb.driver.full_name}` : ' · sans chauffeur'}
                 </p>
               </div>

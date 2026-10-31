@@ -31,6 +31,7 @@ Auteur : Ibrahima Khalilou Diallo
 
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -38,7 +39,7 @@ from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
-from rest_framework.permissions import BasePermission, IsAuthenticated
+from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -65,6 +66,10 @@ from .serializers import (
     BilanSerializer,
     CitizenSosSerializer,
     DestinationAnswerSerializer,
+    IncidentSerializer,
+    ShiftCheckSerializer,
+    LocationLinkSerializer,
+    PublicLocationSerializer,
     TransferSerializer,
     EmergencyProfileSerializer,
     MissionSerializer,
@@ -260,6 +265,22 @@ class AmbulanceViewSet(
         ambulances = services.rank_by_travel_time(ambulances, query['point'])
         return Response(NearbyAmbulanceSerializer(ambulances, many=True).data)
 
+    @action(detail=True, methods=['get', 'post'])
+    def check(self, request, pk=None):
+        """Vérification de garde : GET (dernière, état de préparation) ; POST
+        {"oxygen_ok", "equipment_ok", "fuel", "crew_count", "notes"}.
+
+        Le conducteur de l'ambulance ou la gestion de la flotte.
+        """
+        ambulance = self.get_object()
+        if request.method == 'POST':
+            if not (ambulance.driver_id == request.user.pk or is_dispatcher(request.user)):
+                raise PermissionDenied("Seul l'équipage de l'ambulance ou la régulation la vérifie.")
+            serializer = ShiftCheckSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            services.record_check(ambulance, checked_by=request.user, **serializer.validated_data)
+        return Response(services.readiness_of(ambulance))
+
     @action(detail=False, methods=['get'])
     def drivers(self, request):
         """GET /api/ambulances/vehicles/drivers/ : comptes ambulanciers actifs
@@ -332,7 +353,7 @@ class MissionViewSet(
     http_method_names = ['get', 'post', 'patch', 'head', 'options']
     lookup_value_regex = r'\d+'
 
-    DISPATCH_ACTIONS = ('create', 'partial_update', 'assign', 'stats')
+    DISPATCH_ACTIONS = ('create', 'partial_update', 'assign', 'stats', 'incident', 'demand')
 
     def get_permissions(self):
         if self.action in self.DISPATCH_ACTIONS:
@@ -442,6 +463,21 @@ class MissionViewSet(
         return Response(self.get_serializer(self._reloaded(mission)).data)
 
     @action(detail=False, methods=['post'])
+    def incident(self, request):
+        """Plusieurs victimes : POST /api/ambulances/missions/incident/ {"victims", "ambulances",
+        "priority", "description", "pickup_address", "pickup_latitude", "pickup_longitude",
+        "region", "caller_phone", "triage"}. Retourne les missions créées.
+        """
+        serializer = IncidentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        service = service_of(request.user)
+        if service is not None and serializer.validated_data['region'] != service.region:
+            raise PermissionDenied("Vous ne régulez que les missions de votre région.")
+        incident = services.create_incident(created_by=request.user, **serializer.validated_data)
+        missions = self.get_queryset().filter(incident=incident).order_by('pk')
+        return Response(self.get_serializer(missions, many=True).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'])
     def transfer(self, request):
         """Transfert vers un autre établissement, demandé par l'hôpital de départ.
 
@@ -465,6 +501,25 @@ class MissionViewSet(
             origin = HealthFacility.objects.get(pk=origin.pk)
         mission = services.create_transfer(origin=origin, created_by=request.user, **data)
         return Response(self.get_serializer(self._reloaded(mission)).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path='location-link')
+    def location_link(self, request, pk=None):
+        """SMS à l'appelant avec un lien de localisation : POST .../location-link/ {"phone_number"}
+
+        Régulation ; sans numéro, celui de l'appelant enregistré sur la mission.
+        """
+        if not is_dispatcher(request.user):
+            raise PermissionDenied("Réservé à la régulation.")
+        mission = self.get_object()
+        serializer = LocationLinkSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        phone = serializer.validated_data.get('phone_number') or mission.caller_phone
+        if not phone:
+            raise ValidationError({'phone_number': ["Indiquez le numéro de l'appelant."]})
+        link = services.send_location_link(
+            mission, phone_number=phone, created_by=request.user, base_url=settings.PUBLIC_WEB_URL
+        )
+        return Response({'sent_to': phone, 'expires_at': link.expires_at}, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='destination-response')
     def destination_response(self, request, pk=None):
@@ -541,6 +596,21 @@ class MissionViewSet(
                 'results': NearbyBedFacilitySerializer(facilities, many=True).data,
             }
         )
+
+    @action(detail=False, methods=['get'])
+    def demand(self, request):
+        """Demande par heure, par jour et zones les plus actives (pré-positionnement).
+
+        GET /api/ambulances/missions/demand/ ?days=30 &region=dakar
+        """
+        params = request.query_params
+        days = int_param(params, 'days', default=30, maximum=365)
+        missions = Mission.objects.filter(created_at__gte=timezone.now() - timedelta(days=days))
+        service = service_of(request.user)
+        region = service.region if service is not None else choice_param(params, 'region', REGION_CODES)
+        if region:
+            missions = missions.filter(region=region)
+        return Response({'days': days, 'region': region, **services.demand_profile(missions)})
 
     @action(detail=False, methods=['get'])
     def stats(self, request):
@@ -654,3 +724,24 @@ class TriageView(APIView):
 
     def post(self, request):
         return Response(triage.assess(request.data.get('answers') or {}))
+
+
+class PublicLocationView(APIView):
+    """Page « localiser » (publique, sans compte) : POST /api/ambulances/locate/<token>/
+
+    {"latitude", "longitude", "accuracy"} ; jeton à usage unique, 30 minutes.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_scope = 'locate'
+    throttle_classes = [ScopedRateThrottle]
+
+    def post(self, request, token):
+        serializer = PublicLocationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        services.receive_location(
+            token, GeoPoint(data['latitude'], data['longitude']), accuracy_m=data.get('accuracy')
+        )
+        return Response({'detail': "Position reçue : les secours arrivent. Gardez votre téléphone près de vous."})
