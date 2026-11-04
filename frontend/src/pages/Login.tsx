@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
-  Activity,
   Ambulance,
   ArrowLeft,
   ArrowRight,
@@ -92,17 +91,18 @@ export const Login: React.FC = () => {
 
   return (
     <div className="landing grid min-h-full bg-canvas text-fg lg:grid-cols-[1.02fr_0.98fr]">
-      {/* Volet photo & télémétrie (grand écran) */}
+      {/* Volet photo (grand écran) : l'image parle, le texte se limite au pied. */}
       <aside className="relative hidden overflow-hidden bg-navy lg:sticky lg:top-0 lg:block lg:h-screen">
         <picture>
-          <source srcSet="/images/landing/dashboard-background.webp" type="image/webp" />
+          <source srcSet="/images/login/equipe-ecran.webp" type="image/webp" />
           <img
-            src="/images/landing/dashboard-background.jpg"
-            alt="Un médecin suit le tableau de bord de son établissement"
-            className="absolute inset-0 h-full w-full object-cover object-[42%_50%]"
+            src="/images/login/equipe-ecran.jpg"
+            alt="Une médecin et deux infirmiers consultent Jappo Dundu sur un écran tactile"
+            className="absolute inset-0 h-full w-full object-cover object-[74%_50%]"
           />
         </picture>
-        <div className="absolute inset-0 bg-gradient-to-b from-navy/70 via-navy/35 to-navy/95" />
+        {/* Voiles légers : lisibilité du logo en haut et des étiquettes en bas. */}
+        <div className="absolute inset-0 bg-gradient-to-b from-navy/55 via-transparent to-navy/85" />
         <div className="relative flex h-full flex-col justify-between p-10 text-white xl:p-14">
           <div className="flex items-center justify-between">
             <Link to="/bienvenue" className="flex items-center gap-2.5">
@@ -120,44 +120,18 @@ export const Login: React.FC = () => {
             </Link>
           </div>
 
-          <div className="space-y-6">
-            <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 font-label text-[11px] font-semibold text-amber backdrop-blur-xs">
-                <span className="live-pulse h-1.5 w-1.5 rounded-full bg-amber" aria-hidden="true" />
-                Espace professionnel
-              </p>
-              <p className="font-display mt-4 max-w-lg text-4xl font-semibold leading-[1.06] tracking-tight xl:text-5xl">
-                Chaque minute compte. <em className="serif text-amber">Chaque lit aussi.</em>
-              </p>
-              <p className="mt-4 max-w-md text-base leading-relaxed text-white/80">
-                Hôpitaux, centres de transfusion et SAMU : une seule plateforme pour le sang, les lits et les
-                ambulances, en temps réel.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-white/15 bg-navy/75 p-4 backdrop-blur-xl">
-              <div className="flex items-center justify-between text-xs">
-                <span className="inline-flex items-center gap-1.5 font-semibold text-white">
-                  <Activity className="h-3.5 w-3.5 text-accent-green" aria-hidden="true" />
-                  Infrastructure nationale active
-                </span>
-                <span className="rounded-full bg-accent-green/20 px-2 py-0.5 text-[10px] font-semibold text-accent-green">
-                  Chiffré · RBAC
-                </span>
-              </div>
-              <ul className="mt-3 flex flex-wrap gap-2">
-                {MODULES.map((m) => (
-                  <li
-                    key={m.label}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white"
-                  >
-                    <m.icon className="h-3.5 w-3.5 text-amber" aria-hidden="true" />
-                    {m.label}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+          {/* Pied discret : les trois modules, rien de plus. */}
+          <ul className="flex flex-wrap gap-2" aria-label="Modules de la plateforme">
+            {MODULES.map((m) => (
+              <li
+                key={m.label}
+                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white backdrop-blur-md"
+              >
+                <m.icon className="h-3.5 w-3.5 text-white/80" aria-hidden="true" />
+                {m.label}
+              </li>
+            ))}
+          </ul>
         </div>
       </aside>
 
