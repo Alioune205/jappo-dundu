@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { LocateFixed } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -80,11 +80,35 @@ function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }
  */
 function FitToPoints({ points, signature, recenter }: { points: [number, number][]; signature: string; recenter: number }) {
   const map = useMap()
+  const pointsRef = useRef(points)
   useEffect(() => {
-    if (points.length === 0) map.setView(DAKAR_CENTER, 12)
-    else if (points.length === 1) map.setView(points[0], FIT_MAX_ZOOM)
-    else map.fitBounds(L.latLngBounds(points), { padding: [36, 36], maxZoom: FIT_MAX_ZOOM })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- recadrage sur changement de signature uniquement
+    pointsRef.current = points
+  })
+  // Tant que l'opérateur n'a pas déplacé la carte, on recadre aussi quand sa
+  // taille change (panneau qui finit de s'ouvrir, fenêtre redimensionnée).
+  const userMoved = useRef(false)
+
+  useEffect(() => {
+    const fit = () => {
+      const pts = pointsRef.current
+      if (pts.length === 0) map.setView(DAKAR_CENTER, 12)
+      else if (pts.length === 1) map.setView(pts[0], FIT_MAX_ZOOM)
+      else map.fitBounds(L.latLngBounds(pts), { padding: [36, 36], maxZoom: FIT_MAX_ZOOM })
+    }
+    const onResize = () => {
+      if (!userMoved.current) fit()
+    }
+    const onDrag = () => {
+      userMoved.current = true
+    }
+    userMoved.current = false
+    fit()
+    map.on('resize', onResize)
+    map.on('dragstart', onDrag)
+    return () => {
+      map.off('resize', onResize)
+      map.off('dragstart', onDrag)
+    }
   }, [signature, recenter, map])
   return null
 }
