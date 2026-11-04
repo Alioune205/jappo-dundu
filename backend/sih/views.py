@@ -16,12 +16,14 @@ Auteur : Pape Alioune Sene
 """
 
 from django.utils import timezone
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, status, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
+from core.openapi import json_object
 from ml.constants import REGION_CODES
 from ml.models import BloodStockRecord
 from security.middleware import get_client_ip
@@ -62,6 +64,7 @@ class SIHView(APIView):
 class SIHPingView(SIHView):
     """Vérification de la connectivité SIH et de la validité de l'authentification."""
 
+    @extend_schema(summary="Tester la connexion et la clé API", responses=json_object("Établissement de la clé et domaines autorisés."))
     def get(self, request):
         facility = request.facility
         api_key = request.sih_api_key
@@ -85,6 +88,7 @@ class SIHPingView(SIHView):
 class SIHStatusSummaryView(SIHView):
     """Synthèse complète des ressources de l'établissement (lits, stocks, synchronisations)."""
 
+    @extend_schema(summary="Synthèse des ressources de l'établissement", responses=json_object("Lits, stocks et dernières synchronisations."))
     def get(self, request):
         return Response(services.get_facility_sih_summary(request.facility))
 
@@ -94,10 +98,12 @@ class SIHBedsSyncView(SIHView):
 
     permission_classes = [SIHCanSyncBeds]
 
+    @extend_schema(summary="Lire les capacités en lits de l'établissement", responses=json_object("Capacités par service."))
     def get(self, request):
         summary = services.get_facility_sih_summary(request.facility)
         return Response(summary['beds_summary'])
 
+    @extend_schema(summary="Synchroniser les lits de tous les services", request=BedSyncBatchSerializer, responses=json_object("Services mis à jour."))
     def post(self, request):
         serializer = BedSyncBatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -123,6 +129,7 @@ class SIHBedEventView(SIHView):
 
     permission_classes = [SIHCanSyncBeds]
 
+    @extend_schema(summary="Événement ADT : admission ou sortie d'un patient", request=BedADTEventSerializer, responses=json_object("Capacité mise à jour."))
     def post(self, request):
         serializer = BedADTEventSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -150,6 +157,7 @@ class SIHBloodStockSyncView(SIHView):
 
     permission_classes = [SIHCanSyncBlood]
 
+    @extend_schema(summary="Lire les derniers stocks de sang transmis", responses=json_object("Seize derniers relevés."))
     def get(self, request):
         facility = request.facility
         records = (
@@ -169,6 +177,7 @@ class SIHBloodStockSyncView(SIHView):
             for r in records
         ])
 
+    @extend_schema(summary="Synchroniser les stocks de sang", request=BloodStockSyncBatchSerializer, responses=json_object("Stocks mis à jour."))
     def post(self, request):
         serializer = BloodStockSyncBatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -289,6 +298,14 @@ class FhirBedsView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Capacités en lits au format FHIR R4",
+        parameters=[
+            OpenApiParameter('facility', int, description="Identifiant de l'établissement."),
+            OpenApiParameter('region', str, description="Code de la région."),
+        ],
+        responses=json_object("Bundle FHIR R4 de ressources Location."),
+    )
     def get(self, request):
         return Response(interop.fhir_bed_bundle(_facilities_for(request, Domain.BEDS)))
 
@@ -298,6 +315,7 @@ class Dhis2ExportView(APIView):
 
     permission_classes = [IsAdmin]
 
+    @extend_schema(summary="Agrégats de la semaine au format DHIS2", responses=json_object("dataValueSets DHIS2."))
     def get(self, request):
         return Response(interop.dhis2_data_values(_facilities_for(request, Domain.BEDS)))
 
@@ -307,6 +325,7 @@ class SyncMonitoringView(APIView):
 
     permission_classes = [IsAdmin]
 
+    @extend_schema(summary="Fraîcheur des synchronisations SIH", responses=json_object("Dernière synchronisation de chaque établissement."))
     def get(self, request):
         return Response(interop.sync_monitoring())
 

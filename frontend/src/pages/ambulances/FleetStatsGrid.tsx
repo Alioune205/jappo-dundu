@@ -20,7 +20,7 @@ export const FleetStatsGrid: React.FC<FleetStatsGridProps> = ({ ambulances, miss
 
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <StatCard
+      <StatCard variant="hero" stagger={0}
         title="Ambulances disponibles" accent="green" icon={<AmbulanceIcon className="h-5 w-5" />}
         value={availableCount}
         unit={`/ ${ambulances.length}`}
@@ -29,15 +29,15 @@ export const FleetStatsGrid: React.FC<FleetStatsGridProps> = ({ ambulances, miss
         badgeTone="warning"
         description="Prêtes au départ"
       />
-      <StatCard title="En intervention" accent="yellow" icon={<Navigation className="h-5 w-5" />} value={onMissionCount} unit="véhicules" description="En route ou sur place" />
-      <StatCard
+      <StatCard stagger={1} title="En intervention" accent="yellow" icon={<Navigation className="h-5 w-5" />} value={onMissionCount} unit="véhicules" description="En route ou sur place" />
+      <StatCard stagger={2}
         title="Missions actives" accent="red" icon={<Siren className="h-5 w-5" />}
         value={activeCount}
         badge={pendingCount > 0 ? `${pendingCount} sans véhicule` : undefined}
         badgeTone="danger"
         description="Non terminées"
       />
-      <StatCard
+      <StatCard stagger={3}
         title="Délai moyen d'arrivée" accent="blue" icon={<Timer className="h-5 w-5" />}
         value={formatMinutes(averageResponse)}
         trend={responseTrend(averageResponse)}

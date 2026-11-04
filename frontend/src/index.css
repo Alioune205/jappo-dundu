@@ -1,16 +1,20 @@
 @import 'tailwindcss';
 
 /*
- * Jappo Dundu — système de design « tableau de bord hospitalier ».
+ * Jappo Dundu — système de design « salle de régulation ».
  *
  * Principes :
- * - fond gris-bleu très clair, cartes blanches arrondies à ombre douce ;
- * - couleur principale : rouge sang (actions, navigation active, identité) ;
- * - cartes d'indicateurs à liseré gauche coloré (bleu, jaune, vert, rouge),
- *   icône dans un cercle teinté ;
- * - les couleurs de sens restent strictes : rouge = critique, jaune/ambre =
- *   vigilance, vert = nominal, bleu = information ;
- * - typographie Poppins, chiffres tabulaires.
+ * - une seule encre d'identité, le bleu nuit du logo : surfaces principales,
+ *   actions, navigation active, infobulles ;
+ * - le rouge n'a qu'un sens, le critique. Le rouge du logo (--signal) reste
+ *   réservé au nom et au symbole ;
+ * - quatre couleurs de sens strictes : critique, vigilance, nominal,
+ *   information. Aucune autre couleur ne porte d'information ;
+ * - une piste unie et pâle (--track) marque ce qui reste (capacité libre,
+ *   reliquat) ; un contour pointillé marque l'absence de donnée ;
+ * - un seul plan : cartes blanches à grands arrondis, contour et ombre à
+ *   peine perceptibles, beaucoup d'air ;
+ * - typographie Geist, chiffres tabulaires.
  *
  * Les couleurs passent par des variables CSS : le changement de thème ne
  * touche que ce fichier, jamais les composants.
@@ -19,88 +23,151 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --canvas: #f6f7fb;
+  /* Un seul plan : la navigation et les cartes reposent sur le même fond. */
+  --canvas: #f3f4f7;
+  --sheet: #f3f4f7;
   --surface: #ffffff;
-  --raised: #f3f5f9;
-  --line: #eceef4;
-  --line-strong: #dde1ea;
-  /* Bleu marine du logo */
-  --fg: #0f2547;
-  --fg-muted: #5b6b82;
-  --fg-subtle: #94a3b8;
-  --inverse-bg: #05244a;
+  --raised: #f7f8fa;
+  --sunken: #f0f2f5;
+  /* Piste des jauges : ce qui reste (lits libres, reliquat). */
+  --track: #edf0f4;
+  --line: #eaecf0;
+  --line-strong: #d9dde4;
+  --fg: #0b1a30;
+  --fg-muted: #5f6b7e;
+  --fg-subtle: #8f99aa;
+  --inverse-bg: #0f2547;
   --inverse-fg: #ffffff;
 
-  /* Rouge du logo : couleur principale */
-  --brand: #e4151e;
-  --brand-strong: #b8101a;
-  --brand-soft: #fdecec;
+  /* Encre : bleu nuit du logo. Surfaces principales et actions. */
+  --ink: #0f2547;
+  --ink-strong: #0a1b36;
+  --ink-raised: #18345f;
+  --on-ink: #ffffff;
+  --on-ink-muted: rgb(255 255 255 / 0.68);
+  --on-ink-line: rgb(255 255 255 / 0.12);
+
+  /* Action principale = encre (le rouge est réservé au critique). */
+  --brand: #0f2547;
+  --brand-strong: #0a1b36;
+  --brand-soft: #e9eef6;
   --brand-fg: #ffffff;
 
-  /* Couleurs des cartes d'indicateurs */
-  --accent-blue: #3b82f6;
-  --accent-yellow: #eab308;
-  --accent-green: #16a34a;
-  --accent-red: #e4151e;
+  /* Rouge du logo : nom, symbole, pouls. Jamais pour une action. */
+  --signal: #e4151e;
+
+  /* Couleurs de sens (contraste AA sur blanc pour le texte). */
+  --critical: #d92d20;
+  --warning: #b9520a;
+  --ok: #067647;
+  --info: #175cd3;
+
+  /* Anciennes teintes d'accent, alignées sur les couleurs de sens. */
+  --accent-blue: #175cd3;
+  --accent-yellow: #dc6803;
+  --accent-green: #067647;
+  --accent-red: #d92d20;
 
   --sidebar: #ffffff;
-  --sidebar-raised: #fdecec;
-  --sidebar-fg: #0f2547;
-  --sidebar-muted: #475569;
+  --sidebar-raised: #f2f4f7;
+  --sidebar-fg: #0b1a30;
+  --sidebar-muted: #5f6b7e;
 
-  --critical: #e4151e;
-  --warning: #ca8a04;
-  --ok: #16a34a;
-  --info: #2563eb;
+  /*
+   * Visualisation : l'état nominal est tracé dans un bleu d'encre adouci,
+   * calme ; seules les exceptions (vigilance, critique) prennent une couleur.
+   */
+  --viz-base: #36538a;
+  --viz-base-soft: #cdd7e6;
+  --viz-warn: #d97706;
+  --viz-crit: #e5484d;
+  --on-critical: #ffffff;
 
-  --focus: #e4151e;
-  --shadow-panel: 0 1px 3px rgb(15 23 42 / 0.06), 0 1px 2px rgb(15 23 42 / 0.04);
-  --shadow-raised: 0 10px 30px rgb(15 23 42 / 0.1), 0 2px 8px rgb(15 23 42 / 0.05);
+  /* Couleurs de sens lisibles sur une surface d'encre. */
+  --critical-on-ink: #ff9087;
+  --warning-on-ink: #fdc254;
+  --ok-on-ink: #6ee3a8;
+
+  /* Carte mise en avant : un voile bleu très pâle plutôt qu'un aplat d'encre. */
+  --featured-from: #e7eefa;
+  --featured-to: #f5f8fd;
+  --featured-ring: rgb(54 83 138 / 0.1);
+
+  --focus: #175cd3;
+  --shadow-panel: 0 0 0 1px rgb(16 24 40 / 0.045), 0 1px 2px rgb(16 24 40 / 0.03), 0 12px 28px -20px rgb(16 24 40 / 0.12);
+  --shadow-raised: 0 0 0 1px rgb(16 24 40 / 0.05), 0 18px 40px -18px rgb(16 24 40 / 0.2), 0 2px 6px rgb(16 24 40 / 0.04);
+  --shadow-ink: 0 22px 44px -22px rgb(15 37 71 / 0.6), 0 2px 6px rgb(15 37 71 / 0.12);
   color-scheme: light;
 }
 
 .dark {
-  --canvas: #0b1120;
+  --canvas: #090d15;
+  --sheet: #090d15;
   --surface: #111827;
-  --raised: #1a2234;
-  --line: #1f2937;
-  --line-strong: #334155;
-  --fg: #f1f5f9;
-  --fg-muted: #94a3b8;
-  --fg-subtle: #64748b;
-  --inverse-bg: #f1f5f9;
-  --inverse-fg: #0b1120;
+  --raised: #161f30;
+  --sunken: #0d1320;
+  --track: #1c2638;
+  --line: #1c2537;
+  --line-strong: #2a364b;
+  --fg: #eef2f8;
+  --fg-muted: #9aa6ba;
+  --fg-subtle: #69768c;
+  --inverse-bg: #eef2f8;
+  --inverse-fg: #0b1a30;
 
-  --brand: #ef4444;
-  --brand-strong: #f87171;
-  --brand-soft: #2a1618;
-  --brand-fg: #ffffff;
+  --ink: #17305a;
+  --ink-strong: #0f2244;
+  --ink-raised: #21406f;
+  --on-ink: #ffffff;
+  --on-ink-muted: rgb(255 255 255 / 0.7);
+  --on-ink-line: rgb(255 255 255 / 0.14);
 
-  --accent-blue: #60a5fa;
-  --accent-yellow: #facc15;
-  --accent-green: #4ade80;
-  --accent-red: #f87171;
+  --brand: #dbe5f5;
+  --brand-strong: #ffffff;
+  --brand-soft: #18233a;
+  --brand-fg: #0b1a30;
 
-  --sidebar: #111827;
-  --sidebar-raised: #2a1618;
-  --sidebar-fg: #f1f5f9;
-  --sidebar-muted: #cbd5e1;
+  --signal: #ff4a55;
 
-  --critical: #f87171;
-  --warning: #facc15;
-  --ok: #4ade80;
-  --info: #60a5fa;
+  --critical: #f97066;
+  --warning: #fdb022;
+  --ok: #47cd89;
+  --info: #53b1fd;
 
-  --focus: #ef4444;
-  --shadow-panel: 0 1px 3px rgb(0 0 0 / 0.35);
-  --shadow-raised: 0 10px 30px rgb(0 0 0 / 0.5);
+  --accent-blue: #53b1fd;
+  --accent-yellow: #fdb022;
+  --accent-green: #47cd89;
+  --accent-red: #f97066;
+
+  --sidebar: #0c1220;
+  --sidebar-raised: #151e30;
+  --sidebar-fg: #eef2f8;
+  --sidebar-muted: #9aa6ba;
+
+  --viz-base: #8fb0e6;
+  --viz-base-soft: #2b3b57;
+  --viz-warn: #f5b33d;
+  --viz-crit: #f47b72;
+  --on-critical: #2a0805;
+
+  --featured-from: #17243e;
+  --featured-to: #111a2b;
+  --featured-ring: rgb(143 176 230 / 0.14);
+
+  --focus: #53b1fd;
+  --shadow-panel: 0 0 0 1px rgb(255 255 255 / 0.05), 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-raised: 0 18px 44px -14px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-ink: 0 22px 48px -20px rgb(0 0 0 / 0.8), inset 0 1px 0 rgb(255 255 255 / 0.08);
   color-scheme: dark;
 }
 
 @theme inline {
   --color-canvas: var(--canvas);
+  --color-sheet: var(--sheet);
   --color-surface: var(--surface);
   --color-raised: var(--raised);
+  --color-sunken: var(--sunken);
+  --color-track: var(--track);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
   --color-fg: var(--fg);
@@ -108,6 +175,21 @@
   --color-subtle: var(--fg-subtle);
   --color-inverse: var(--inverse-bg);
   --color-on-inverse: var(--inverse-fg);
+  --color-ink: var(--ink);
+  --color-ink-strong: var(--ink-strong);
+  --color-ink-raised: var(--ink-raised);
+  --color-on-ink: var(--on-ink);
+  --color-on-ink-muted: var(--on-ink-muted);
+  --color-on-ink-line: var(--on-ink-line);
+  --color-signal: var(--signal);
+  --color-viz-base: var(--viz-base);
+  --color-viz-base-soft: var(--viz-base-soft);
+  --color-viz-warn: var(--viz-warn);
+  --color-viz-crit: var(--viz-crit);
+  --color-on-critical: var(--on-critical);
+  --color-critical-on-ink: var(--critical-on-ink);
+  --color-warning-on-ink: var(--warning-on-ink);
+  --color-ok-on-ink: var(--ok-on-ink);
   --color-critical: var(--critical);
   --color-warning: var(--warning);
   --color-ok: var(--ok);
@@ -132,8 +214,9 @@
   --color-sidebar-fg: var(--sidebar-fg);
   --color-sidebar-muted: var(--sidebar-muted);
 
-  --font-sans: 'Poppins', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --font-sans: 'Geist', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
 
   --radius-sm: 0.375rem;
   --radius: 0.5rem;
@@ -143,6 +226,7 @@
 
   --shadow-panel: var(--shadow-panel);
   --shadow-raised: var(--shadow-raised);
+  --shadow-ink: var(--shadow-ink);
 
   --text-2xs: 0.75rem;
   --text-2xs--line-height: 1rem;
@@ -150,6 +234,9 @@
   --text-xs--line-height: 1.125rem;
   --text-sm: 0.875rem;
   --text-sm--line-height: 1.375rem;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
 }
 
 @layer base {
@@ -165,23 +252,24 @@
     font-family: var(--font-sans);
     font-size: 0.875rem;
     line-height: 1.375rem;
+    font-feature-settings: 'ss01', 'cv11';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   :focus-visible {
     outline: 2px solid var(--focus);
-    outline-offset: 1px;
+    outline-offset: 2px;
   }
 
   ::selection {
-    background-color: color-mix(in oklab, var(--brand) 25%, transparent);
+    background-color: color-mix(in oklab, var(--info) 22%, transparent);
   }
 
   h1,
   h2,
   h3 {
-    letter-spacing: -0.01em;
+    letter-spacing: -0.015em;
   }
 
   * {
@@ -190,7 +278,7 @@
   }
 
   dialog::backdrop {
-    background-color: rgb(0 0 0 / 0.55);
+    background-color: rgb(9 14 24 / 0.5);
   }
 }
 
@@ -209,12 +297,44 @@
     color: var(--fg-muted);
   }
 
-  /* Panneau : carte blanche arrondie, ombre douce. */
+  /* Petite capitale d'en-tête de section. */
+  .kicker {
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg-subtle);
+  }
+
+  /* Panneau : surface blanche, grands arrondis, contour et ombre à peine perceptibles. */
   .panel {
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--line);
+    border-radius: 1.5rem;
     background-color: var(--surface);
     box-shadow: var(--shadow-panel);
+  }
+
+  /*
+   * Carte mise en avant (une par rangée au plus) : voile bleu pâle et halo
+   * clair dans l'angle. Le texte garde les couleurs ordinaires.
+   */
+  .panel-featured {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: 1.5rem;
+    background: linear-gradient(155deg, var(--featured-from), var(--featured-to));
+    box-shadow:
+      0 0 0 1px var(--featured-ring),
+      0 12px 28px -20px rgb(16 24 40 / 0.14);
+  }
+  .panel-featured::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(90% 80% at 100% 0%, color-mix(in oklab, var(--surface) 70%, transparent), transparent 60%);
+    pointer-events: none;
   }
 
   /* Tableau opérationnel haute densité. */
@@ -223,7 +343,6 @@
     border-collapse: separate;
     border-spacing: 0;
     text-align: left;
-    /* Poppins est large : texte des tableaux un cran en dessous du corps. */
     font-size: 0.8125rem;
     line-height: 1.25rem;
   }
@@ -234,15 +353,15 @@
     background-color: var(--surface);
     border-bottom: 1px solid var(--line);
     padding: 0.625rem 0.75rem;
-    font-size: 0.8125rem;
-    line-height: 1.125rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
     font-weight: 500;
-    color: var(--fg-muted);
+    color: var(--fg-subtle);
     white-space: nowrap;
   }
   .ops-table tbody td {
     border-bottom: 1px solid var(--line);
-    padding: 0.875rem 0.75rem;
+    padding: 0.8125rem 0.75rem;
     vertical-align: middle;
   }
   .ops-table tbody tr:last-child td {
@@ -252,26 +371,28 @@
     background-color: var(--raised);
   }
   .ops-table tbody tr[data-selected='true'] td {
-    background-color: color-mix(in oklab, var(--brand) 10%, transparent);
+    background-color: color-mix(in oklab, var(--info) 8%, transparent);
   }
   .ops-table tbody tr[data-severity='critical'] td:first-child {
-    box-shadow: inset 2px 0 0 var(--critical);
+    box-shadow: inset 3px 0 0 var(--critical);
   }
   .ops-table tbody tr[data-severity='warning'] td:first-child {
-    box-shadow: inset 2px 0 0 var(--warning);
+    box-shadow: inset 3px 0 0 var(--warning);
   }
 
   /* Champs de saisie. */
   .field-control {
     width: 100%;
     height: 2.5rem;
-    border-radius: var(--radius);
+    border-radius: 0.625rem;
     border: 1px solid var(--line-strong);
     background-color: var(--surface);
     color: var(--fg);
     padding: 0 0.75rem;
     font-size: 0.875rem;
-    transition: border-color 120ms ease, box-shadow 120ms ease;
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease;
   }
   textarea.field-control {
     height: auto;
@@ -297,6 +418,20 @@
   .field-control::placeholder {
     color: var(--fg-subtle);
   }
+  select.field-control {
+    appearance: none;
+    padding-right: 2.25rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%238a94a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+  }
+
+  /* Squelette de chargement : balayage lent, jamais un faux chiffre. */
+  .skeleton {
+    border-radius: 0.375rem;
+    background: linear-gradient(90deg, var(--sunken) 0%, var(--raised) 50%, var(--sunken) 100%);
+    background-size: 200% 100%;
+  }
 }
 
 @keyframes live-pulse {
@@ -313,91 +448,6 @@
   animation: live-pulse 1.6s ease-in-out infinite;
 }
 
-/*
- * Pages publiques (accueil, connexion) : style institutionnel.
- *
- * Bleu marine et rouge du logo, une seule famille (Public Sans), filets fins
- * et rayons modérés ; fonds marine quadrillés pour l'accroche, le pilotage et
- * le pied de page. Les variables ne s'appliquent qu'à .landing : l'application
- * garde son propre thème.
- */
-.landing {
-  --canvas: #f6f8fb;
-  --surface: #ffffff;
-  --raised: #eef2f7;
-  --line: #e2e8f0;
-  --line-strong: #cbd5e1;
-  --fg: #0b1f3a;
-  --fg-muted: #475569;
-  --fg-subtle: #8492a6;
-  --brand: #c8102e;
-  --brand-strong: #a30d26;
-  --brand-soft: #fdecef;
-  --brand-fg: #ffffff;
-  --accent-red: #c8102e;
-  --accent-blue: #1d63b8;
-  --accent-green: #0f7a55;
-  /* Fonds sombres institutionnels. */
-  --navy: #0b1f3a;
-  --navy-line: rgb(255 255 255 / 0.06);
-  --on-navy: #f1f5fb;
-  --on-navy-muted: #a9b8cc;
-  /* Accent clair, lisible sur fond marine (nom « amber » conservé pour la page de connexion). */
-  --amber: #ff8e9b;
-  --amber-soft: #e8eef7;
-  --amber-ink: #0b1f3a;
-  --shadow-panel: 0 1px 2px rgb(11 31 58 / 0.05);
-  --shadow-raised: 0 24px 48px -16px rgb(11 31 58 / 0.28), 0 2px 6px rgb(11 31 58 / 0.06);
-  font-family: 'Public Sans', system-ui, -apple-system, sans-serif;
-}
-.dark .landing {
-  --canvas: #08111f;
-  --surface: #0f1b2e;
-  --raised: #15243b;
-  --line: #1d2d46;
-  --line-strong: #2a3d5a;
-  --fg: #eef3fa;
-  --fg-muted: #a3b1c6;
-  --fg-subtle: #6f7f97;
-  --brand: #ef3e55;
-  --brand-strong: #ff6577;
-  --brand-soft: #3a0f17;
-  --accent-red: #ff6577;
-  --accent-blue: #6aa8ef;
-  --accent-green: #3fc28f;
-  --navy: #050c18;
-  --amber-soft: #15243b;
-  --amber-ink: #eef3fa;
-}
-.landing h1,
-.landing h2,
-.landing h3 {
-  letter-spacing: -0.02em;
-}
-.landing .font-display {
-  font-family: inherit;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-}
-.landing .font-label {
-  font-family: inherit;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.landing .highlight {
-  color: var(--brand);
-}
-/* Quadrillage discret des fonds marine, estompé vers les bords. */
-.landing .bg-grid {
-  background-image:
-    linear-gradient(var(--navy-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--navy-line) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 80% 70% at 60% 30%, #000 30%, transparent 80%);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .live-pulse {
     animation: none;
@@ -405,81 +455,110 @@
 }
 
 /*
- * Motion design des pages publiques (voir pages/landing/motion.ts).
+ * Pages publiques (accueil, connexion) : même système que l'application.
  *
- * Grammaire sobre : les éléments montent légèrement et apparaissent, en
- * cascade (--i), sur une décélération forte. Le contenu reste visible par
- * défaut : les états de départ n'existent que sous [data-motion='on'], posé
- * par JS, et tout est coupé si l'utilisateur réduit les animations.
+ * Fond papier, encre bleu nuit, une seule famille (Geist) et un accent
+ * éditorial en italique (Instrument Serif) pour les mots qui portent le
+ * sens. Le rouge du logo n'apparaît que sur le pouls et les urgences.
  */
 .landing {
+  /* Papier plus clair que le fond de l'application (pas de feuille ici). */
+  --canvas: #f5f6f8;
+  --navy: var(--ink);
+  --on-navy: #f1f5fb;
+  --on-navy-muted: #a9b8cc;
+  /* Rouge du logo éclairci, lisible sur l'encre (nom « amber » conservé). */
+  --amber: #ff9ea3;
+  --amber-soft: #e9eef6;
+  --amber-ink: #0b1a30;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --dur-reveal: 700ms;
-  --stagger: 80ms;
+  --dur-reveal: 800ms;
+  --stagger: 90ms;
+  font-family: var(--font-sans);
   interpolate-size: allow-keywords;
 }
-
+.dark .landing {
+  --canvas: #090e18;
+  --amber-soft: #18233a;
+  --amber-ink: #eef2f8;
+}
+.landing h1,
+.landing h2,
+.landing h3 {
+  letter-spacing: -0.025em;
+}
+.landing .font-display {
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+.landing .font-label {
+  font-family: inherit;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+/* Mot porteur de sens : italique éditoriale, jamais une couleur criarde. */
+.landing .highlight,
+.landing em.serif {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+/*
+ * Motion design des pages publiques (voir pages/landing/motion.ts).
+ *
+ * Le contenu reste visible par défaut : les états de départ n'existent que
+ * sous [data-motion='on'], posé par JS, et tout est coupé si l'utilisateur
+ * réduit les animations.
+ */
 @media (prefers-reduced-motion: no-preference) {
-  /* --- Accroche : entrée en cascade au chargement --------------------- */
   @keyframes hero-rise {
     from {
       opacity: 0;
-      transform: translateY(16px);
+      transform: translateY(22px);
     }
     to {
       opacity: 1;
       transform: none;
     }
   }
-  @keyframes mock-in {
-    from {
-      opacity: 0;
-      transform: translateY(32px) scale(0.98);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  @keyframes notif-in {
-    from {
-      opacity: 0;
-      transform: translateY(-16px) scale(0.94);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  @keyframes float {
+  @keyframes heartbeat {
     0%,
+    40%,
     100% {
-      translate: 0 0;
+      scale: 1;
     }
-    50% {
-      translate: 0 -6px;
+    10%,
+    30% {
+      scale: 1.08;
+    }
+    20% {
+      scale: 0.99;
+    }
+  }
+  @keyframes faq-in {
+    from {
+      opacity: 0;
+      translate: 0 -4px;
     }
   }
 
+  /* --- Accroche : entrée en cascade au chargement --------------------- */
   .landing[data-motion='on'] [data-hero] {
     animation: hero-rise var(--dur-reveal) var(--ease-out) both;
-    animation-delay: calc(var(--i, 0) * 90ms + 60ms);
+    animation-delay: calc(var(--i, 0) * 100ms + 80ms);
   }
-  .landing[data-motion='on'] [data-hero-mock] {
-    animation: mock-in 1.1s var(--ease-out) 250ms both;
-  }
-  .landing[data-motion='on'] .hero-notif {
-    animation:
-      notif-in 600ms var(--ease-back) 1.2s both,
-      float 6s ease-in-out 2s infinite;
+  .landing[data-motion='on'] .heartbeat {
+    animation: heartbeat 2s ease-in-out infinite;
   }
 
   /* --- Apparitions au défilement -------------------------------------- */
   .landing[data-motion='on'] [data-reveal] {
     opacity: 0;
-    transform: translateY(20px);
-    /* Délai en cascade pour l'apparition seulement : le survol reste immédiat. */
+    transform: translateY(24px);
     transition:
       opacity var(--dur-reveal) var(--ease-out),
       transform var(--dur-reveal) var(--ease-out),
@@ -491,37 +570,9 @@
       0s,
       0s;
   }
-  .landing[data-motion='on'] [data-reveal='scale'] {
-    transform: scale(0.96);
-  }
-  .landing[data-motion='on'] [data-reveal='photo'] {
-    transform: none;
-    clip-path: inset(6% 4% 6% 4% round 0.75rem);
-    transition:
-      opacity 900ms var(--ease-out),
-      clip-path 1.1s var(--ease-out);
-  }
-  .landing[data-motion='on'] [data-reveal='photo'] img {
-    scale: 1.08;
-    transition: scale 1.6s var(--ease-out);
-  }
   .landing[data-motion='on'] [data-reveal][data-revealed='true'] {
     opacity: 1;
     transform: none;
-  }
-  .landing[data-motion='on'] [data-reveal='photo'][data-revealed='true'] {
-    clip-path: inset(0 round 0.75rem);
-  }
-  .landing[data-motion='on'] [data-reveal='photo'][data-revealed='true'] img {
-    scale: 1;
-  }
-
-  /* --- En-tête : ombre dès qu'on quitte le haut de page ---------------- */
-  .landing .landing-nav {
-    transition: box-shadow 300ms ease;
-  }
-  .landing[data-scrolled='true'] .landing-nav {
-    box-shadow: 0 8px 24px -12px rgb(11 31 58 / 0.18);
   }
 
   /* --- Micro-interactions ---------------------------------------------- */
@@ -544,140 +595,6 @@
   .landing .btn:hover .btn-arrow {
     translate: 3px 0;
   }
-  .landing .lift {
-    transition:
-      translate 300ms var(--ease-out),
-      box-shadow 300ms var(--ease-out);
-  }
-  .landing .lift:hover {
-    translate: 0 -3px;
-    box-shadow: var(--shadow-raised);
-  }
-  .landing .lift .lift-icon {
-    transition: scale 350ms var(--ease-back);
-  }
-  .landing .lift:hover .lift-icon {
-    scale: 1.08;
-  }
-
-  /* --- Aperçu produit : l'ambulance rejoint le lit libre --------------- */
-  @keyframes route-flow {
-    to {
-      stroke-dashoffset: -26;
-    }
-  }
-  /* Points échantillonnés à abscisse curviligne constante sur la courbe du SVG. */
-  @keyframes route-run {
-    0% {
-      left: 12.5%;
-      top: 78.1%;
-      opacity: 0;
-    }
-    6% {
-      opacity: 1;
-    }
-    10% {
-      left: 20.7%;
-      top: 72.4%;
-    }
-    20% {
-      left: 27.8%;
-      top: 64.7%;
-    }
-    30% {
-      left: 35.2%;
-      top: 54.7%;
-    }
-    40% {
-      left: 42.5%;
-      top: 45.7%;
-    }
-    50% {
-      left: 50.5%;
-      top: 39.7%;
-    }
-    60% {
-      left: 58.5%;
-      top: 38.5%;
-    }
-    70% {
-      left: 66.6%;
-      top: 39.3%;
-    }
-    80% {
-      left: 74.1%;
-      top: 36.4%;
-    }
-    90% {
-      left: 80.8%;
-      top: 27.3%;
-      opacity: 1;
-    }
-    100% {
-      left: 87.5%;
-      top: 17.5%;
-      opacity: 0;
-    }
-  }
-  @keyframes route-arrive {
-    0%,
-    86%,
-    100% {
-      scale: 1;
-      box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent-blue) 45%, transparent);
-    }
-    92% {
-      scale: 1.15;
-      box-shadow: 0 0 0 10px color-mix(in oklab, var(--accent-blue) 0%, transparent);
-    }
-  }
-  @keyframes ping {
-    from {
-      scale: 1;
-      opacity: 0.5;
-    }
-    to {
-      scale: 2.2;
-      opacity: 0;
-    }
-  }
-  .landing[data-motion='on'] .route-flow {
-    animation: route-flow 1.6s linear infinite;
-  }
-  .landing[data-motion='on'] .route-runner {
-    display: block;
-    animation: route-run 4.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-  }
-  .landing[data-motion='on'] .route-target {
-    animation: route-arrive 4.8s ease-out infinite;
-  }
-  .landing[data-motion='on'] .ping::after {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    border-radius: 9999px;
-    border: 2px solid currentColor;
-    animation: ping 2.4s var(--ease-out) infinite;
-  }
-
-  /* --- Groupe sanguin critique : battement discret --------------------- */
-  @keyframes heartbeat {
-    0%,
-    40%,
-    100% {
-      scale: 1;
-    }
-    10%,
-    30% {
-      scale: 1.08;
-    }
-    20% {
-      scale: 0.99;
-    }
-  }
-  .landing[data-motion='on'] .heartbeat {
-    animation: heartbeat 2s ease-in-out infinite;
-  }
 
   /* --- FAQ : ouverture fluide (navigateurs compatibles) ---------------- */
   .landing details::details-content {
@@ -690,20 +607,9 @@
   .landing details[open]::details-content {
     height: auto;
   }
-  @keyframes faq-in {
-    from {
-      opacity: 0;
-      translate: 0 -4px;
-    }
-  }
   .landing details[open] > p {
     animation: faq-in 400ms var(--ease-out) 60ms both;
   }
-}
-
-/* La pastille animée de l'aperçu n'existe qu'en mouvement. */
-.route-runner {
-  display: none;
 }
 
 /* Leaflet : intégration aux couleurs du thème. */
@@ -744,263 +650,594 @@
 
 
 /* ============================================================================
- * SYSTÈME VISUEL & MOTION DESIGN DES TABLEAUX DE BORD (JAPPO DUNDU)
+ * MOTION DES TABLEAUX DE BORD ET DE JAPPO IA
  * ============================================================================
- * Inspiration : précision médicale, hiérarchie Bento, cartes Hero contrastées,
- * jauges radiales, micro-interactions fluides et séquence d'ouverture Jappo IA.
- * Respect strict de prefers-reduced-motion.
+ * Grammaire unique : ce qui arrive monte de quelques pixels et apparaît, sur
+ * une décélération forte (--ease-out-expo), en cascade (--i) ; ce qui se
+ * remplit (capsules, jauges, barres) pousse depuis sa base. Rien ne boucle,
+ * sauf l'indicateur « en direct » et l'état « réflexion » de l'assistant.
+ * Tout est coupé si l'utilisateur réduit les animations : les états finaux
+ * sont ceux du CSS par défaut.
  */
 
-:root {
-  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --shadow-hero: 0 18px 38px -10px rgb(15 37 71 / 0.28), 0 4px 12px -2px rgb(15 37 71 / 0.14);
-  --hero-blue: linear-gradient(135deg, #0f2547 0%, #1d4ed8 100%);
-  --hero-red: linear-gradient(135deg, #991b1b 0%, #e4151e 100%);
-  --hero-green: linear-gradient(135deg, #064e3b 0%, #15803d 100%);
-  --hero-yellow: linear-gradient(135deg, #78350f 0%, #b45309 100%);
-  --cmd-dark: linear-gradient(145deg, #0b192f 0%, #0f2547 65%, #16335e 100%);
+/* Les capsules et barres se redimensionnent en douceur quand une donnée change. */
+.capsule-fill,
+.bar-fill {
+  transition:
+    height 700ms var(--ease-out-expo),
+    width 700ms var(--ease-out-expo),
+    background-color 300ms ease;
+}
+.arc-seg {
+  transition:
+    stroke-dasharray 900ms var(--ease-out-expo),
+    stroke-dashoffset 900ms var(--ease-out-expo),
+    stroke 300ms ease;
 }
 
-.dark {
-  --shadow-hero: 0 18px 40px -10px rgb(0 0 0 / 0.65);
-  --hero-blue: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
-  --hero-red: linear-gradient(135deg, #450a0a 0%, #b91c1c 100%);
-  --hero-green: linear-gradient(135deg, #022c22 0%, #047857 100%);
-  --hero-yellow: linear-gradient(135deg, #451a03 0%, #92400e 100%);
-  --cmd-dark: linear-gradient(145deg, #070d19 0%, #0f1b31 65%, #172542 100%);
+/* Carte cliquable : seule une carte qui mène quelque part réagit au survol. */
+.lift {
+  transition:
+    translate 260ms var(--ease-out-expo),
+    box-shadow 260ms var(--ease-out-expo),
+    border-color 200ms ease;
+}
+.lift:hover {
+  translate: 0 -2px;
+  box-shadow: var(--shadow-raised);
+}
+.lift .lift-arrow {
+  transition:
+    rotate 320ms var(--ease-out-expo),
+    background-color 200ms ease,
+    color 200ms ease;
+}
+.lift:hover .lift-arrow {
+  rotate: 45deg;
 }
 
-/* Surfaces Hero & Command Tracker */
-.stat-hero-blue {
-  background: var(--hero-blue);
-  color: #ffffff;
-  box-shadow: var(--shadow-hero);
-  border-color: rgb(255 255 255 / 0.14);
-}
-.stat-hero-red {
-  background: var(--hero-red);
-  color: #ffffff;
-  box-shadow: var(--shadow-hero);
-  border-color: rgb(255 255 255 / 0.14);
-}
-.stat-hero-green {
-  background: var(--hero-green);
-  color: #ffffff;
-  box-shadow: var(--shadow-hero);
-  border-color: rgb(255 255 255 / 0.14);
-}
-.stat-hero-yellow {
-  background: var(--hero-yellow);
-  color: #ffffff;
-  box-shadow: var(--shadow-hero);
-  border-color: rgb(255 255 255 / 0.14);
-}
-
-.cmd-tracker-card {
-  background: var(--cmd-dark);
-  color: #f8fafc;
-  box-shadow: var(--shadow-hero);
-  border: 1px solid rgb(255 255 255 / 0.1);
-  position: relative;
-  overflow: hidden;
-}
-.cmd-tracker-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(circle at 88% 18%, rgb(59 130 246 / 0.22), transparent 55%),
-    repeating-radial-gradient(circle at 110% 110%, rgb(255 255 255 / 0.03) 0, rgb(255 255 255 / 0.03) 1px, transparent 1px, transparent 18px);
-  pointer-events: none;
-}
-
-/* Surface épurée et halo atmosphérique de l'Assistant IA */
-.ai-panel-surface {
-  background-color: var(--surface);
-  background-image:
-    radial-gradient(ellipse 85% 40% at 50% -5%, rgb(37 99 235 / 0.1), transparent 72%),
-    radial-gradient(ellipse 60% 35% at 85% 18%, rgb(225 29 72 / 0.05), transparent 65%);
-  box-shadow:
-    0 32px 80px -14px rgb(11 31 58 / 0.3),
-    0 10px 28px -6px rgb(11 31 58 / 0.14),
-    0 0 0 1px color-mix(in oklab, var(--line-strong) 85%, transparent);
-}
-.dark .ai-panel-surface {
-  background-color: #09101d;
-  background-image:
-    radial-gradient(ellipse 90% 42% at 50% -6%, rgb(59 130 246 / 0.16), transparent 70%),
-    radial-gradient(ellipse 65% 32% at 88% 15%, rgb(244 63 94 / 0.08), transparent 65%);
-  box-shadow:
-    0 36px 88px -12px rgb(0 0 0 / 0.82),
-    0 0 0 1px rgb(255 255 255 / 0.1),
-    inset 0 1px 0 0 rgb(255 255 255 / 0.12);
-}
-
-/* Réticule géométrique ultra-discret centré uniquement autour du médaillon */
-.ai-orb-stage {
-  background-image:
-    linear-gradient(to right, transparent, color-mix(in oklab, var(--line-strong) 55%, transparent) 50%, transparent),
-    linear-gradient(to bottom, transparent, color-mix(in oklab, var(--line-strong) 55%, transparent) 50%, transparent);
-  background-size: 210px 1px, 1px 140px;
-  background-position: center center;
-  background-repeat: no-repeat;
-}
-
-/* Médaillon 3D tactile prismatique au centre de la scène IA */
-.ai-orb-medallion {
-  background: linear-gradient(155deg, #ffffff 0%, #f1f5fd 55%, #e5edfb 100%);
-  box-shadow:
-    0 18px 36px -8px rgb(37 99 235 / 0.24),
-    0 6px 14px -3px rgb(15 23 42 / 0.12),
-    0 0 0 1px rgb(37 99 235 / 0.14),
-    inset 0 2px 2px 0 #ffffff;
-}
-.dark .ai-orb-medallion {
-  background: linear-gradient(155deg, #1e2d4a 0%, #10192d 60%, #0b1220 100%);
-  box-shadow:
-    0 20px 44px -8px rgb(0 0 0 / 0.78),
-    0 0 32px -4px rgb(59 130 246 / 0.38),
-    0 0 0 1px rgb(96 165 250 / 0.28),
-    inset 0 1.5px 1.5px 0 rgb(255 255 255 / 0.26);
+/* Infobulles de graphiques (capsules) : apparition immédiate, sans délai. */
+.chart-tip {
+  transition:
+    opacity 140ms ease,
+    translate 180ms var(--ease-out-expo);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  @keyframes ai-orbit-spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .ai-orbit-slow {
-    animation: ai-orbit-spin 18s linear infinite;
-  }
-
-  .ai-orbit-reverse {
-    animation: ai-orbit-spin 24s linear reverse infinite;
-  }
-  @keyframes dash-rise {
+  @keyframes rise {
     from {
       opacity: 0;
-      transform: translateY(12px);
+      transform: translateY(10px);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: none;
     }
   }
-
-  @keyframes dash-scale {
+  @keyframes fade {
     from {
       opacity: 0;
-      transform: scale(0.97);
     }
     to {
       opacity: 1;
-      transform: scale(1);
     }
   }
-
-  @keyframes bar-grow {
+  @keyframes grow-y {
     from {
-      transform: scaleX(0);
+      scale: 1 0;
     }
     to {
-      transform: scaleX(1);
+      scale: 1 1;
+    }
+  }
+  @keyframes grow-x {
+    from {
+      scale: 0 1;
+    }
+    to {
+      scale: 1 1;
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: -100% 0;
+    }
+  }
+  @keyframes tick {
+    0% {
+      opacity: 0.35;
+      translate: 0 -4px;
+    }
+    100% {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+  @keyframes ring-out {
+    from {
+      opacity: 0.55;
+      scale: 1;
+    }
+    to {
+      opacity: 0;
+      scale: 2.4;
     }
   }
 
-  @keyframes ai-drawer-slide {
+  /* Changement de page : le contenu se pose. */
+  .page-enter {
+    animation: fade 280ms ease-out both;
+  }
+
+  /* Apparition en cascade des blocs d'un écran. */
+  .reveal {
+    animation: rise 560ms var(--ease-out-expo) both;
+    animation-delay: calc(var(--i, 0) * 70ms);
+  }
+
+  .skeleton {
+    animation: shimmer 1.6s linear infinite;
+  }
+
+  /* Chiffre mis à jour en direct : il « tombe » à sa place. */
+  .value-tick {
+    animation: tick 420ms var(--ease-out-expo);
+  }
+
+  .capsule-grow {
+    transform-origin: bottom;
+    animation: grow-y 820ms var(--ease-out-expo) both;
+    animation-delay: calc(120ms + var(--i, 0) * 55ms);
+  }
+  .bar-grow {
+    transform-origin: left;
+    animation: grow-x 820ms var(--ease-out-expo) both;
+    animation-delay: calc(120ms + var(--i, 0) * 55ms);
+  }
+
+  /* Point d'alerte : une onde, une fois par cycle lent. */
+  .ping-ring {
+    position: relative;
+  }
+  .ping-ring::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: currentColor;
+    animation: ring-out 2.2s var(--ease-out-expo) infinite;
+  }
+}
+
+/* ============================================================================
+ * JAPPO IA — panneau de l'assistant
+ * ============================================================================
+ * Séquence d'ouverture (première ouverture de la session, ~900 ms au total,
+ * la saisie est utilisable dès la première image) :
+ *   1. le panneau glisse depuis la droite ;
+ *   2. le réticule se trace depuis le centre ;
+ *   3. l'emblème se dessine, puis le pouls bat une fois ;
+ *   4. l'état de disponibilité, l'accueil et les suggestions arrivent en cascade.
+ * Réouverture : glissement court, sans mise en scène.
+ */
+
+.ai-scrim {
+  background-color: rgb(9 14 24 / 0.22);
+}
+.dark .ai-scrim {
+  background-color: rgb(0 0 0 / 0.5);
+}
+
+.ai-panel {
+  background-color: var(--surface);
+  box-shadow:
+    0 40px 90px -30px rgb(11 26 48 / 0.45),
+    0 12px 30px -12px rgb(11 26 48 / 0.18),
+    0 0 0 1px var(--line);
+}
+.dark .ai-panel {
+  box-shadow:
+    0 40px 90px -24px rgb(0 0 0 / 0.85),
+    0 0 0 1px var(--line-strong);
+}
+
+/* Scène de l'emblème : réticule en filets, fondu vers les bords. */
+.ai-stage-line-x,
+.ai-stage-line-y {
+  position: absolute;
+  background: linear-gradient(90deg, transparent, var(--line-strong) 30%, var(--line-strong) 70%, transparent);
+}
+.ai-stage-line-x {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+}
+.ai-stage-line-y {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--line-strong) 30%, var(--line-strong) 70%, transparent);
+}
+
+.ai-medallion {
+  background: linear-gradient(160deg, #ffffff 0%, #f3f6fb 60%, #e8eef8 100%);
+  box-shadow:
+    0 16px 32px -12px rgb(15 37 71 / 0.35),
+    0 0 0 1px rgb(15 37 71 / 0.08),
+    inset 0 1px 0 #ffffff;
+}
+.dark .ai-medallion {
+  background: linear-gradient(160deg, #1d2c46 0%, #121c30 100%);
+  box-shadow:
+    0 16px 36px -10px rgb(0 0 0 / 0.8),
+    0 0 0 1px rgb(255 255 255 / 0.1),
+    inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes ai-scrim-in {
     from {
       opacity: 0;
-      transform: translateY(-8px) scale(0.97);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
     }
   }
-
-  @keyframes ai-orb-breathe {
+  @keyframes ai-panel-in {
+    from {
+      opacity: 0;
+      translate: 28px 0;
+      scale: 0.985;
+    }
+  }
+  @keyframes ai-panel-return {
+    from {
+      opacity: 0;
+      translate: 12px 0;
+    }
+  }
+  @keyframes ai-panel-out {
+    to {
+      opacity: 0;
+      translate: 20px 0;
+    }
+  }
+  @keyframes ai-line-x {
+    from {
+      scale: 0 1;
+      opacity: 0;
+    }
+  }
+  @keyframes ai-line-y {
+    from {
+      scale: 1 0;
+      opacity: 0;
+    }
+  }
+  @keyframes ai-medallion-in {
+    0% {
+      opacity: 0;
+      scale: 0.6;
+    }
+    70% {
+      opacity: 1;
+      scale: 1.04;
+    }
+    100% {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+  @keyframes ai-draw {
+    from {
+      stroke-dashoffset: var(--len, 100);
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes ai-beat {
     0%,
     100% {
-      transform: translateY(0) scale(1);
+      scale: 1;
+    }
+    18% {
+      scale: 1.08;
+    }
+    32% {
+      scale: 0.98;
+    }
+    46% {
+      scale: 1.03;
+    }
+  }
+  @keyframes ai-ring {
+    from {
+      opacity: 0.45;
+      scale: 0.9;
+    }
+    to {
+      opacity: 0;
+      scale: 1.9;
+    }
+  }
+  @keyframes ai-travel {
+    from {
+      stroke-dashoffset: 0;
+    }
+    to {
+      stroke-dashoffset: -64;
+    }
+  }
+
+  .ai-scrim[data-state='open'] {
+    animation: ai-scrim-in 280ms ease-out both;
+  }
+  .ai-scrim[data-state='closing'] {
+    animation: fade 200ms ease-in reverse both;
+  }
+  .ai-panel[data-entrance='intro'] {
+    animation: ai-panel-in 420ms var(--ease-out-expo) both;
+  }
+  .ai-panel[data-entrance='return'] {
+    animation: ai-panel-return 220ms var(--ease-out-expo) both;
+  }
+  .ai-panel[data-state='closing'] {
+    animation: ai-panel-out 200ms ease-in both;
+  }
+
+  [data-entrance='intro'] .ai-stage-line-x {
+    animation: ai-line-x 700ms var(--ease-out-expo) 140ms both;
+  }
+  [data-entrance='intro'] .ai-stage-line-y {
+    animation: ai-line-y 700ms var(--ease-out-expo) 200ms both;
+  }
+  [data-entrance='intro'] .ai-medallion {
+    animation: ai-medallion-in 620ms var(--ease-out-expo) 180ms both;
+  }
+  [data-entrance='intro'] .ai-emblem-ring {
+    animation: ai-draw 760ms var(--ease-in-out-quart) 260ms both;
+  }
+  [data-entrance='intro'] .ai-emblem-pulse {
+    animation: ai-draw 620ms var(--ease-in-out-quart) 620ms both;
+  }
+  [data-entrance='intro'] .ai-emblem-core {
+    animation: ai-beat 900ms ease-in-out 1150ms both;
+  }
+  [data-entrance='intro'] .ai-halo {
+    animation: ai-ring 1400ms var(--ease-out-expo) 1150ms both;
+  }
+  [data-entrance='intro'] .ai-step {
+    animation: rise 520ms var(--ease-out-expo) both;
+    animation-delay: calc(560ms + var(--step, 0) * 70ms);
+  }
+  [data-entrance='return'] .ai-step {
+    animation: fade 200ms ease-out both;
+  }
+
+  /* L'assistant consulte les données : le pouls de l'emblème défile. */
+  .ai-thinking .ai-emblem-pulse {
+    stroke-dasharray: 22 42;
+    animation: ai-travel 1.1s linear infinite;
+  }
+
+  /* Réponses : le texte se pose, puis les lignes de données arrivent. */
+  .ai-msg {
+    animation: rise 420ms var(--ease-out-expo) both;
+  }
+  .ai-row {
+    animation: rise 380ms var(--ease-out-expo) both;
+    animation-delay: calc(120ms + var(--i, 0) * 45ms);
+  }
+  .ai-source-step {
+    animation: rise 300ms var(--ease-out-expo) both;
+    animation-delay: calc(var(--i, 0) * 90ms);
+  }
+}
+
+/* Bandeau d'encre du panneau Jappo IA : radar et trame fine. */
+.ai-hero {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--ink);
+  color: var(--on-ink);
+}
+.dark .ai-hero {
+  background-color: #0f2042;
+}
+.ai-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    radial-gradient(70% 60% at 50% 38%, rgb(255 255 255 / 0.1), transparent 70%),
+    linear-gradient(rgb(255 255 255 / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.045) 1px, transparent 1px);
+  background-size:
+    auto,
+    28px 28px,
+    28px 28px;
+  mask-image: linear-gradient(180deg, #000 55%, transparent);
+}
+.ai-hero .ai-stage-line-x,
+.ai-hero .ai-stage-line-y {
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.22) 30%, rgb(255 255 255 / 0.22) 70%, transparent);
+}
+.ai-hero .ai-stage-line-y {
+  background: linear-gradient(180deg, transparent, rgb(255 255 255 / 0.22) 30%, rgb(255 255 255 / 0.22) 70%, transparent);
+}
+.ai-medallion-ink {
+  background: linear-gradient(160deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.04));
+  box-shadow:
+    0 18px 40px -12px rgb(0 0 0 / 0.55),
+    0 0 0 1px rgb(255 255 255 / 0.16),
+    inset 0 1px 0 rgb(255 255 255 / 0.25);
+  backdrop-filter: blur(6px);
+}
+.ai-radar {
+  border: 1px solid rgb(255 255 255 / 0.12);
+}
+
+/* Carte Jappo IA de la barre latérale. */
+.ai-launcher {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: var(--ink);
+  color: var(--on-ink);
+  box-shadow: var(--shadow-ink);
+}
+.ai-launcher::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    radial-gradient(90% 80% at 100% 0%, rgb(255 255 255 / 0.14), transparent 60%),
+    repeating-linear-gradient(-45deg, rgb(255 255 255 / 0.04) 0 1px, transparent 1px 10px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes ai-radar-out {
+    from {
+      opacity: 0.9;
+      scale: 0.55;
+    }
+    to {
+      opacity: 0;
+      scale: 1.6;
+    }
+  }
+  [data-entrance='intro'] .ai-radar-wave {
+    animation: ai-radar-out 1.8s var(--ease-out-expo) both;
+    animation-delay: calc(1100ms + var(--k, 0) * 240ms);
+  }
+  [data-entrance='intro'] .ai-medallion-ink {
+    animation: ai-medallion-in 620ms var(--ease-out-expo) 180ms both;
+  }
+  /* Au survol de la carte, le pouls de l'emblème défile. */
+  .ai-launcher:hover .ai-emblem-pulse {
+    stroke-dasharray: 22 42;
+    animation: ai-travel 2.6s linear infinite;
+  }
+}
+
+/* ============================================================================
+ * ACCUEIL
+ * ========================================================================== */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes kenburns {
+    from {
+      scale: 1.14;
+    }
+    to {
+      scale: 1;
+    }
+  }
+  .landing[data-motion='on'] .hero-photo {
+    animation: kenburns 14s cubic-bezier(0.2, 0.6, 0.2, 1) both;
+  }
+}
+
+/* Accueil : navigation sombre, plus opaque au défilement. */
+.landing .nav-dark {
+  background-color: rgb(2 15 36 / 0.55);
+  transition:
+    background-color 300ms ease,
+    backdrop-filter 300ms ease;
+}
+.landing[data-scrolled='true'] .nav-dark {
+  background-color: rgb(2 13 34 / 0.92);
+  backdrop-filter: blur(14px);
+}
+.landing .font-manrope {
+  font-family: 'Manrope', var(--font-sans);
+}
+
+/* Aperçus d'interface de l'accueil : hachures à couleur fixe (l'accueil reste clair). */
+.landing .mock-hatch {
+  background-image: repeating-linear-gradient(-45deg, rgb(15 37 71 / 0.16) 0 1.5px, transparent 1.5px 6px);
+}
+.landing .mock-hatch-ink {
+  background-image: repeating-linear-gradient(-45deg, rgb(255 255 255 / 0.3) 0 1.5px, transparent 1.5px 6px);
+}
+/* Quadrillage de la scène produit, estompé depuis le haut. */
+.landing .stage-grid {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 75% 65% at 50% 0%, #000 25%, transparent 78%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes float-y {
+    0%,
+    100% {
+      translate: 0 0;
     }
     50% {
-      transform: translateY(-3px) scale(1.03);
+      translate: 0 -8px;
     }
   }
-
-  @keyframes ai-emblem-intro {
-    0% {
+  @keyframes ring-wave {
+    from {
+      scale: 0.7;
+      opacity: 0.9;
+    }
+    to {
+      scale: 1.35;
       opacity: 0;
-      transform: scale(0.65) rotate(-18deg);
-    }
-    60% {
-      opacity: 1;
-      transform: scale(1.08) rotate(4deg);
-    }
-    100% {
-      opacity: 1;
-      transform: scale(1) rotate(0deg);
     }
   }
-
-  @keyframes ai-shimmer {
-    0% {
-      background-position: -200% 0;
-    }
-    100% {
-      background-position: 200% 0;
-    }
+  .landing .float-y {
+    animation: float-y 7s ease-in-out infinite;
+  }
+  .landing .float-late {
+    animation-delay: -3.5s;
+  }
+  /* Ondes du rayon d'alerte autour du donneur. */
+  .landing .ring-wave {
+    animation: ring-wave 4.8s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+    animation-delay: calc(var(--i, 0) * 1.6s);
   }
 
-  .dash-rise {
-    animation: dash-rise 420ms var(--ease-spring) both;
-    animation-delay: calc(var(--stagger, 0) * 55ms);
+  /* Aperçus : les jauges se remplissent, les priorités arrivent une à une. */
+  .landing[data-motion='on'] [data-reveal] .grow-y {
+    scale: 1 0;
+    transform-origin: bottom;
+    transition: scale 1.1s var(--ease-out) calc(350ms + var(--g, 0) * 90ms);
   }
-
-  .dash-panel-in {
-    animation: dash-scale 380ms var(--ease-spring) both;
-    animation-delay: calc(var(--stagger, 0) * 65ms);
+  .landing[data-motion='on'] [data-reveal] .grow-x {
+    scale: 0 1;
+    transform-origin: left;
+    transition: scale 1.2s var(--ease-out) 400ms;
   }
-
-  .bar-origin-left {
-    transform-origin: left center;
-    animation: bar-grow 550ms var(--ease-spring) both;
+  .landing[data-motion='on'] [data-reveal][data-revealed='true'] :is(.grow-y, .grow-x) {
+    scale: 1 1;
   }
-
-  .card-interactive {
+  .landing[data-motion='on'] [data-reveal] .pop-in {
+    opacity: 0;
+    translate: 0 14px;
     transition:
-      transform 240ms var(--ease-spring),
-      box-shadow 240ms var(--ease-spring),
-      border-color 200ms ease;
+      opacity 700ms var(--ease-out),
+      translate 700ms var(--ease-out);
+    transition-delay: calc(700ms + var(--g, 0) * 160ms);
   }
-  .card-interactive:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-raised);
+  .landing[data-motion='on'] [data-reveal][data-revealed='true'] .pop-in {
+    opacity: 1;
+    translate: 0 0;
   }
-
-  .ai-drawer-enter {
-    animation: ai-drawer-slide 320ms var(--ease-spring) both;
+  /* Frise du fonctionnement : chaque tronçon se trace après le précédent. */
+  .landing[data-motion='on'] [data-timeline] .timeline-fill-y {
+    scale: 1 0;
+    transform-origin: top;
+    transition: scale 900ms cubic-bezier(0.65, 0, 0.35, 1) calc(400ms + var(--i, 0) * 700ms);
   }
-
-  .ai-orb {
-    animation:
-      ai-emblem-intro 520ms var(--ease-back) both,
-      ai-orb-breathe 3.8s ease-in-out 520ms infinite;
-  }
-
-  .ai-stagger-item {
-    animation: dash-rise 380ms var(--ease-spring) both;
-    animation-delay: calc(var(--ai-step, 0) * 65ms + 80ms);
-  }
-
-  .ai-thinking-bar {
-    background: linear-gradient(90deg, var(--raised) 0%, color-mix(in oklab, var(--brand) 22%, var(--surface)) 50%, var(--raised) 100%);
-    background-size: 200% 100%;
-    animation: ai-shimmer 1.6s linear infinite;
+  .landing[data-motion='on'] [data-timeline][data-revealed='true'] .timeline-fill-y {
+    scale: 1 1;
   }
 }

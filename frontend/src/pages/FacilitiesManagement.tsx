@@ -60,6 +60,7 @@ export const FacilitiesManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Administration · réseau d’établissements"
         title="Structures et comptes"
         description="Établissements de santé du réseau et comptes du personnel habilité."
         actions={

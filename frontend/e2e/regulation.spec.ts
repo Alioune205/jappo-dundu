@@ -10,7 +10,7 @@ test('connexion et flux temps réel par ticket, sans JWT dans l’URL', async ({
   page.on('websocket', (ws) => socketUrls.push(ws.url()))
 
   await loginAs(page)
-  await expect(page.getByRole('heading', { name: 'Supervision nationale' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Situation du réseau' })).toBeVisible()
   await expectRealtimeConnected(page)
 
   expect(socketUrls.length).toBeGreaterThanOrEqual(2) // alertes + tableau de bord
@@ -44,34 +44,37 @@ test('SAMU : une mission déclenchée reçoit l’ambulance la plus proche, puis
   await expect(row.getByText('Ambulance sur place')).toBeVisible()
 })
 
-test('lits : une admission apparaît en temps réel chez un autre régulateur', async ({ browser }) => {
+test('lits : une admission apparaît en temps réel chez un autre poste', async ({ browser }) => {
+  // Poste A : l'administrateur des lits de l'hôpital admet un patient (cartes de service).
+  // Poste B : l'administrateur général suit le réseau (tableau des lits libres).
   const operatorA = await browser.newPage()
   const operatorB = await browser.newPage()
   try {
-    await loginAs(operatorA)
+    await loginAs(operatorA, 'Admin. des lits')
     await loginAs(operatorB)
     for (const page of [operatorA, operatorB]) {
-      await menuLink(page, 'Capacité en lits').click()
+      await menuLink(page, 'Lits').click()
       await expectRealtimeConnected(page)
     }
 
-    // Premier service où une admission est possible.
-    const rowA = operatorA
-      .locator('tbody tr')
-      .filter({ has: operatorA.getByRole('button', { name: /Entrée/, disabled: false }) })
+    // Premier service de l'hôpital où une admission est possible.
+    const cardA = operatorA
+      .locator('article[aria-label*="libres sur"]')
+      .filter({ has: operatorA.getByRole('button', { name: 'Admettre un patient', disabled: false }) })
       .first()
-    await expect(rowA).toBeVisible()
-    const service = (await rowA.locator('td').first().innerText()).split('\n')
-    const [category, facility] = service.map((part) => part.trim())
+    await expect(cardA).toBeVisible()
+    const label = (await cardA.getAttribute('aria-label')) ?? ''
+    const category = label.split(' : ')[0]
+    const freeBefore = firstNumber(label.split(' : ')[1])
 
-    const rowB = operatorB.locator('tbody tr').filter({ hasText: category }).filter({ hasText: facility })
-    const occupiedBefore = firstNumber(await rowB.locator('td').nth(4).innerText())
+    const rowB = operatorB.locator('tbody tr').filter({ hasText: category }).filter({ hasText: 'Hôpital Principal de Dakar' })
+    await expect(rowB.locator('td').nth(3)).toContainText(String(freeBefore))
 
-    await rowA.getByRole('button', { name: /Entrée/ }).click()
-    await expect(rowA.locator('td').nth(4)).toContainText(String(occupiedBefore + 1))
+    await cardA.getByRole('button', { name: 'Admettre un patient' }).click()
+    await expect(operatorA.locator(`article[aria-label^="${category} : ${freeBefore - 1} libres"]`)).toBeVisible()
 
     // Le second poste n'a rien rechargé : la mise à jour arrive par WebSocket.
-    await expect(rowB.locator('td').nth(4)).toContainText(String(occupiedBefore + 1), { timeout: 10_000 })
+    await expect(rowB.locator('td').nth(3)).toContainText(String(freeBefore - 1), { timeout: 10_000 })
   } finally {
     await operatorA.close()
     await operatorB.close()
@@ -83,5 +86,5 @@ test('une page inconnue affiche un écran propre et un retour au tableau de bord
   await page.goto('/module-inexistant')
   await expect(page.getByRole('heading', { name: 'Page introuvable' })).toBeVisible()
   await page.getByRole('link', { name: 'Retour au tableau de bord' }).click()
-  await expect(page.getByRole('heading', { name: 'Supervision nationale' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Situation du réseau' })).toBeVisible()
 })

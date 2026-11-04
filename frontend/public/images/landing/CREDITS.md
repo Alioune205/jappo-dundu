@@ -1,26 +1,23 @@
 # Photos de la page d'accueil
 
-Mêmes photos que l'onboarding de l'application mobile (`mobile/assets/onboarding`).
-Toutes issues d'Unsplash, sous la [licence Unsplash](https://unsplash.com/license)
-(usage commercial libre, sans attribution obligatoire — nous créditons quand même).
+Images générées pour Jappo Dundu. Les originaux haute définition sont dans
+`design-sources/landing/` à la racine du dépôt ; ici, des versions web
+(1920 px, WebP + JPEG de repli) produites avec :
 
-| Fichier | Photo | Photographe |
+```sh
+ffmpeg -i source.jpg -vf scale=1920:-2 -c:v libwebp -quality 78 nom.webp
+ffmpeg -i source.jpg -vf scale=1920:-2 -q:v 4 nom.jpg
+```
+
+| Fichier | Sujet | Utilisation |
 |---|---|---|
-| `need` | [Ambulance de nuit](https://unsplash.com/photos/hYGZXAs9pU4) | Roman (@rm_reins) |
-| `alert` | [Femme au téléphone](https://unsplash.com/photos/86h-VV5jYmg) | Ahmed Nasiru |
-| `donate` | [Don de sang](https://unsplash.com/photos/S6xwgXRpg3U) | Nils Huenerfuerst |
-| `impact` | [Mère et nouveau-né](https://unsplash.com/photos/sgjI2jzC1wg) | Richard Nyoni |
+| `hero-blood-donation` | Infirmière contrôlant une poche de sang | Hero de l'accueil |
+| `jappo-sang` | Poche de sang tenue en laboratoire | Carte Jappo Sang |
+| `jappo-lits` | Salle d'hospitalisation, lits prêts | Carte Jappo Lits |
+| `jappo-ambulances` | Ambulance dans une rue de quartier | Carte Jappo Ambulance |
+| `senegal-map` | Carte du Sénégal en réseau (1200 px) | Section « Pourquoi Jappo Dundu ? » |
+| `doctor-security` | Médecin dans le hall d'un hôpital | Bande « Confiance & sécurité » |
+| `dakar-coast` | Corniche de Dakar au coucher du soleil | Appel final |
+| `dashboard-background` | Médecin devant un tableau de bord | Volet photo de la connexion |
 
-## Série documentaire d'accueil (Jappo Dundu)
-
-Générée avec Imagen / Antigravity selon les spécifications de [`PROMPTS.md`](./PROMPTS.md).
-
-| Fichier | Sujet |
-|---|---|
-| `hero` | Équipe d'urgence et ambulance à Dakar au golden hour |
-| `module-sang` | Infirmière rangeant les poches de sang dans une banque de sang |
-| `module-lits` | Infirmière préparant un lit d'hôpital moderne |
-| `module-ambulance` | Ambulance en intervention sur une avenue de Dakar au crépuscule |
-| `urgence` | Régulateur / répartiteur SAMU en salle de contrôle |
-| `don` | Donneuse de sang souriante et soignante en centre de don |
-
+`alert` et `urgence` (photos Unsplash / série précédente) ne sont plus utilisées par le site.

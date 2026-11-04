@@ -28,7 +28,8 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
-from rest_framework import generics, mixins, status, viewsets
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import generics, mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -126,9 +127,15 @@ class DonorProfileView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(summary="Consulter son profil donneur", responses=DonorSerializer)
     def get(self, request):
         return Response(DonorSerializer(current_donor(request.user)).data)
 
+    @extend_schema(
+        summary="Créer ou remplacer son profil donneur",
+        request=DonorSerializer,
+        responses={201: DonorSerializer, 200: DonorSerializer},
+    )
     def put(self, request):
         donor = Donor.objects.select_related('user').filter(user=request.user).first()
         serializer = DonorSerializer(donor, data=request.data)
@@ -142,6 +149,7 @@ class DonorProfileView(APIView):
             status=status.HTTP_201_CREATED if donor is None else status.HTTP_200_OK,
         )
 
+    @extend_schema(summary="Mettre à jour son profil donneur (position, disponibilité)", request=DonorSerializer, responses=DonorSerializer)
     def patch(self, request):
         serializer = DonorSerializer(current_donor(request.user), data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -176,6 +184,7 @@ class DonorGamificationView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(summary="Points, niveau et badges du donneur", responses=GamificationProfileSerializer)
     def get(self, request):
         donor = current_donor(request.user)
         profile_data = gamification.get_donor_gamification_profile(donor)
@@ -198,6 +207,14 @@ class DonorLookupView(APIView):
     def get_throttles(self):
         return [*super().get_throttles(), ScopedRateThrottle()]
 
+    @extend_schema(
+        summary="Retrouver un donneur par sa carte ou son téléphone",
+        parameters=[
+            OpenApiParameter('card_code', str, description="Code de la carte donneur (JD-XXXX-XXXX)."),
+            OpenApiParameter('phone_number', str, description="Numéro de téléphone du donneur."),
+        ],
+        responses=DonorLookupSerializer,
+    )
     def get(self, request):
         if 'card_code' in request.query_params:
             code = normalize_card_code(request.query_params['card_code'])
@@ -230,6 +247,18 @@ class CompatibilityView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Table de compatibilité des globules rouges",
+        responses=inline_serializer(
+            'BloodCompatibility',
+            fields={
+                'blood_group': serializers.CharField(),
+                'can_receive_from': serializers.ListField(child=serializers.CharField()),
+                'can_donate_to': serializers.ListField(child=serializers.CharField()),
+            },
+            many=True,
+        ),
+    )
     def get(self, request):
         return Response(
             [
@@ -433,7 +462,12 @@ class BloodRequestViewSet(
             raise NotFound("Réponse introuvable pour cette demande.")
         return Response(DonorResponseSerializer(response).data)
 
-    @action(detail=False, methods=['get'])
+    @extend_schema(
+        summary="Demandes compatibles proches du donneur connecté",
+        parameters=[NearbyRequestsQuerySerializer],
+        responses=NearbyBloodRequestSerializer(many=True),
+    )
+    @action(detail=False, methods=['get'], pagination_class=None)
     def nearby(self, request):
         """Demandes ouvertes compatibles avec le donneur connecté, les plus proches d'abord.
 
@@ -764,6 +798,23 @@ class CampaignView(APIView):
 
     permission_classes = [CanManageBlood]
 
+    @extend_schema(
+        summary="Lancer un appel préventif aux donneurs d'une région",
+        request=inline_serializer(
+            'CampaignRequest',
+            fields={
+                'region': serializers.CharField(),
+                'blood_group': serializers.CharField(),
+                'message': serializers.CharField(required=False, max_length=255),
+            },
+        ),
+        responses={
+            201: inline_serializer(
+                'CampaignResponse',
+                fields={'id': serializers.IntegerField(), 'notified_donors': serializers.IntegerField()},
+            ),
+        },
+    )
     def post(self, request):
         region = choice_param(request.data, 'region', REGION_CODES)
         blood_group = choice_param(request.data, 'blood_group', BLOOD_GROUP_CODES)

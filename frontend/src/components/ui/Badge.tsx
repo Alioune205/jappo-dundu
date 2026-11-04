@@ -1,5 +1,5 @@
 import React from 'react'
-import { SOLID_TONES, TONE_DOT, TONE_PILL, type Tone } from '@/lib/constants'
+import { TONE_DOT, TONE_PILL, type Tone } from '@/lib/constants'
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   tone?: Tone
@@ -8,7 +8,7 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   children: React.ReactNode
 }
 
-/** Étiquette d'état : pleine pour le critique, teintée avec un point pour le reste. */
+/** Étiquette d'état : fond teinté et point à la couleur du sens. */
 export const Badge: React.FC<BadgeProps> = ({
   tone = 'neutral',
   size = 'md',
@@ -21,10 +21,10 @@ export const Badge: React.FC<BadgeProps> = ({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full font-semibold ${TONE_PILL[tone]} ${sizeClass} ${className}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full font-medium ${TONE_PILL[tone]} ${sizeClass} ${className}`}
       {...props}
     >
-      {dot && !SOLID_TONES.has(tone) && (
+      {dot && (
         <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${TONE_DOT[tone]}`} />
       )}
       {children}

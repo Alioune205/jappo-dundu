@@ -61,6 +61,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'channels',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',
 
     # Apps du projet
     'users',
@@ -244,6 +246,8 @@ SECURE_CSP = {
 # =============================================================
 
 REST_FRAMEWORK = {
+    # Schéma OpenAPI 3 généré à partir des vues et sérialiseurs (Swagger).
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
@@ -290,6 +294,71 @@ REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': (
         'rest_framework.renderers.JSONRenderer',
     ),
+}
+
+# Documentation de l'API (drf-spectacular) : /api/schema/ (OpenAPI 3),
+# /api/docs/ (Swagger UI) et /api/redoc/. Ouverte en développement, réservée
+# aux administrateurs en production. Swagger UI est servi par le serveur
+# (sidecar) : aucune dépendance à un CDN, la CSP reste stricte.
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'API Jappo Dundu',
+    'DESCRIPTION': (
+        "API REST de la plateforme Jappo Dundu : coordination des urgences "
+        "médicales au Sénégal (sang, lits hospitaliers, ambulances). "
+        "Authentification par jeton JWT : obtenez un jeton avec "
+        "POST /api/auth/token/, puis cliquez sur « Authorize » et collez "
+        "le jeton d'accès."
+    ),
+    'VERSION': '1.0.0',
+    'SCHEMA_PATH_PREFIX': r'/api/',
+    'COMPONENT_SPLIT_REQUEST': True,
+    # Noms explicites des listes de choix homonymes (sinon suffixes aléatoires).
+    'ENUM_NAME_OVERRIDES': {
+        'AmbulanceStatusEnum': 'ambulances.models.Ambulance.Status',
+        'MissionStatusEnum': 'ambulances.models.Mission.Status',
+        # Même liste pour la priorité d'une mission et l'urgence d'une demande de sang.
+        'PriorityEnum': 'ambulances.models.Mission.Priority',
+        'BedCategoryEnum': 'lits.models.BedCapacity.Category',
+        'BedReservationStatusEnum': 'lits.models.BedReservation.Status',
+        'BloodRequestStatusEnum': 'sang.models.BloodRequest.Status',
+        'DonorResponseStatusEnum': 'sang.models.DonorResponse.Status',
+        'BloodSupplyOrderStatusEnum': 'sang.models.BloodSupplyOrder.Status',
+        'BadgeCategoryEnum': 'sang.models.Badge.Category',
+        'BloodComponentEnum': 'sang.models.Component',
+        'BloodGroupEnum': 'ml.constants.BLOOD_GROUPS',
+        'SyncStatusEnum': 'sih.models.HospitalSyncLog.Status',
+        'FacilityApplicationStatusEnum': 'users.models.FacilityApplication.Status',
+    },
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SERVE_PERMISSIONS': (
+        ['rest_framework.permissions.AllowAny']
+        if DEBUG
+        else ['rest_framework.permissions.IsAdminUser']
+    ),
+    'SWAGGER_UI_DIST': 'SIDECAR',
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
+    'SWAGGER_UI_SETTINGS': {
+        'persistAuthorization': True,
+        'displayRequestDuration': True,
+        'docExpansion': 'none',
+        'filter': True,
+    },
+    'TAGS': [
+        {'name': 'auth', 'description': "Connexion JWT, double authentification, récupération de compte."},
+        {'name': 'users', 'description': "Comptes, rôles et rattachement à un établissement."},
+        {'name': 'facilities', 'description': "Établissements de santé (hôpitaux, CNTS, SAMU)."},
+        {'name': 'sang', 'description': "Jappo Sang : demandes, donneurs, dons, stocks, collectes."},
+        {'name': 'lits', 'description': "Jappo Lits : capacités par service, admissions, réservations."},
+        {'name': 'ambulances', 'description': "Jappo Ambulances : flotte, missions SAMU, SOS citoyen."},
+        {'name': 'ml', 'description': "Prévision des pénuries de sang (apprentissage automatique)."},
+        {'name': 'realtime', 'description': "Tickets de connexion WebSocket et alertes critiques."},
+        {'name': 'push', 'description': "Enregistrement des appareils pour les notifications push."},
+        {'name': 'sih', 'description': "Interopérabilité avec les logiciels hospitaliers (clé API)."},
+        {'name': 'supervision', 'description': "Indicateurs de pilotage du réseau et leurs objectifs."},
+        {'name': 'security', 'description': "Journal d'audit et accès d'urgence (« bris de glace »)."},
+        {'name': 'status', 'description': "État des dépendances du service (administrateurs)."},
+    ],
 }
 
 

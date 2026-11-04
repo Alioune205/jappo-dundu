@@ -9,7 +9,7 @@ interface AlertProps {
   className?: string
 }
 
-/** Bandeau de message : fond teinté et liseré gauche à la couleur du sens. */
+/** Bandeau de message : fond teinté et filet arrondi à la couleur du sens. */
 export const Alert: React.FC<AlertProps> = ({
   tone = 'info',
   title,
@@ -22,9 +22,9 @@ export const Alert: React.FC<AlertProps> = ({
   return (
     <div
       role={urgent ? 'alert' : 'status'}
-      className={`relative flex items-start gap-3 overflow-hidden rounded-xl border border-line py-3.5 pl-5 pr-3 text-sm text-fg ${TONE_SOFT[tone]} ${className}`}
+      className={`reveal relative flex items-start gap-3 overflow-hidden rounded-2xl border border-line py-3.5 pl-6 pr-3 text-sm text-fg ${TONE_SOFT[tone]} ${className}`}
     >
-      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${TONE_DOT[tone]}`} />
+      <span aria-hidden="true" className={`absolute inset-y-3 left-3 w-[3px] rounded-full ${TONE_DOT[tone]}`} />
 
       <div className="min-w-0 flex-1 leading-relaxed">
         {title && <p className={`mb-0.5 text-sm font-semibold ${TONE_TEXT[tone]}`}>{title}</p>}
@@ -35,7 +35,7 @@ export const Alert: React.FC<AlertProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="-m-1 rounded p-1 text-subtle transition-colors hover:bg-raised hover:text-fg"
+          className="-m-1 cursor-pointer rounded-full p-1.5 text-subtle transition-colors hover:bg-surface hover:text-fg"
           aria-label="Fermer le message"
         >
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">

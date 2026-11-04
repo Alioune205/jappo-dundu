@@ -115,7 +115,7 @@ export const Profile: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <PageHeader title="Mon compte" description="Identité professionnelle, coordonnées et mot de passe." />
+      <PageHeader eyebrow="Compte" title="Mon compte" description="Identité professionnelle, coordonnées et mot de passe." />
 
       <section className="panel">
         <div className="flex items-center gap-3 border-b border-line px-4 py-3">

@@ -95,11 +95,11 @@ export const Login: React.FC = () => {
       {/* Volet photo & télémétrie (grand écran) */}
       <aside className="relative hidden overflow-hidden bg-navy lg:sticky lg:top-0 lg:block lg:h-screen">
         <picture>
-          <source srcSet="/images/landing/need.webp" type="image/webp" />
+          <source srcSet="/images/landing/dashboard-background.webp" type="image/webp" />
           <img
-            src="/images/landing/need.jpg"
-            alt="Une ambulance en intervention de nuit"
-            className="absolute inset-0 h-full w-full object-cover object-[50%_40%]"
+            src="/images/landing/dashboard-background.jpg"
+            alt="Un médecin suit le tableau de bord de son établissement"
+            className="absolute inset-0 h-full w-full object-cover object-[42%_50%]"
           />
         </picture>
         <div className="absolute inset-0 bg-gradient-to-b from-navy/70 via-navy/35 to-navy/95" />
@@ -127,7 +127,7 @@ export const Login: React.FC = () => {
                 Espace professionnel
               </p>
               <p className="font-display mt-4 max-w-lg text-4xl font-semibold leading-[1.06] tracking-tight xl:text-5xl">
-                Chaque minute compte. <span className="text-amber">Chaque lit aussi.</span>
+                Chaque minute compte. <em className="serif text-amber">Chaque lit aussi.</em>
               </p>
               <p className="mt-4 max-w-md text-base leading-relaxed text-white/80">
                 Hôpitaux, centres de transfusion et SAMU : une seule plateforme pour le sang, les lits et les
@@ -165,7 +165,7 @@ export const Login: React.FC = () => {
       <main className="relative flex flex-col justify-between overflow-hidden px-5 py-8 sm:px-10">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -right-48 -top-48 h-[28rem] w-[28rem] rounded-full bg-amber-soft opacity-60 blur-2xl"
+          className="pointer-events-none absolute -right-48 -top-48 h-[28rem] w-[28rem] rounded-full bg-amber-soft opacity-70 blur-3xl"
         />
         <div className="relative flex items-center justify-between lg:hidden">
           <Link to="/bienvenue" className="flex items-center gap-2">
@@ -179,7 +179,7 @@ export const Login: React.FC = () => {
         </div>
 
         <div className="relative mx-auto flex w-full max-w-md flex-1 flex-col justify-center py-8 lg:py-4">
-          <div className="rounded-3xl border border-line bg-surface p-6 shadow-[var(--shadow-panel)] sm:p-8">
+          <div className="reveal rounded-[1.75rem] border border-line bg-surface p-6 shadow-[var(--shadow-raised)] sm:p-8">
             <p className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/[0.06] px-3 py-1 font-label text-[10px] font-semibold text-brand">
               Espace professionnel
             </p>
@@ -288,7 +288,7 @@ export const Login: React.FC = () => {
                 type="submit"
                 disabled={isSubmitting}
                 aria-busy={isSubmitting || undefined}
-                className="mt-2 inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand text-base font-semibold text-on-brand shadow-[0_10px_24px_-8px_var(--brand)] transition-all hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-2 inline-flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-brand text-base font-semibold text-on-brand transition-colors hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting ? (
                   <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">

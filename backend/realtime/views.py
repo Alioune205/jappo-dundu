@@ -5,11 +5,14 @@ Auteur : El Hadji Massogui Diop
 """
 
 from django.db.models import Q
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.openapi import CriticalAlertSerializer
 from users.permissions import is_admin, user_facility
 
 from .escalation import acknowledge, payload
@@ -20,6 +23,16 @@ from .tickets import issue_ticket
 class WebSocketTicketView(APIView):
     """POST /api/realtime/ticket/ → ticket WebSocket à usage unique (JWT requis)."""
 
+    @extend_schema(
+        summary="Obtenir un ticket de connexion WebSocket (usage unique)",
+        request=None,
+        responses={
+            201: inline_serializer(
+                'WebSocketTicket',
+                fields={'ticket': serializers.CharField(), 'expires_in': serializers.IntegerField(help_text="Secondes.")},
+            ),
+        },
+    )
     def post(self, request):
         ticket, ttl = issue_ticket(request.user)
         return Response({'ticket': ticket, 'expires_in': ttl}, status=201)
@@ -34,6 +47,7 @@ class CriticalAlertListView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(summary="Alertes critiques non acquittées", responses=CriticalAlertSerializer(many=True))
     def get(self, request):
         alerts = CriticalAlert.objects.filter(acknowledged_at__isnull=True)
         if not is_admin(request.user):
@@ -49,6 +63,7 @@ class CriticalAlertAckView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(summary="Acquitter une alerte critique", request=None, responses=CriticalAlertSerializer)
     def post(self, request, pk):
         alert = CriticalAlert.objects.filter(pk=pk).first()
         own = user_facility(request.user)

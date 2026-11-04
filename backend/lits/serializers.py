@@ -62,7 +62,7 @@ class BedCapacitySerializer(serializers.ModelSerializer):
             fields['facility_id'].read_only = True
         return fields
 
-    def get_updated_by(self, obj):
+    def get_updated_by(self, obj) -> dict | None:
         user = obj.updated_by
         if user is None:
             return None
@@ -101,7 +101,7 @@ class NearbyBedFacilitySerializer(NearbyFacilitySerializer):
         ]
         read_only_fields = fields
 
-    def get_freshness(self, obj):
+    def get_freshness(self, obj) -> str:
         return freshness_of(getattr(obj, 'confirmed_at', None))
 
 
@@ -141,14 +141,14 @@ class BedReservationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_capacity(self, obj):
+    def get_capacity(self, obj) -> dict:
         return {
             'id': obj.capacity_id,
             'category': obj.capacity.category,
             'category_display': obj.capacity.get_category_display(),
         }
 
-    def get_mission(self, obj):
+    def get_mission(self, obj) -> dict | None:
         mission = obj.mission
         if mission is None:
             return None
@@ -160,10 +160,10 @@ class BedReservationSerializer(serializers.ModelSerializer):
             'status_display': mission.get_status_display(),
         }
 
-    def get_created_by(self, obj):
+    def get_created_by(self, obj) -> dict | None:
         return _person(obj.created_by)
 
-    def get_closed_by(self, obj):
+    def get_closed_by(self, obj) -> dict | None:
         return _person(obj.closed_by)
 
 

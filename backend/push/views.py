@@ -8,6 +8,7 @@ Responsable du domaine : Pape Alioune Sene (application mobile)
 """
 
 from django.db import transaction
+from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -37,6 +38,20 @@ class DeviceRegisterView(APIView):
     utilisé par une autre personne après déconnexion.
     """
 
+    @extend_schema(
+        summary="Enregistrer le téléphone pour les notifications push",
+        request=DeviceSerializer,
+        responses={
+            201: inline_serializer(
+                'PushDevice',
+                fields={
+                    'token': serializers.CharField(),
+                    'platform': serializers.CharField(),
+                    'is_active': serializers.BooleanField(),
+                },
+            ),
+        },
+    )
     def post(self, request):
         serializer = DeviceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -59,6 +74,7 @@ class DeviceRegisterView(APIView):
 class DeviceUnregisterView(APIView):
     """Désactive le téléphone (déconnexion) : plus aucune notification pour ce compte."""
 
+    @extend_schema(summary="Désactiver le téléphone (déconnexion)", request=UnregisterSerializer, responses={204: None})
     def post(self, request):
         serializer = UnregisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

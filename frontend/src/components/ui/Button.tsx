@@ -8,10 +8,10 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const VARIANTS: Record<NonNullable<ButtonProps['variant']>, string> = {
-  // Action principale : rouge sang.
-  primary: 'bg-brand text-on-brand border border-transparent shadow-[0_4px_12px_-2px_color-mix(in_oklab,var(--brand)_45%,transparent)] hover:bg-brand-strong',
+  // Action principale : l'encre bleu nuit (le rouge est réservé au critique).
+  primary: 'bg-brand text-on-brand border border-transparent shadow-[0_6px_16px_-8px_color-mix(in_oklab,var(--brand)_70%,transparent)] hover:bg-brand-strong',
   secondary: 'bg-surface text-fg border border-line shadow-[var(--shadow-panel)] hover:bg-raised',
-  danger: 'bg-critical text-white border border-transparent shadow-[var(--shadow-panel)] hover:opacity-90',
+  danger: 'bg-critical text-on-critical border border-transparent shadow-[var(--shadow-panel)] hover:opacity-90',
   ghost: 'text-muted border border-transparent hover:bg-raised hover:text-fg',
   outline: 'bg-transparent text-fg border border-line-strong hover:bg-raised',
 }
@@ -36,7 +36,7 @@ export const Button: React.FC<ButtonProps> = ({
   return (
     <button
       type={type}
-      className={`inline-flex shrink-0 cursor-pointer select-none items-center justify-center rounded-lg font-semibold whitespace-nowrap transition-[background-color,border-color,color,opacity] duration-100 disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex shrink-0 cursor-pointer select-none items-center justify-center rounded-full font-semibold whitespace-nowrap transition-[background-color,border-color,color,opacity,translate] duration-150 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       disabled={disabled || isLoading}
       aria-busy={isLoading || undefined}
       {...props}

@@ -22,6 +22,7 @@ Auteur : Ibrahima Khalilou Diallo
 """
 
 from django.db.models import F, Sum
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -30,7 +31,7 @@ from rest_framework.response import Response
 from ambulances.models import Mission
 from ambulances.views import MissionViewSet, is_dispatcher, service_of
 
-from geo.serializers import parse_nearby_query
+from geo.serializers import NearbyQuerySerializer, parse_nearby_query
 from ml.constants import REGION_CODES, REGION_LABELS
 from security.permissions import role_permission
 from security.roles import DOMAIN_ROLES, Domain, Role, manages
@@ -201,7 +202,17 @@ class BedCapacityViewSet(
             ]
         )
 
-    @action(detail=False, methods=['get'])
+    @extend_schema(
+        summary="Établissements les plus proches avec des lits libres",
+        parameters=[
+            NearbyQuerySerializer,
+            OpenApiParameter('category', str, description="Service (emergency par défaut, intensive_care, maternity…)."),
+            OpenApiParameter('min_available', int, description="Lits libres minimum (1 par défaut)."),
+            OpenApiParameter('capability', str, description="Plateau technique exigé, codes séparés par des virgules (ct_scan,trauma)."),
+        ],
+        responses=NearbyBedFacilitySerializer(many=True),
+    )
+    @action(detail=False, methods=['get'], pagination_class=None)
     def nearest(self, request):
         """Établissements les plus proches avec des lits libres.
 

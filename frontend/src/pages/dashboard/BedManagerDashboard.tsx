@@ -1,47 +1,25 @@
 import React, { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Activity,
-  Ambulance as AmbulanceIcon,
-  ArrowRight,
-  BarChart3,
-  BedDouble,
-  Building2,
-  Clock,
-  MapPin,
-  Minus,
-  Phone,
-  Plus,
-  Route,
-  Siren,
-  TriangleAlert,
-} from 'lucide-react'
+import { Ambulance as AmbulanceIcon, ArrowRight, BedDouble, Clock, Gauge, MapPin, Minus, Phone, Plus, TriangleAlert } from 'lucide-react'
 import { Link } from 'react-router'
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Cell,
-  ReferenceLine,
-} from 'recharts'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 import { Alert } from '@/components/ui/Alert'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { StatCard } from '@/components/ui/StatCard'
-import { RadialGauge } from '@/components/ui/RadialGauge'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MapView } from '@/components/map/MapView'
-import { OccupancyBar } from '@/pages/beds/OccupancyBar'
+import { MetricTile } from '@/components/dash/MetricTile'
+import { EmptyNote, Legend, LegendItem, Panel } from '@/components/dash/Panel'
+import { ArcGauge } from '@/components/dash/ArcGauge'
+import { CapsuleChart, type CapsuleDatum } from '@/components/dash/CapsuleChart'
+import { Segmented } from '@/components/dash/Segmented'
+import { MissionSteps } from '@/components/dash/MissionSteps'
+import { OCCUPANCY_CRITICAL, SIGNAL_FILL, occupancySignal } from '@/components/dash/tones'
 import { computeBedStats, occupancyLevel } from '@/pages/beds/bedStats'
+import { FreshnessBadge } from '@/pages/beds/FreshnessBadge'
 import { BED_CATEGORIES } from '@/lib/constants'
 import { useNow } from '@/lib/useNow'
-import { useThemeColors } from '@/lib/useThemeColors'
 import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
 import { BED_EVENTS, MISSION_EVENTS } from '@/lib/realtimeEvents'
 import { formatDistance, formatEta, formatNumber, formatPercent, formatRelative } from '@/lib/format'
@@ -50,6 +28,7 @@ import { BilanSummary, DestinationStatusBadge } from '@/pages/ambulances/Mission
 import { PrealertActions } from './PrealertActions'
 import { TechnicalPanel } from './TechnicalPanel'
 import { TensionBanner } from './TensionBanner'
+import { MISSION_STEP, VITAL_CATEGORIES, plural, shortCategory } from './shared'
 import type {
   Ambulance,
   BedCapacity,
@@ -61,34 +40,27 @@ import type {
 } from '@/types/api'
 import { FULL_FEATURES } from '@/lib/features'
 
-const VITAL = new Set(BED_CATEGORIES.filter((c) => c.vital).map((c) => c.value))
 const CATEGORY_ORDER = BED_CATEGORIES.map((c) => c.value)
 
 /** Ordre d'affichage : services vitaux d'abord, puis l'ordre du référentiel. */
 const byPriority = (a: BedCapacity, b: BedCapacity) =>
-  Number(VITAL.has(b.category)) - Number(VITAL.has(a.category)) ||
+  Number(VITAL_CATEGORIES.has(b.category)) - Number(VITAL_CATEGORIES.has(a.category)) ||
   CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category)
 
-const MISSION_STEP: Record<string, number> = {
-  pending: 0,
-  assigned: 1,
-  on_site: 2,
-  transporting: 3,
-}
 const MISSION_STEPS = ['Créée', 'Affectée', 'Sur place', 'En route vers vous']
 
 /**
  * Tableau de bord de l'administrateur des lits : son établissement d'abord
- * (services, admissions, visualisations capacitaires, patients en approche), puis sa région.
+ * (services, admissions, capacité, patients en approche), puis sa région.
  */
 export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ facility }) => {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const now = useNow()
-  const colors = useThemeColors()
+  const [chartMode, setChartMode] = useState<'rate' | 'volume'>('rate')
 
   // 1. Services de mon établissement
-  const { data: capacities = [], isLoading } = useQuery<BedCapacity[]>({
+  const { data: capacities = [], isPending } = useQuery<BedCapacity[]>({
     queryKey: [...QK.bedCapacities, 'facility', facility.id],
     queryFn: async () => {
       const res = await api.get<{ results: BedCapacity[] }>('/api/lits/capacities/', { facility: facility.id })
@@ -142,10 +114,11 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
   const reservedTotal = capacities.reduce((acc, c) => acc + (c.reserved_beds ?? 0), 0)
   const expectedDischargesTotal = capacities.reduce((acc, c) => acc + (c.expected_discharges ?? 0), 0)
   const tension = services.filter((c) => occupancyLevel(c) !== 'normal')
-  const saturatedVital = services.filter((c) => VITAL.has(c.category) && c.available_beds === 0)
+  const saturatedVital = services.filter((c) => VITAL_CATEGORIES.has(c.category) && c.available_beds === 0)
   const incoming = missions
     .filter((m) => m.destination?.id === facility.id)
     .sort((a, b) => (MISSION_STEP[b.status] ?? 0) - (MISSION_STEP[a.status] ?? 0))
+  const transporting = incoming.filter((m) => m.status === 'transporting')
 
   const lastUpdate = capacities.reduce<BedCapacity | null>(
     (latest, c) => (!latest || c.updated_at > latest.updated_at ? c : latest),
@@ -160,28 +133,30 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
   const regionTotal = regionSummary.reduce((acc, r) => acc + r.total_beds, 0)
   const regionOccupied = regionSummary.reduce((acc, r) => acc + r.occupied_beds, 0)
   const regionRate = regionTotal > 0 ? regionOccupied / regionTotal : null
-  const myRate = stats.globalRate / 100
+  const myRate = stats.totalBeds > 0 ? stats.globalRate / 100 : null
+  const mySignal = occupancySignal(myRate)
 
-  // Données du graphique comparatif par service
-  const serviceChartData = useMemo(
-    () =>
-      services.map((c) => {
-        const rate = c.total_beds > 0 ? Math.round((c.occupied_beds / c.total_beds) * 100) : 0
-        const reg = regionByCategory.get(c.category)
-        const regPct = reg?.occupancy_rate != null ? Math.round(reg.occupancy_rate * 100) : null
-        return {
-          service: c.category_display,
-          rate,
-          regionRate: regPct,
-          available: c.available_beds,
-          total: c.total_beds,
-        }
-      }),
-    [services, regionByCategory]
-  )
+  const maxTotal = Math.max(1, ...services.map((c) => c.total_beds))
+  const capsules: CapsuleDatum[] = services.map((c) => {
+    const rate = c.total_beds > 0 ? c.occupied_beds / c.total_beds : 0
+    const region = regionByCategory.get(c.category)
+    return {
+      key: String(c.id),
+      label: shortCategory(c.category, c.category_display),
+      value: c.occupied_beds,
+      capacity: c.total_beds,
+      heightRatio: chartMode === 'volume' ? Math.max(0.15, c.total_beds / maxTotal) : 1,
+      signal: occupancySignal(rate),
+      marker: chartMode === 'rate' ? (region?.occupancy_rate ?? undefined) : undefined,
+      valueText: chartMode === 'rate' ? formatPercent(rate) : `${formatNumber(c.available_beds)} / ${formatNumber(c.total_beds)}`,
+      details: [
+        `${formatNumber(c.occupied_beds)} occupés sur ${formatNumber(c.total_beds)}`,
+        `${formatNumber(c.available_beds)} libres${c.reserved_beds ? ` · ${formatNumber(c.reserved_beds)} réservés` : ''}`,
+        region?.occupancy_rate != null ? `Région : ${formatPercent(region.occupancy_rate)}` : 'Pas de comparaison régionale',
+      ],
+    }
+  })
 
-  const rateTone = myRate > 0.85 ? 'danger' : myRate > 0.7 ? 'warning' : 'success'
-  const rateColor = (rate: number) => (rate > 85 ? colors.critical : rate > 70 ? colors.warning : colors.ok)
   const center = useMemo<[number, number] | undefined>(
     () =>
       facility.latitude != null && facility.longitude != null ? [facility.latitude, facility.longitude] : undefined,
@@ -192,28 +167,32 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow={
+          <>
+            <span>Jappo Lits</span>
+            <span aria-hidden="true">·</span>
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="h-3 w-3" aria-hidden="true" />
+              {facility.city === facility.region_display ? facility.city : `${facility.city} · ${facility.region_display}`}
+            </span>
+          </>
+        }
         title={facility.name}
         description={
-          <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
-              {facility.city === facility.region_display
-                ? facility.city
-                : `${facility.city} · ${facility.region_display}`}
+          lastUpdate ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+              Chiffres mis à jour {formatRelative(lastUpdate.updated_at, now)}
+              {lastUpdate.updated_by ? ` par ${lastUpdate.updated_by.full_name}` : ''}
             </span>
-            {lastUpdate && (
-              <span className="inline-flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-                Mis à jour {formatRelative(lastUpdate.updated_at, now)}
-                {lastUpdate.updated_by ? ` par ${lastUpdate.updated_by.full_name}` : ''}
-              </span>
-            )}
-          </span>
+          ) : (
+            'Capacités de vos services, admissions et patients annoncés.'
+          )
         }
         actions={
           <Link
             to="/beds"
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-on-brand shadow-sm transition-all hover:bg-brand-strong"
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-strong"
           >
             Ouvrir Mes lits <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
@@ -229,242 +208,219 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         </Alert>
       )}
 
-      {/* Indicateurs de mon établissement (Bento KPI avec Carte Hero) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Lits libres"
-          accent="blue"
-          variant="hero"
-          stagger={0}
-          icon={<BedDouble className="h-5 w-5" />}
-          value={formatNumber(stats.availableBeds)}
+        <MetricTile
+          i={0}
+          variant="featured"
+          icon={BedDouble}
+          to="/beds"
+          label="Lits libres"
+          loading={isPending}
+          value={stats.availableBeds}
           unit={`/ ${formatNumber(stats.totalBeds)}`}
-          description={`${services.length} services`}
-          progress={{
-            value: stats.occupiedBeds,
-            max: stats.totalBeds || 1,
-            tone: rateTone,
+          meter={{
+            value: stats.occupiedBeds + reservedTotal,
+            max: stats.totalBeds,
+            signal: mySignal,
+            label: 'Lits occupés ou réservés',
           }}
+          status={{ text: plural(services.length, 'service'), signal: 'neutral' }}
+          hint={reservedTotal > 0 ? plural(reservedTotal, 'lit réservé', 'lits réservés') : undefined}
         />
-        <StatCard
-          title="Taux d’occupation"
-          accent="yellow"
-          stagger={1}
-          icon={<Building2 className="h-5 w-5" />}
-          value={formatPercent(myRate)}
-          trend={regionRate === null ? undefined : `Région : ${formatPercent(regionRate)}`}
-          trendTone={regionRate !== null && myRate > regionRate ? 'warning' : 'success'}
-          description={
-            regionRate !== null && myRate > regionRate ? 'Au-dessus de la région' : 'Dans la moyenne régionale'
+        <MetricTile
+          i={1}
+          icon={Gauge}
+          label="Taux d’occupation"
+          loading={isPending}
+          value={myRate}
+          format={(v) => formatPercent(v)}
+          status={
+            regionRate === null || myRate === null
+              ? { text: 'Pas de comparaison régionale', signal: 'neutral' }
+              : myRate > regionRate
+                ? { text: `Région : ${formatPercent(regionRate)} · au-dessus`, signal: 'warning' }
+                : { text: `Région : ${formatPercent(regionRate)} · dans la moyenne`, signal: 'ok' }
           }
         />
-        <StatCard
-          title="Services en tension"
-          accent="red"
-          stagger={2}
-          icon={<TriangleAlert className="h-5 w-5" />}
+        <MetricTile
+          i={2}
+          icon={TriangleAlert}
+          label="Services en tension"
+          loading={isPending}
           value={tension.length}
           unit={`/ ${services.length}`}
           badge={
             stats.saturatedCount > 0
-              ? `${stats.saturatedCount} saturé${stats.saturatedCount > 1 ? 's' : ''}`
+              ? { label: plural(stats.saturatedCount, 'saturé'), signal: 'critical' }
               : undefined
           }
-          badgeTone="danger"
-          trend={tension.length > 0 ? 'Plus de 85 % occupés' : 'Aucune tension'}
-          trendTone={tension.length > 0 ? 'danger' : 'success'}
+          status={
+            tension.length > 0
+              ? { text: 'Plus de 85 % occupés', signal: 'critical' }
+              : { text: 'Aucune tension', signal: 'ok' }
+          }
         />
-        <StatCard
-          title="Patients en approche"
-          accent="green"
-          stagger={3}
-          icon={<AmbulanceIcon className="h-5 w-5" />}
+        <MetricTile
+          i={3}
+          icon={AmbulanceIcon}
+          label="Patients en approche"
           value={incoming.length}
           unit={incoming.length > 1 ? 'ambulances' : 'ambulance'}
-          trend={
-            incoming.some((m) => m.status === 'transporting')
-              ? `${incoming.filter((m) => m.status === 'transporting').length} en route vers vous`
-              : 'Aucun transport en cours'
+          status={
+            transporting.length > 0
+              ? { text: `${transporting.length} en route vers vous`, signal: 'warning' }
+              : { text: 'Aucun transport en cours', signal: 'neutral' }
           }
-          trendTone={incoming.some((m) => m.status === 'transporting') ? 'warning' : 'neutral'}
         />
       </div>
 
-      {/* Section Data Visualization : Occupation par service + Jauge de capacité hospitalière */}
       {services.length > 0 && (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <section
-            className="panel dash-panel-in flex flex-col justify-between xl:col-span-7"
-            style={{ '--stagger': 1 } as React.CSSProperties}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3.5">
-              <div>
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
-                  <BarChart3 className="h-4 w-4 text-accent-blue" aria-hidden="true" />
-                  Taux d’occupation par service
-                </h2>
-                <p className="text-2xs text-muted">
-                  Comparaison temps réel des services de l’établissement (seuil critique à 85 %)
-                </p>
-              </div>
-              <span className="text-2xs text-muted">Unité : % occupés</span>
-            </div>
-
-            <div className="h-56 w-full px-3 pb-2 pt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={serviceChartData} margin={{ top: 8, right: 12, left: -16, bottom: 20 }}>
-                  <CartesianGrid stroke={colors.line} strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="service"
-                    tick={{ fill: colors.muted }}
-                    tickLine={false}
-                    axisLine={{ stroke: colors.line }}
-                    fontSize={11}
-                    interval={0}
-                    angle={-12}
-                    textAnchor="end"
-                  />
-                  <YAxis
-                    tick={{ fill: colors.muted }}
-                    tickLine={false}
-                    axisLine={false}
-                    fontSize={11}
-                    domain={[0, 100]}
-                    unit="%"
-                  />
-                  <Tooltip
-                    cursor={{ fill: colors.raised }}
-                    contentStyle={{
-                      backgroundColor: colors.surface,
-                      borderColor: colors.lineStrong,
-                      borderRadius: 10,
-                      fontSize: 12,
-                      color: colors.fg,
-                      boxShadow: 'var(--shadow-raised)',
-                    }}
-                    formatter={(val) => [`${val ?? 0} %`, 'Occupation']}
-                  />
-                  <ReferenceLine y={85} stroke={colors.critical} strokeDasharray="4 4" strokeOpacity={0.65} />
-                  <Bar dataKey="rate" radius={[8, 8, 0, 0]} maxBarSize={36}>
-                    {serviceChartData.map((entry) => (
-                      <Cell key={entry.service} fill={rateColor(entry.rate)} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-raised/35 px-5 py-2.5 text-2xs text-muted">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-ok" /> &lt; 70 %
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-warning" /> 70–85 %
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-critical" /> &gt; 85 %
-                </span>
-              </div>
-              {expectedDischargesTotal > 0 && (
-                <span className="num font-medium text-fg">{`${expectedDischargesTotal} sortie(s) prévue(s)`}</span>
-              )}
-            </div>
-          </section>
-
-          <section
-            className="panel dash-panel-in flex flex-col justify-between xl:col-span-5"
-            style={{ '--stagger': 2 } as React.CSSProperties}
-          >
-            <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
-              <div>
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
-                  <Activity className="h-4 w-4 text-accent-green" aria-hidden="true" />
-                  Équilibre capacitaire
-                </h2>
-                <p className="text-2xs text-muted">Répartition des lits de l’établissement</p>
-              </div>
-              <Badge tone={rateTone === 'danger' ? 'danger' : rateTone === 'warning' ? 'warning' : 'success'} size="sm">
-                {myRate > 0.85 ? 'Sous tension' : myRate > 0.7 ? 'Vigilance' : 'Nominal'}
-              </Badge>
-            </div>
-
-            <div className="flex flex-1 flex-col justify-center p-4">
-              <RadialGauge
-                mode="semi"
-                centerValue={formatPercent(myRate)}
-                centerLabel="Occupation globale"
-                segments={[
-                  { label: 'Occupés', value: stats.occupiedBeds, color: rateColor(Math.round(myRate * 100)), unit: 'lits' },
-                  ...(reservedTotal > 0
-                    ? [{ label: 'Réservés', value: reservedTotal, color: colors.info, unit: 'lits' }]
-                    : []),
-                  { label: 'Libres', value: stats.availableBeds, color: colors.ok, unit: 'lits' },
+          <Panel
+            i={2}
+            className="xl:col-span-7"
+            title="Occupation par service"
+            subtitle={
+              chartMode === 'rate'
+                ? 'Part des lits occupés · le trait blanc marque le taux de la région'
+                : 'Hauteur = capacité du service · remplissage = lits occupés'
+            }
+            actions={
+              <Segmented
+                ariaLabel="Mode du graphique"
+                value={chartMode}
+                onChange={setChartMode}
+                options={[
+                  { value: 'rate', label: 'Taux' },
+                  { value: 'volume', label: 'Volumes' },
                 ]}
               />
-            </div>
+            }
+            footer={
+              <>
+                <Legend>
+                  <LegendItem className={SIGNAL_FILL.ok}>≤ 70 %</LegendItem>
+                  <LegendItem className={SIGNAL_FILL.warning}>70–85 %</LegendItem>
+                  <LegendItem className={SIGNAL_FILL.critical}>&gt; 85 %</LegendItem>
+                  <LegendItem kind="rest">Lits libres</LegendItem>
+                </Legend>
+                {expectedDischargesTotal > 0 && (
+                  <span className="num font-medium text-fg">
+                    {plural(expectedDischargesTotal, 'sortie prévue', 'sorties prévues')}
+                  </span>
+                )}
+              </>
+            }
+            bodyClassName="px-5 pb-5 pt-10"
+          >
+            <CapsuleChart
+              mode="fill"
+              data={capsules}
+              height={210}
+              threshold={chartMode === 'rate' ? { at: OCCUPANCY_CRITICAL, label: 'Seuil 85 %' } : undefined}
+              ariaLabel="Occupation des lits par service"
+            />
+          </Panel>
 
-            <div className="flex items-center justify-between border-t border-line bg-raised/35 px-5 py-2.5 text-2xs text-muted">
-              <span>Capacité totale déclarée</span>
-              <span className="num font-semibold text-fg">{`${stats.totalBeds} lits hospitaliers`}</span>
-            </div>
-          </section>
+          <Panel
+            i={3}
+            className="xl:col-span-5"
+            title="Équilibre capacitaire"
+            subtitle="Lits de l’établissement · en direct"
+            actions={
+              <Badge tone={mySignal === 'critical' ? 'danger' : mySignal === 'warning' ? 'warning' : 'success'} size="sm">
+                {mySignal === 'critical' ? 'Sous tension' : mySignal === 'warning' ? 'Vigilance' : 'Nominal'}
+              </Badge>
+            }
+            bodyClassName="px-5 pb-5 pt-4"
+          >
+            <ArcGauge
+              size={290}
+              centerValue={formatPercent(myRate)}
+              centerLabel="Occupation globale"
+              segments={[
+                {
+                  label: 'Occupés',
+                  value: stats.occupiedBeds,
+                  color: `var(--viz-${mySignal === 'critical' ? 'crit' : mySignal === 'warning' ? 'warn' : 'base'})`,
+                  unit: 'lits',
+                },
+                ...(reservedTotal > 0 ? [{ label: 'Réservés', value: reservedTotal, color: 'var(--info)', unit: 'lits' }] : []),
+                { label: 'Libres', value: stats.availableBeds, rest: true, unit: 'lits' },
+              ]}
+            />
+          </Panel>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.6fr_1fr]">
-        {/* Mes services : admissions et sorties en un clic */}
-        <section className="panel dash-panel-in" style={{ '--stagger': 3 } as React.CSSProperties}>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3.5">
-            <div>
-              <h2 className="text-sm font-semibold text-fg">Mes services</h2>
-              <p className="text-xs text-muted">Admettre un patient (+) ou enregistrer sa sortie (−). Réservations : « Mes lits ».</p>
-            </div>
-            <Link to="/beds" className="flex items-center gap-1 text-xs font-medium text-muted hover:text-fg">
-              Mes lits <ArrowRight className="h-3.5 w-3.5" />
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <Panel
+          i={4}
+          className="xl:col-span-7"
+          title="Mes services"
+          subtitle="Admettre un patient (+) ou enregistrer sa sortie (−)"
+          actions={
+            <Link to="/beds" className="inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-fg">
+              Mes lits <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Link>
-          </div>
+          }
+          bodyClassName="pt-2"
+        >
           {actionError && (
-            <div className="px-5 pt-4">
+            <div className="px-5 pb-3">
               <Alert tone="danger" onClose={() => (admit.error ? admit.reset() : discharge.reset())}>
                 {actionError instanceof Error ? actionError.message : 'Action impossible.'}
               </Alert>
             </div>
           )}
-          {isLoading ? (
-            <p className="px-5 py-10 text-center text-xs text-muted">Chargement des services…</p>
+          {isPending ? (
+            <div className="space-y-3 px-5 pb-5" aria-label="Chargement">
+              {[0, 1, 2, 3].map((k) => (
+                <span key={k} className="skeleton block h-12 w-full" />
+              ))}
+            </div>
           ) : services.length === 0 ? (
-            <p className="px-5 py-10 text-center text-xs text-muted">
-              Aucun service déclaré.{' '}
-              <Link to="/beds" className="font-semibold text-brand">
-                Déclarer une capacité
-              </Link>
-            </p>
+            <EmptyNote
+              title="Aucun service déclaré"
+              hint={
+                <Link to="/beds" className="font-semibold text-fg underline underline-offset-4">
+                  Déclarer une capacité
+                </Link>
+              }
+            />
           ) : (
             <ul className="divide-y divide-line">
-              {services.map((cap) => {
+              {services.map((cap, index) => {
                 const region = regionByCategory.get(cap.category)
+                const total = Math.max(1, cap.total_beds)
+                const rate = cap.total_beds > 0 ? cap.occupied_beds / cap.total_beds : 0
                 return (
                   <li
                     key={cap.id}
-                    className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 px-5 py-3.5 transition-colors hover:bg-raised/35 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto]"
+                    className="reveal grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2.5 px-5 py-3.5 sm:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_auto]"
+                    style={{ '--i': index + 2 } as React.CSSProperties}
                   >
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-fg">{cap.category_display}</span>
-                        {VITAL.has(cap.category) && (
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="text-sm font-semibold text-fg">{cap.category_display}</span>
+                        {VITAL_CATEGORIES.has(cap.category) && (
                           <Badge tone="brand" size="sm" dot={false}>
                             Vital
                           </Badge>
                         )}
+                        {cap.freshness && cap.freshness !== 'fresh' && (
+                          <FreshnessBadge freshness={cap.freshness} confirmedAt={cap.confirmed_at} now={now} showAge={false} />
+                        )}
                       </div>
                       <p className="mt-0.5 text-xs text-muted">
-                        <span className="num font-semibold text-fg">{cap.available_beds}</span> libre
-                        {cap.available_beds > 1 ? 's' : ''} sur <span className="num">{cap.total_beds}</span>
+                        <span className={`num font-semibold ${cap.available_beds === 0 ? 'text-critical' : 'text-fg'}`}>
+                          {cap.available_beds}
+                        </span>{' '}
+                        libre{cap.available_beds > 1 ? 's' : ''} sur <span className="num">{cap.total_beds}</span>
                         {cap.reserved_beds > 0 && (
                           <span className="font-medium text-info">
                             {' · '}
-                            {cap.reserved_beds} réservé{cap.reserved_beds > 1 ? 's' : ''}
+                            {plural(cap.reserved_beds, 'réservé')}
                           </span>
                         )}
                         {' · '}
@@ -472,7 +428,34 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                       </p>
                     </div>
                     <div className="col-span-2 row-start-2 sm:col-span-1 sm:row-start-auto">
-                      <OccupancyBar cap={cap} />
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="relative h-2 flex-1 overflow-hidden rounded-full bg-track"
+                          role="meter"
+                          aria-label={`Occupation : ${cap.category_display}`}
+                          aria-valuemin={0}
+                          aria-valuemax={cap.total_beds}
+                          aria-valuenow={cap.occupied_beds}
+                        >
+                          <div className="absolute inset-y-0 left-0 flex w-full">
+                            <span
+                              className={`bar-fill h-full rounded-l-full ${SIGNAL_FILL[occupancySignal(rate)]}`}
+                              style={{ width: `${(cap.occupied_beds / total) * 100}%` }}
+                            />
+                            {cap.reserved_beds > 0 && (
+                              <span className="bar-fill h-full bg-info" style={{ width: `${(cap.reserved_beds / total) * 100}%` }} />
+                            )}
+                          </div>
+                          {region?.occupancy_rate != null && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute inset-y-0 w-0.5 bg-fg"
+                              style={{ left: `${Math.min(100, region.occupancy_rate * 100)}%` }}
+                            />
+                          )}
+                        </div>
+                        <span className="num w-11 text-right text-xs font-semibold text-fg">{formatPercent(rate)}</span>
+                      </div>
                       {region?.occupancy_rate != null && (
                         <p className="mt-1 text-2xs text-muted">Région : {formatPercent(region.occupancy_rate)}</p>
                       )}
@@ -484,7 +467,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                         disabled={busy || cap.occupied_beds === 0}
                         aria-label={`Sortie d’un patient : ${cap.category_display}`}
                         title="Sortie d’un patient"
-                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-line-strong text-fg transition-all hover:scale-105 hover:bg-raised disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-sunken text-muted transition-[background-color,color,scale] duration-150 hover:bg-track hover:text-fg active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
                       >
                         <Minus className="h-4 w-4" />
                       </button>
@@ -494,7 +477,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                         disabled={busy || cap.available_beds === 0}
                         aria-label={`Admettre un patient : ${cap.category_display}`}
                         title="Admettre un patient"
-                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-brand text-on-brand transition-all hover:scale-105 hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-brand-soft text-fg transition-[background-color,color,scale] duration-150 hover:bg-brand hover:text-on-brand active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
                       >
                         <Plus className="h-4 w-4" />
                       </button>
@@ -504,32 +487,30 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
               })}
             </ul>
           )}
-        </section>
+        </Panel>
 
-        <div className="space-y-6">
-          {/* Patients en approche */}
-          <section className="panel dash-panel-in" style={{ '--stagger': 4 } as React.CSSProperties}>
-            <div className="border-b border-line px-5 py-3.5">
-              <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
-                <Siren className="h-4 w-4 text-critical" aria-hidden="true" />
-                Patients en approche
-                <span className="num font-normal text-muted">{incoming.length}</span>
-              </h2>
-              <p className="text-xs text-muted">Missions SAMU dont votre établissement est la destination.</p>
-            </div>
+        <div className="flex min-w-0 flex-col gap-6 xl:col-span-5">
+          <Panel
+            i={5}
+            title={
+              <>
+                Patients en approche <span className="num ml-1 font-normal text-muted">{incoming.length}</span>
+              </>
+            }
+            subtitle="Missions SAMU à destination de votre établissement"
+            bodyClassName="pt-2"
+          >
             {incoming.length === 0 ? (
-              <p className="px-5 py-10 text-center text-xs text-muted">Aucune ambulance n’est en route vers vous.</p>
+              <EmptyNote tone="calm" title="Aucune ambulance n’est en route vers vous" />
             ) : (
               <ul className="divide-y divide-line">
                 {incoming.map((m) => {
                   const step = MISSION_STEP[m.status] ?? 0
                   return (
-                    <li key={m.id} className="space-y-2 px-5 py-3.5 transition-colors hover:bg-raised/35">
+                    <li key={m.id} className="space-y-2.5 px-5 py-3.5">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-fg">
-                            {m.description || `Mission n° ${m.id}`}
-                          </p>
+                          <p className="truncate text-sm font-semibold text-fg">{m.description || `Mission n° ${m.id}`}</p>
                           <p className="truncate text-xs text-muted">
                             {m.pickup_address}
                             {m.ambulance ? ` · ${m.ambulance.plate_number}` : ''}
@@ -542,25 +523,16 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                           {m.priority_display}
                         </Badge>
                       </div>
-                      <ol className="grid grid-cols-4 gap-1" aria-label={`Étape : ${MISSION_STEPS[step]}`}>
-                        {MISSION_STEPS.map((label, i) => (
-                          <li
-                            key={label}
-                            className={`h-1.5 rounded-full transition-colors ${i <= step ? 'bg-accent-green' : 'bg-raised'}`}
-                          />
-                        ))}
-                      </ol>
-                      <p className="flex justify-between text-2xs text-muted">
-                        <span className="font-semibold text-fg">{MISSION_STEPS[step]}</span>
-                        <span>
-                          {m.status === 'transporting' && m.eta_at
+                      <MissionSteps
+                        step={step}
+                        labels={MISSION_STEPS}
+                        aside={
+                          m.status === 'transporting' && m.eta_at
                             ? `Arrivée ${formatEta(m.eta_at, now)}`
-                            : `Créée ${formatRelative(m.created_at, now)}`}
-                        </span>
-                      </p>
-                      {m.destination_status && m.destination_status !== 'pending' && (
-                        <DestinationStatusBadge mission={m} />
-                      )}
+                            : `Créée ${formatRelative(m.created_at, now)}`
+                        }
+                      />
+                      {m.destination_status && m.destination_status !== 'pending' && <DestinationStatusBadge mission={m} />}
                       <PrealertActions mission={m} />
                       {FULL_FEATURES && <BilanSummary mission={m} now={now} />}
                     </li>
@@ -568,7 +540,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
                 })}
               </ul>
             )}
-          </section>
+          </Panel>
 
           <TransferPanel facility={facility} services={services} />
 
@@ -576,19 +548,19 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         </div>
       </div>
 
-      <section className="panel dash-panel-in overflow-hidden" style={{ '--stagger': 5 } as React.CSSProperties}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-          <h2 className="text-sm font-semibold text-fg">Autour de {facility.name}</h2>
-          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted" aria-label="Légende">
-            <li className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-info" /> Établissements
-            </li>
-            <li className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-warning" /> Ambulance vers vous
-            </li>
-          </ul>
-        </div>
-        <div className="p-2">
+      <Panel
+        i={7}
+        title={`Autour de ${facility.name}`}
+        subtitle="Votre établissement et les ambulances en route vers vous"
+        actions={
+          <Legend>
+            <LegendItem className="bg-info">Établissement</LegendItem>
+            <LegendItem className="bg-viz-warn">Ambulance vers vous</LegendItem>
+          </Legend>
+        }
+        bodyClassName="p-2 pt-3"
+      >
+        <div className="overflow-hidden rounded-2xl">
           <MapView
             facilities={[facility]}
             ambulances={inboundAmbulances}
@@ -598,7 +570,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
             height="340px"
           />
         </div>
-      </section>
+      </Panel>
 
       {user && (
         <p className="text-center text-2xs text-subtle">
@@ -618,7 +590,7 @@ const TransferPanel: React.FC<{
   services: BedCapacity[]
 }> = ({ facility, services }) => {
   const mostTense = [...services]
-    .filter((c) => VITAL.has(c.category))
+    .filter((c) => VITAL_CATEGORIES.has(c.category))
     .sort((a, b) => a.available_beds - b.available_beds || b.occupancy_rate - a.occupancy_rate)[0]
   const [chosen, setChosen] = useState<BedCategory | null>(null)
   const category: BedCategory = chosen ?? mostTense?.category ?? 'emergency'
@@ -656,50 +628,46 @@ const TransferPanel: React.FC<{
       queryClient.invalidateQueries({ queryKey: QK.bedsNearest })
     },
   })
+  const vitalOptions = BED_CATEGORIES.filter((c) => c.vital)
 
   return (
-    <section className="panel dash-panel-in" style={{ '--stagger': 4 } as React.CSSProperties}>
-      <div className="border-b border-line px-5 py-3.5">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
-          <Route className="h-4 w-4 text-muted" aria-hidden="true" />
-          Solutions de transfert
-        </h2>
-        <p className="text-xs text-muted">
-          Établissements proches avec des lits libres (50 km). « Transférer » réserve le lit et demande l’ambulance.
-        </p>
+    <Panel
+      i={6}
+      title="Solutions de transfert"
+      subtitle="Lits libres à moins de 50 km, dans le service choisi"
+      bodyClassName="pt-2"
+    >
+      <div className="px-5">
+        <Segmented
+          ariaLabel="Service"
+          value={category}
+          onChange={setChosen}
+          options={vitalOptions.map((c) => ({ value: c.value, label: shortCategory(c.value, c.label) }))}
+          className="w-full"
+        />
         {transfer.error && (
-          <p role="alert" className="mt-1 text-xs text-critical">
+          <p role="alert" className="mt-2 text-xs text-critical">
             {transfer.error instanceof Error ? transfer.error.message : 'Transfert impossible.'}
           </p>
         )}
       </div>
-      <div className="flex flex-wrap gap-1.5 px-5 pt-3" role="group" aria-label="Service">
-        {BED_CATEGORIES.filter((c) => c.vital).map((c) => (
-          <button
-            key={c.value}
-            type="button"
-            onClick={() => setChosen(c.value)}
-            aria-pressed={category === c.value}
-            className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              category === c.value ? 'border-brand bg-brand-soft text-brand' : 'border-line text-muted hover:text-fg'
-            }`}
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
       {!located ? (
-        <p className="px-5 py-8 text-xs text-muted">Position de l’établissement inconnue : recherche impossible.</p>
+        <EmptyNote title="Position de l’établissement inconnue" hint="La recherche d’établissements proches est impossible." />
       ) : isError ? (
-        <p className="px-5 py-8 text-xs text-critical">Recherche impossible pour le moment.</p>
+        <EmptyNote title="Recherche impossible pour le moment" hint="Réessayez dans quelques instants." />
       ) : others.length === 0 ? (
-        <p className="px-5 py-8 text-xs text-muted">
-          {isFetching ? 'Recherche…' : 'Aucun établissement proche avec des lits libres dans ce service.'}
-        </p>
+        <EmptyNote
+          title={isFetching ? 'Recherche…' : 'Aucun établissement proche avec des lits libres'}
+          hint={isFetching ? undefined : 'Élargissez la recherche depuis la page Lits.'}
+        />
       ) : (
         <ol className="mt-2 divide-y divide-line">
-          {others.map((f) => (
-            <li key={f.id} className="flex items-center justify-between gap-3 px-5 py-3 text-xs transition-colors hover:bg-raised/35">
+          {others.map((f, index) => (
+            <li
+              key={f.id}
+              className="reveal flex items-center justify-between gap-3 px-5 py-3 text-xs"
+              style={{ '--i': index + 1 } as React.CSSProperties}
+            >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-fg">{f.name}</p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-muted">
@@ -714,7 +682,7 @@ const TransferPanel: React.FC<{
               </div>
               <div className="flex shrink-0 items-center gap-3">
                 <div className="text-right">
-                  <p className="num text-base font-semibold leading-tight text-ok">{f.available_beds}</p>
+                  <p className="num text-lg font-semibold leading-tight text-fg">{f.available_beds}</p>
                   <p className="text-2xs text-muted">libres</p>
                 </div>
                 {!FULL_FEATURES ? null : sent === f.id ? (
@@ -736,6 +704,6 @@ const TransferPanel: React.FC<{
           ))}
         </ol>
       )}
-    </section>
+    </Panel>
   )
 }

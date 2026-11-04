@@ -82,7 +82,7 @@ class AmbulanceSerializer(serializers.ModelSerializer):
         # Unicité vérifiée après normalisation (validate_plate_number).
         extra_kwargs = {'plate_number': {'validators': []}}
 
-    def get_driver(self, obj):
+    def get_driver(self, obj) -> dict | None:
         return _person(obj.driver)
 
     def validate_plate_number(self, value):
@@ -131,18 +131,18 @@ class NearbyAmbulanceSerializer(AmbulanceSerializer):
         fields = [*AmbulanceSerializer.Meta.fields, 'distance_km', 'travel_minutes', 'travel_source', 'readiness']
         read_only_fields = fields
 
-    def get_distance_km(self, obj):
+    def get_distance_km(self, obj) -> float | None:
         return distance_km(obj)
 
-    def get_travel_minutes(self, obj):
+    def get_travel_minutes(self, obj) -> float | None:
         travel = getattr(obj, 'travel', None)
         return travel.minutes if travel else None
 
-    def get_travel_source(self, obj):
+    def get_travel_source(self, obj) -> str | None:
         travel = getattr(obj, 'travel', None)
         return travel.source if travel else None
 
-    def get_readiness(self, obj):
+    def get_readiness(self, obj) -> dict:
         from .services import readiness_of
 
         return getattr(obj, 'readiness', None) or readiness_of(obj)
@@ -267,10 +267,10 @@ class MissionSerializer(serializers.ModelSerializer):
                 fields[name].read_only = True
         return fields
 
-    def get_created_by(self, obj):
+    def get_created_by(self, obj) -> dict | None:
         return _person(obj.created_by)
 
-    def get_response_time_minutes(self, obj):
+    def get_response_time_minutes(self, obj) -> float | None:
         if obj.on_site_at is None:
             return None
         return round((obj.on_site_at - obj.created_at).total_seconds() / 60, 1)
@@ -280,7 +280,7 @@ class MissionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Cet établissement est désactivé.")
         return value
 
-    def get_caller_card(self, obj):
+    def get_caller_card(self, obj) -> dict | None:
         """Fiche d'urgence de l'auteur d'une alerte SOS, s'il a accepté de la partager."""
         if obj.source != Mission.Source.SOS or obj.created_by_id is None:
             return None
@@ -300,7 +300,7 @@ class MissionSerializer(serializers.ModelSerializer):
             'medications': profile.medications,
         }
 
-    def get_incident_summary(self, obj):
+    def get_incident_summary(self, obj) -> dict | None:
         """Plusieurs victimes : l'incident et l'avancement de ses missions."""
         if obj.incident_id is None:
             return None
@@ -313,7 +313,7 @@ class MissionSerializer(serializers.ModelSerializer):
             'destinations': sorted({m.destination.name for m in missions if m.destination_id}),
         }
 
-    def get_caller_history(self, obj):
+    def get_caller_history(self, obj) -> dict | None:
         """Alertes SOS de l'appelant sur 30 jours, et celles que la régulation a annulées."""
         if obj.source != Mission.Source.SOS or obj.created_by_id is None:
             return None
@@ -324,7 +324,7 @@ class MissionSerializer(serializers.ModelSerializer):
     def validate_triage(self, value):
         return triage_protocol.clean_answers(value)
 
-    def get_triage_assessment(self, obj):
+    def get_triage_assessment(self, obj) -> dict | None:
         return triage_protocol.assess(obj.triage) if obj.triage else None
 
 
@@ -459,11 +459,11 @@ class CitizenSosSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_instructions(self, obj):
+    def get_instructions(self, obj) -> list[dict]:
         """Consignes en attendant l'ambulance, selon le type d'urgence signalé."""
         return triage_protocol.instructions_for(obj.triage or {})
 
-    def get_ambulance(self, obj):
+    def get_ambulance(self, obj) -> dict | None:
         ambulance = obj.ambulance
         if ambulance is None or not obj.is_active:
             return None

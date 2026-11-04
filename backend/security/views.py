@@ -15,12 +15,14 @@ from django.conf import settings
 from django.db import connection
 from django.http import JsonResponse
 from django.utils import timezone
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.openapi import json_object
 from ml.constants import REGION_CODES
 from users.filters import choice_param, int_param
 from users.permissions import is_admin, user_facility
@@ -95,6 +97,10 @@ class SystemStatusView(APIView):
     permission_classes = [IsAdmin]
     CRITICAL_CHECKS = ('database', 'channel_layer')
 
+    @extend_schema(
+        summary="État des dépendances (base, Redis, modèle ML)",
+        responses={200: json_object("Toutes les dépendances critiques répondent."), 503: json_object("Service dégradé.")},
+    )
     def get(self, request):
         checks = {
             'database': _timed('database', check_database),
@@ -129,6 +135,15 @@ class AuditLogView(APIView):
 
     permission_classes = [IsAdmin]
 
+    @extend_schema(
+        summary="Journal d'audit des actions sensibles",
+        parameters=[
+            OpenApiParameter('action', str, description="Préfixe de l'action (ex. donor.lookup)."),
+            OpenApiParameter('user', int, description="Identifiant de l'utilisateur."),
+            OpenApiParameter('limit', int, description="Nombre maximal d'événements (1000 au plus)."),
+        ],
+        responses=json_object("Liste des événements, du plus récent au plus ancien."),
+    )
     def get(self, request):
         events = AuditEvent.objects.select_related('user', 'facility')
         action = request.query_params.get('action')
@@ -175,6 +190,7 @@ class EmergencyAccessView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(summary="Accès d'urgence ouverts (« bris de glace »)", responses=json_object("Accès, avec établissement, motif et expiration."))
     def get(self, request):
         accesses = EmergencyAccess.objects.select_related('facility', 'user')
         if not request.user.is_staff:
@@ -195,6 +211,16 @@ class EmergencyAccessView(APIView):
             ]
         )
 
+    @extend_schema(
+        summary="Ouvrir un accès d'urgence de 60 minutes (journalisé)",
+        request=EmergencyAccessInput,
+        responses={
+            201: inline_serializer(
+                'EmergencyAccessOpened',
+                fields={'id': serializers.IntegerField(), 'expires_at': serializers.DateTimeField()},
+            ),
+        },
+    )
     def post(self, request):
         from users.models import HealthFacility
 
@@ -229,10 +255,25 @@ class TwoFactorView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="État de la double authentification",
+        responses=inline_serializer('TwoFactorState', fields={'enabled': serializers.BooleanField()}),
+    )
     def get(self, request, step=None):
         two_factor = TwoFactor.objects.filter(user=request.user).first()
         return Response({'enabled': bool(two_factor and two_factor.enabled)})
 
+    @extend_schema(
+        summary="Activer ou désactiver la double authentification (TOTP)",
+        request=inline_serializer(
+            'TwoFactorStep',
+            fields={
+                'code': serializers.CharField(required=False, help_text="Code à 6 chiffres de l'application."),
+                'password': serializers.CharField(required=False, help_text="Exigé pour désactiver."),
+            },
+        ),
+        responses=json_object("setup : secret et URI otpauth ; confirm et disable : état enabled."),
+    )
     def post(self, request, step=None):
         user = request.user
         if step == 'setup':
@@ -269,6 +310,14 @@ class NetworkKpisView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Indicateurs de pilotage et leurs objectifs",
+        parameters=[
+            OpenApiParameter('days', int, description="Période en jours (1 à 90, 7 par défaut)."),
+            OpenApiParameter('region', str, description="Code de la région (administrateur général)."),
+        ],
+        responses=json_object("Indicateurs mesurés, objectif et état de chacun."),
+    )
     def get(self, request):
         params = request.query_params
         days = int_param(params, 'days', default=7, minimum=1, maximum=90)

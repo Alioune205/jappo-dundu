@@ -14,12 +14,14 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.urls import reverse
 from django.utils import timezone
-from rest_framework import generics, status
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import generics, serializers, status
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from core.openapi import json_object
 from security.permissions import ManagesBlood
 from security.roles import Domain, Role, user_has_role
 from users.models import HealthFacility
@@ -145,6 +147,7 @@ class PredictionByRegionView(APIView):
 
     permission_classes = [ManagesBlood]
 
+    @extend_schema(summary="Synthèse des risques de pénurie par région", responses=PredictionSummarySerializer(many=True))
     def get(self, request):
         summary = (
             PredictionResult.objects
@@ -188,6 +191,11 @@ class PredictOnDemandView(APIView):
     def get_throttles(self):
         return [*super().get_throttles(), ScopedRateThrottle()]
 
+    @extend_schema(
+        summary="Lancer une prédiction à la demande (tâche asynchrone)",
+        request=PredictionRequestSerializer,
+        responses={202: json_object("Tâche créée : job_id, status et status_url pour le suivi.")},
+    )
     def post(self, request):
         serializer = PredictionRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -232,6 +240,7 @@ class PredictionJobView(APIView):
 
     permission_classes = [ManagesBlood]
 
+    @extend_schema(summary="Suivre une tâche de prédiction", responses=json_object("État : pending, running, succeeded ou failed, et résultat."))
     def get(self, request, job_id):
         job = jobs.get_job(job_id)
         if job is None or (
@@ -268,6 +277,10 @@ class ModelInfoView(APIView):
 
     permission_classes = [ManagesBlood]
 
+    @extend_schema(
+        summary="Modèle actif, métriques et part de données simulées",
+        responses={200: json_object("Métadonnées du modèle actif."), 404: json_object("Aucun modèle entraîné.")},
+    )
     def get(self, request):
         active_model = MLModelMetadata.objects.filter(is_active=True).first()
         if active_model is None:
@@ -447,6 +460,20 @@ class BloodStockBatchView(APIView):
 
     permission_classes = [ManagesBlood]
 
+    @extend_schema(
+        summary="Saisir un inventaire complet (plusieurs groupes)",
+        request=BloodStockBatchSerializer,
+        responses=inline_serializer(
+            'BloodStockBatchResult',
+            fields={
+                'center_name': serializers.CharField(),
+                'region': serializers.CharField(),
+                'date': serializers.DateField(),
+                'count': serializers.IntegerField(),
+                'records': BloodStockRecordSerializer(many=True),
+            },
+        ),
+    )
     def post(self, request):
         serializer = BloodStockBatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -499,6 +526,14 @@ class BloodStockAdjustmentView(APIView):
 
     permission_classes = [ManagesBlood]
 
+    @extend_schema(
+        summary="Ajuster un stock (don, utilisation, péremption, inventaire)",
+        request=BloodStockAdjustmentSerializer,
+        responses=inline_serializer(
+            'BloodStockAdjustmentResult',
+            fields={'message': serializers.CharField(), 'record': BloodStockRecordSerializer()},
+        ),
+    )
     def post(self, request):
         serializer = BloodStockAdjustmentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -574,6 +609,25 @@ class BloodStockCurrentSummaryView(APIView):
 
     permission_classes = [ManagesBlood]
 
+    @extend_schema(
+        summary="Stock actuel par groupe d'un centre de transfusion",
+        parameters=[
+            OpenApiParameter('center', str, description="Nom du centre (administrateur général)."),
+            OpenApiParameter('region', str, description="Code de la région."),
+        ],
+        responses=inline_serializer(
+            'BloodStockCurrentSummary',
+            fields={
+                'center_name': serializers.CharField(),
+                'region': serializers.CharField(),
+                'as_of_date': serializers.DateField(),
+                'total_units_available': serializers.IntegerField(),
+                'critical_groups': serializers.ListField(child=serializers.CharField()),
+                'warning_groups': serializers.ListField(child=serializers.CharField()),
+                'stocks': serializers.ListField(child=serializers.DictField()),
+            },
+        ),
+    )
     def get(self, request):
         center_name, region = _resolve_center_and_region(
             request.user, request.query_params.get('center'), request.query_params.get('region')
@@ -648,5 +702,6 @@ class RecommendationsView(APIView):
 
     permission_classes = [ManagesBlood]
 
+    @extend_schema(summary="Actions proposées face aux pénuries prévues (14 jours)", responses=json_object("Recommandations classées par urgence."))
     def get(self, request):
         return Response(recommendations(stock_scope(request.user)))

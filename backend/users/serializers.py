@@ -144,7 +144,7 @@ class NearbyFacilitySerializer(HealthFacilitySummarySerializer):
         fields = [*HealthFacilitySummarySerializer.Meta.fields, 'distance_km']
         read_only_fields = fields
 
-    def get_distance_km(self, obj):
+    def get_distance_km(self, obj) -> float | None:
         return distance_km(obj)
 
 
@@ -248,10 +248,10 @@ class AccountSerializer(serializers.ModelSerializer):
             instance.profile = UserProfile(user=instance)
         return super().to_representation(instance)
 
-    def get_full_name(self, obj):
+    def get_full_name(self, obj) -> str:
         return obj.get_full_name() or obj.get_username()
 
-    def get_roles(self, obj):
+    def get_roles(self, obj) -> list[str]:
         return sorted(services.roles_of(obj))
 
     def validate_email(self, value):

@@ -15,6 +15,7 @@ Auteur : El Hadji Massogui Diop
 import re
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view, inline_serializer
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.throttling import ScopedRateThrottle
@@ -113,6 +114,40 @@ def check_second_factor(user, code):
     TwoFactor.objects.filter(pk=two_factor.pk).update(last_used_step=step)
 
 
+@extend_schema_view(
+    post=extend_schema(
+        summary="Se connecter : paire de jetons JWT et profil",
+        description=(
+            "Identifiant : nom d'utilisateur, e-mail ou téléphone. Si la double "
+            "authentification est activée, le champ otp (code à 6 chiffres) est exigé ; "
+            "sans lui, la réponse est 401 avec code = otp_required."
+        ),
+        responses={
+            200: inline_serializer(
+                'LoginResponse',
+                fields={
+                    'access': serializers.CharField(),
+                    'refresh': serializers.CharField(),
+                    'user': inline_serializer(
+                        'LoginUser',
+                        fields={
+                            'id': serializers.IntegerField(),
+                            'username': serializers.CharField(),
+                            'email': serializers.EmailField(),
+                            'full_name': serializers.CharField(),
+                            'is_staff': serializers.BooleanField(),
+                            'role': serializers.CharField(),
+                            'roles': serializers.ListField(child=serializers.CharField()),
+                            'groups': serializers.ListField(child=serializers.CharField()),
+                        },
+                    ),
+                },
+            ),
+            401: OpenApiResponse(description="Identifiants invalides ou code OTP manquant."),
+        },
+        auth=[],
+    )
+)
 class JappoDunduTokenObtainPairView(TokenObtainPairView):
     """POST /api/auth/token/ — obtention d'une paire access/refresh."""
 
@@ -127,9 +162,22 @@ class JappoDunduTokenRefreshView(TokenRefreshView):
     """POST /api/auth/token/refresh/ — rotation du refresh token."""
 
 
+@extend_schema_view(
+    post=extend_schema(
+        summary="Vérifier la validité d'un jeton",
+        responses={200: OpenApiResponse(description="Jeton valide."), 401: OpenApiResponse(description="Jeton invalide ou expiré.")},
+        auth=[],
+    )
+)
 class JappoDunduTokenVerifyView(TokenVerifyView):
     """POST /api/auth/token/verify/ — vérifie la validité d'un token."""
 
 
+@extend_schema_view(
+    post=extend_schema(
+        summary="Se déconnecter : révoquer le jeton de rafraîchissement",
+        responses={200: OpenApiResponse(description="Jeton révoqué.")},
+    )
+)
 class LogoutView(TokenBlacklistView):
     """POST /api/auth/logout/ — révoque le refresh token fourni."""

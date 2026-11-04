@@ -102,6 +102,7 @@ export const AmbulancesManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Jappo Ambulances · régulation SAMU"
         title="Flotte SAMU"
         description="Missions d'urgence, affectation de l'ambulance la plus proche et suivi de la flotte."
         actions={
@@ -128,7 +129,7 @@ export const AmbulancesManagement: React.FC = () => {
                 Véhicule
               </Button>
             )}
-            <Button variant="danger" size="sm" onClick={() => setIsNewMissionOpen(true)} icon={<Plus className="h-3.5 w-3.5" />} title="Raccourci : N">
+            <Button variant="primary" size="sm" onClick={() => setIsNewMissionOpen(true)} icon={<Plus className="h-3.5 w-3.5" />} title="Raccourci : N">
               Nouvelle mission
             </Button>
           </>

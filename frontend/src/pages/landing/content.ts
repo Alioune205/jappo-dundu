@@ -13,23 +13,6 @@ export const SOURCE = {
   consulted: '6 octobre 2026',
 }
 
-/** Bandeau défilant : ce que fait la plateforme, en une ligne par module. */
-export const TICKER = [
-  { strong: 'Jappo Sang', text: 'les donneurs compatibles les plus proches alertés en un instant' },
-  { strong: 'Jappo Lits', text: 'chaque lit libre visible en temps réel' },
-  { strong: 'Jappo Ambulance', text: 'l’ambulance disponible la plus proche affectée automatiquement' },
-  { strong: '3 modules', text: 'une seule plateforme, des données partagées' },
-  { strong: 'Connecter · Sauver · Vivre', text: '« Jappo Dundu » : connecter la vie, en wolof' },
-]
-
-/** Repères de la plateforme (faits, pas des statistiques d'usage). */
-export const KEY_FIGURES = [
-  { value: '3', label: 'modules connectés : sang, lits, ambulances' },
-  { value: '4', label: 'rôles d’administration, un par domaine' },
-  { value: '14', label: 'régions du Sénégal dans le référentiel' },
-  { value: '1', label: 'application mobile pour les donneurs' },
-]
-
 export type ModuleKey = 'blood' | 'beds' | 'ambulances'
 
 /** Les trois modules, au même niveau. */
@@ -102,45 +85,6 @@ export const SCENARIO = [
   },
 ]
 
-/** Les publics de la plateforme (un rôle d'administration par domaine). */
-export const AUDIENCES = [
-  {
-    who: 'Donneurs',
-    where: 'Application mobile',
-    text: 'Recevoir les alertes des hôpitaux proches, répondre en un geste et suivre ses dons.',
-  },
-  {
-    who: 'Hôpitaux',
-    where: 'Interface web',
-    text: 'L’administrateur des lits gère les capacités ; l’administrateur du sang publie les demandes et confirme les dons.',
-  },
-  {
-    who: 'SAMU et ambulanciers',
-    where: 'Interface web et carte',
-    text: 'L’administrateur des ambulances régule les missions de sa région et suit sa flotte en direct.',
-  },
-  {
-    who: 'Supervision nationale',
-    where: 'Tableau de bord',
-    text: 'L’administrateur général voit tout le réseau, gère les établissements et les comptes.',
-  },
-]
-
-export const PILOTING = [
-  {
-    title: 'Temps réel',
-    text: 'Demandes de sang, lits et missions se mettent à jour sur tous les écrans dès qu’ils changent, sans recharger la page.',
-  },
-  {
-    title: 'Prévisions de pénurie',
-    text: 'Un modèle d’apprentissage automatique estime les stocks de sang par région et par groupe pour les jours à venir. En démonstration : il est entraîné sur des données simulées.',
-  },
-  {
-    title: 'Données protégées',
-    text: 'Chaque compte ne voit que son domaine et son établissement. Les donneurs ne reçoivent jamais d’information sur les patients.',
-  },
-]
-
 /** Groupes en tension publiés par le CNTS. */
 export const BLOOD_NEEDS = {
   updated: '30 septembre 2026',
@@ -152,13 +96,18 @@ export const BLOOD_NEEDS = {
   ],
 }
 
+/** Conditions du don (CNTS) : le titre dit la règle, le détail la précise. */
 export const DONOR_CONDITIONS = [
-  'Avoir entre 18 et 60 ans',
-  'Peser au moins 50 kg',
-  'Être en bonne santé le jour du don',
-  'Hommes : 3 mois entre deux dons, 4 dons par an au plus',
-  'Femmes : 4 mois entre deux dons, 3 dons par an au plus',
-]
+  { key: 'age', title: 'Avoir entre 18 et 60 ans', detail: 'Âge requis pour donner' },
+  { key: 'weight', title: 'Peser au moins 50 kg', detail: 'Poids minimum' },
+  { key: 'men', title: 'Hommes : tous les 3 mois', detail: '4 dons par an au plus' },
+  { key: 'women', title: 'Femmes : tous les 4 mois', detail: '3 dons par an au plus' },
+  {
+    key: 'health',
+    title: 'Être en bonne santé le jour du don',
+    detail: 'Un entretien médical confidentiel confirme l’aptitude.',
+  },
+] as const
 
 export const FAQ = [
   {

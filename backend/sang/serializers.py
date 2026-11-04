@@ -90,10 +90,10 @@ class DonorSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'card_code', 'location_updated_at', 'created_at', 'updated_at']
 
-    def get_ineligibility_reasons(self, obj):
+    def get_ineligibility_reasons(self, obj) -> list[str]:
         return obj.ineligibility_reasons()
 
-    def get_is_eligible(self, obj):
+    def get_is_eligible(self, obj) -> bool:
         return not obj.ineligibility_reasons()
 
     def validate_date_of_birth(self, value):
@@ -133,7 +133,7 @@ class DonorSerializer(serializers.ModelSerializer):
                 attrs['location_updated_at'] = timezone.now() if latitude is not None else None
         return attrs
 
-    def get_referrals_count(self, obj):
+    def get_referrals_count(self, obj) -> int:
         return obj.referrals.count() if obj.pk else 0
 
     def validate_referral_code(self, value):
@@ -184,10 +184,10 @@ class DonorLookupSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_full_name(self, obj):
+    def get_full_name(self, obj) -> str:
         return _person(obj.user)['full_name']
 
-    def get_is_eligible(self, obj):
+    def get_is_eligible(self, obj) -> bool:
         return not obj.ineligibility_reasons()
 
 
@@ -213,7 +213,7 @@ class DonorMatchSerializer(serializers.ModelSerializer):
     def get_is_exact_match(self, obj):
         return obj.blood_group == self.context['blood_request'].blood_group
 
-    def get_distance_km(self, obj):
+    def get_distance_km(self, obj) -> float | None:
         return distance_km(obj)
 
 
@@ -290,10 +290,10 @@ class BloodRequestSerializer(serializers.ModelSerializer):
             fields['facility_id'].read_only = True
         return fields
 
-    def get_created_by(self, obj):
+    def get_created_by(self, obj) -> dict | None:
         return _person(obj.created_by) if obj.created_by_id else None
 
-    def get_response_counts(self, obj):
+    def get_response_counts(self, obj) -> dict | None:
         if not hasattr(obj, 'accepted_count'):
             return None
         return {
@@ -335,10 +335,10 @@ class NearbyBloodRequestSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_distance_km(self, obj):
+    def get_distance_km(self, obj) -> float | None:
         return distance_km(obj)
 
-    def get_my_response(self, obj):
+    def get_my_response(self, obj) -> str | None:
         return self.context.get('my_responses', {}).get(obj.pk)
 
 
@@ -431,7 +431,7 @@ class DonorResponseSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_donor(self, obj):
+    def get_donor(self, obj) -> dict:
         data = {'id': obj.donor_id, 'blood_group': obj.donor.blood_group}
         if obj.status in self.CONTACT_STATUSES:
             user = obj.donor.user
@@ -495,10 +495,10 @@ class DonationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'blood_request', 'created_at']
 
-    def get_donor(self, obj):
+    def get_donor(self, obj) -> dict:
         return {**_person(obj.donor.user), 'blood_group': obj.donor.blood_group}
 
-    def get_recorded_by(self, obj):
+    def get_recorded_by(self, obj) -> dict | None:
         return _person(obj.recorded_by) if obj.recorded_by_id else None
 
     def validate_donated_on(self, value):
@@ -628,7 +628,7 @@ class NearbyStockFacilitySerializer(HealthFacilitySummarySerializer):
         fields = [*HealthFacilitySummarySerializer.Meta.fields, 'distance_km', 'stock_lines', 'total_units']
         read_only_fields = fields
 
-    def get_distance_km(self, obj):
+    def get_distance_km(self, obj) -> float | None:
         return distance_km(obj)
 
 

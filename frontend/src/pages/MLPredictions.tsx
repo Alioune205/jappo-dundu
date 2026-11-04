@@ -123,6 +123,7 @@ export const MLPredictions: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Pilotage · modèle quantile conformel"
         title="Prévisions de pénurie"
         description="Projection des stocks de sang par banque et par groupe, avec intervalle P10–P90 et jours de réserve."
         actions={
@@ -151,7 +152,7 @@ export const MLPredictions: React.FC = () => {
       {model && (
         <section aria-label="Modèle actif">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard
+            <StatCard variant="hero" stagger={0}
               title="Couverture P10–P90" accent="blue" icon={<Target className="h-5 w-5" />}
               value={formatPercent(coverage, 1)}
               unit="cible 80 %"
@@ -159,7 +160,7 @@ export const MLPredictions: React.FC = () => {
               trendTone={coverage != null && coverage < 0.78 ? 'warning' : 'success'}
               description="Sur la période de test"
             />
-            <StatCard
+            <StatCard stagger={1}
               title="Erreur moyenne (MAE)" accent="yellow" icon={<Gauge className="h-5 w-5" />}
               value={formatNumber(model.mae, 2)}
               unit="poches"
@@ -167,13 +168,13 @@ export const MLPredictions: React.FC = () => {
               trendTone={skill != null && skill < 0 ? 'warning' : 'success'}
               description={baselineMae == null ? 'Référence indisponible' : `Persistance : ${formatNumber(baselineMae, 2)}`}
             />
-            <StatCard
+            <StatCard stagger={2}
               title="Pénuries détectées" accent="red" icon={<TriangleAlert className="h-5 w-5" />}
               value={formatPercent(criticalRecall)}
               unit="rappel"
               description="Pénuries réelles signalées à l'avance"
             />
-            <StatCard
+            <StatCard stagger={3}
               title="Modèle actif" accent="green" icon={<Cpu className="h-5 w-5" />}
               value={formatDate(model.trained_at)}
               description={`${model.algorithm} · ${formatNumber(model.training_samples)} échantillons${series != null ? ` · ${series} séries` : ''}`}

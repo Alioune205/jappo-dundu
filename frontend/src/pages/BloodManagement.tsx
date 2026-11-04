@@ -66,6 +66,7 @@ export const BloodManagement: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Jappo Sang · demandes, stocks et dons"
         title="Banque de sang"
         description="Demandes, poches en stock à proximité, commandes entre établissements, donneurs et dons."
         actions={
@@ -102,8 +103,14 @@ export const BloodManagement: React.FC = () => {
             // Clé = demande : l'état local (confirmation d'annulation) repart de zéro.
             <RequestDetailPanel key={selected.id} request={selected} onCancelled={() => setSelectedId(null)} />
           ) : (
-            <div className="rounded-md border border-dashed border-line px-4 py-8 text-center text-xs text-muted">
-              Sélectionnez une demande pour voir les donneurs proches et les réponses.
+            <div className="flex flex-col items-center justify-center rounded-[1.25rem] border border-dashed border-line-strong px-6 py-10 text-center">
+              <span aria-hidden="true" className="mb-3 flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-line-strong">
+                <span className="h-2 w-2 rounded-full bg-line-strong" />
+              </span>
+              <p className="text-sm font-medium text-fg">Aucune demande sélectionnée</p>
+              <p className="mt-1 max-w-xs text-xs text-muted">
+                Sélectionnez une demande pour voir les donneurs proches et les réponses.
+              </p>
             </div>
           )}
           <DonationLookupPanel />

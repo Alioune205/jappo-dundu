@@ -1,7 +1,7 @@
 import React from 'react'
 
 export const Skeleton: React.FC<{ className?: string }> = ({ className = 'h-4 w-full' }) => {
-  return <div aria-hidden="true" className={`animate-pulse rounded-sm bg-raised ${className}`} />
+  return <div aria-hidden="true" className={`skeleton ${className}`} />
 }
 
 interface EmptyStateProps {
@@ -21,9 +21,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 }) => {
   return (
     <div
-      className={`flex flex-col items-center justify-center rounded-xl border border-dashed border-line bg-surface px-6 py-12 text-center ${className}`}
+      className={`flex flex-col items-center justify-center rounded-[1.25rem] border border-dashed border-line-strong bg-surface/60 px-6 py-12 text-center ${className}`}
     >
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand-soft text-brand" aria-hidden="true">
+      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-sunken text-muted" aria-hidden="true">
         {icon ?? (
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path

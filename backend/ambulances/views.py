@@ -36,7 +36,8 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import mixins, status, viewsets
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
@@ -44,8 +45,9 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from core.openapi import DetailResponse, json_object
 from geo.distance import GeoPoint
-from geo.serializers import parse_nearby_query
+from geo.serializers import NearbyQuerySerializer, parse_nearby_query
 from lits.models import BedCapacity
 from lits.serializers import NearbyBedFacilitySerializer
 from lits.services import find_facilities_with_beds
@@ -245,7 +247,15 @@ class AmbulanceViewSet(
         self._check_service(serializer)
         serializer.save()
 
-    @action(detail=False, methods=['get'])
+    @extend_schema(
+        summary="Ambulances disponibles les plus proches, triées par temps de trajet",
+        parameters=[
+            NearbyQuerySerializer,
+            OpenApiParameter('ambulance_type', str, description="Type de véhicule (ex. medicalized)."),
+        ],
+        responses=NearbyAmbulanceSerializer(many=True),
+    )
+    @action(detail=False, methods=['get'], pagination_class=None)
     def nearest(self, request):
         """GET /api/ambulances/vehicles/nearest/ ?latitude=&longitude= &radius_km=50
         &limit=10 &ambulance_type=medicalized
@@ -644,6 +654,7 @@ class SosView(APIView):
         # Seul l'envoi est plafonné : le suivi se relit toutes les quelques secondes.
         return [ScopedRateThrottle()] if self.request.method == 'POST' else super().get_throttles()
 
+    @extend_schema(summary="Suivre sa dernière alerte SOS", responses=CitizenSosSerializer)
     def get(self, request):
         mission = services.active_sos(request.user) or (
             Mission.objects.filter(
@@ -658,6 +669,11 @@ class SosView(APIView):
             raise NotFound("Aucune alerte SOS récente.")
         return Response(CitizenSosSerializer(mission).data)
 
+    @extend_schema(
+        summary="Déclencher une alerte SOS (citoyen)",
+        request=SosInputSerializer,
+        responses={201: CitizenSosSerializer, 200: CitizenSosSerializer},
+    )
     def post(self, request):
         serializer = SosInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -685,10 +701,16 @@ class EmergencyProfileView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(summary="Consulter sa fiche d'urgence", responses=EmergencyProfileSerializer)
     def get(self, request):
         profile = EmergencyProfile.objects.filter(user=request.user).first() or EmergencyProfile(user=request.user)
         return Response(EmergencyProfileSerializer(profile).data)
 
+    @extend_schema(
+        summary="Créer ou remplacer sa fiche d'urgence",
+        request=EmergencyProfileSerializer,
+        responses=EmergencyProfileSerializer,
+    )
     def put(self, request):
         profile, _ = EmergencyProfile.objects.get_or_create(user=request.user)
         serializer = EmergencyProfileSerializer(profile, data=request.data)
@@ -700,6 +722,7 @@ class EmergencyProfileView(APIView):
 class SosCancelView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(summary="Annuler son alerte SOS", request=None, responses=CitizenSosSerializer)
     def post(self, request, pk):
         mission = get_object_or_404(
             Mission.objects.select_related('ambulance'),
@@ -719,9 +742,15 @@ class TriageView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(summary="Protocole de tri de l'appel", responses=json_object("Questions, consignes et priorités du tri."))
     def get(self, request):
         return Response(triage.protocol())
 
+    @extend_schema(
+        summary="Évaluer les réponses du tri",
+        request=inline_serializer('TriageAnswers', fields={'answers': serializers.DictField()}),
+        responses=json_object("Priorité suggérée et consignes à donner à l'appelant."),
+    )
     def post(self, request):
         return Response(triage.assess(request.data.get('answers') or {}))
 
@@ -737,6 +766,12 @@ class PublicLocationView(APIView):
     throttle_scope = 'locate'
     throttle_classes = [ScopedRateThrottle]
 
+    @extend_schema(
+        summary="Transmettre sa position (lien SMS, sans compte)",
+        request=PublicLocationSerializer,
+        responses=DetailResponse,
+        auth=[],
+    )
     def post(self, request, token):
         serializer = PublicLocationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

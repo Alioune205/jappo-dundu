@@ -14,6 +14,12 @@ export interface ThemeColors {
   warning: string
   ok: string
   info: string
+  ink: string
+  /** Visualisation : série nominale, série secondaire, vigilance, critique. */
+  vizBase: string
+  vizBaseSoft: string
+  vizWarn: string
+  vizCrit: string
 }
 
 /**
@@ -39,6 +45,11 @@ export function useThemeColors(): ThemeColors {
       warning: read('--warning'),
       ok: read('--ok'),
       info: read('--info'),
+      ink: read('--ink'),
+      vizBase: read('--viz-base'),
+      vizBaseSoft: read('--viz-base-soft'),
+      vizWarn: read('--viz-warn'),
+      vizCrit: read('--viz-crit'),
     }
     // `theme` est la seule dépendance réelle : la classe du document change avec lui.
     // eslint-disable-next-line react-hooks/exhaustive-deps

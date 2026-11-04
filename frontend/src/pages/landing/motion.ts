@@ -9,6 +9,8 @@
  * - `[data-reveal]` : apparition au défilement (une seule fois) ; le décalage
  *   d'un élément dans sa série passe par la variable CSS `--i`.
  * - `[data-count]` : compteur animé de 0 à sa valeur à l'apparition.
+ * - `data-scrolled` : la navigation se pose sur papier dès qu'on quitte le
+ *   haut de page, avec ou sans animation (sa lisibilité en dépend).
  */
 import { useLayoutEffect, type RefObject } from 'react'
 
@@ -37,6 +39,21 @@ function countUp(el: HTMLElement) {
 }
 
 export function useLandingMotion(rootRef: RefObject<HTMLElement | null>) {
+  // Navigation : transparente sur le hero, posée sur papier au défilement.
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const onScroll = () => {
+      root.dataset.scrolled = String(window.scrollY > 24)
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      delete root.dataset.scrolled
+    }
+  }, [rootRef])
+
   useLayoutEffect(() => {
     const root = rootRef.current
     if (!root || !motionAllowed()) return
@@ -57,18 +74,9 @@ export function useLandingMotion(rootRef: RefObject<HTMLElement | null>) {
     )
     root.querySelectorAll('[data-reveal]').forEach((el) => observer.observe(el))
 
-    // Ombre de la navigation dès qu'on quitte le haut de page.
-    const onScroll = () => {
-      root.dataset.scrolled = String(window.scrollY > 24)
-    }
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-
     return () => {
       observer.disconnect()
-      window.removeEventListener('scroll', onScroll)
       delete root.dataset.motion
-      delete root.dataset.scrolled
     }
   }, [rootRef])
 }

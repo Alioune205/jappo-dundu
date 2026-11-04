@@ -15,6 +15,7 @@ import logging
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics, mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -23,8 +24,9 @@ from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, ScopedRateThrottle
 from rest_framework.views import APIView
 
+from core.openapi import TokenPairResponse
 from geo.search import nearest
-from geo.serializers import parse_nearby_query
+from geo.serializers import NearbyQuerySerializer, parse_nearby_query
 from ml.constants import REGION_CODES
 from security.authentication import JappoDunduTokenObtainPairSerializer
 from security.permissions import IsAdmin
@@ -117,6 +119,11 @@ class PasswordChangeView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Changer son mot de passe (ferme les autres sessions)",
+        request=PasswordChangeSerializer,
+        responses=TokenPairResponse,
+    )
     def post(self, request):
         serializer = PasswordChangeSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
@@ -268,7 +275,12 @@ class HealthFacilityViewSet(
             }
         )
 
-    @action(detail=False, methods=['get'])
+    @extend_schema(
+        summary="Établissements les plus proches d'un point",
+        parameters=[NearbyQuerySerializer],
+        responses=NearbyFacilitySerializer(many=True),
+    )
+    @action(detail=False, methods=['get'], pagination_class=None)
     def nearest(self, request):
         query = parse_nearby_query(request.query_params, default_radius_km=self.default_radius_km)
         facilities = nearest(

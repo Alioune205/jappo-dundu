@@ -15,6 +15,9 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
     restoreMocks: true,
+    // Tableaux de bord complets (toutes fonctions affichées) : le premier rendu
+    // d'un fichier peut dépasser 5 s sur un poste chargé, en exécution parallèle.
+    testTimeout: 15_000,
     // Les tests couvrent toutes les fonctions, y compris celles masquées par défaut.
     env: { VITE_FULL_FEATURES: 'true' },
   },

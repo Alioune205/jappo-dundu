@@ -25,7 +25,8 @@ export type Tone = 'neutral' | 'brand' | 'danger' | 'warning' | 'success' | 'inf
 
 /**
  * Traduction des tons vers les couleurs du système : quatre couleurs de sens
- * (critique, vigilance, nominal, information) et « brand », le vert national.
+ * (critique, vigilance, nominal, information) et « brand », l'encre bleu nuit
+ * du logo (actions principales).
  * « violet » rejoint l'information ; le reste est neutre.
  */
 export const TONE_DOT: Record<Tone, string> = {
@@ -48,12 +49,12 @@ export const TONE_TEXT: Record<Tone, string> = {
   violet: 'text-info',
 }
 
-/** Étiquette (badges) : pleine pour le critique, teintée pour le reste. */
+/** Étiquette (badges) : fond teinté et texte à la couleur du sens, critique compris. */
 export const TONE_PILL: Record<Tone, string> = {
-  neutral: 'bg-raised text-fg',
-  brand: 'bg-brand text-white',
-  danger: 'bg-critical text-white',
-  warning: 'bg-warning/12 text-warning',
+  neutral: 'bg-sunken text-muted',
+  brand: 'bg-brand-soft text-fg',
+  danger: 'bg-critical/10 text-critical',
+  warning: 'bg-warning/10 text-warning',
   success: 'bg-ok/10 text-ok',
   info: 'bg-info/10 text-info',
   violet: 'bg-info/10 text-info',
@@ -69,9 +70,6 @@ export const TONE_SOFT: Record<Tone, string> = {
   info: 'bg-info/8 border-info/20',
   violet: 'bg-info/8 border-info/20',
 }
-
-/** Étiquettes pleines : le point de couleur y serait invisible. */
-export const SOLID_TONES: ReadonlySet<Tone> = new Set<Tone>(['brand', 'danger'])
 
 export interface Option<T extends string> {
   value: T

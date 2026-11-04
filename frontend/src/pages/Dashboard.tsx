@@ -1,55 +1,41 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Activity,
-  Ambulance as AmbulanceIcon,
-  ArrowRight,
-  BedDouble,
-  BrainCircuit,
-  Droplets,
-  FileText,
-  Layers,
-  Maximize2,
-  Minimize2,
-} from 'lucide-react'
+import { Ambulance as AmbulanceIcon, ArrowRight, BedDouble, BrainCircuit, Droplets, FileText, Maximize2, Minimize2 } from 'lucide-react'
 import { Link } from 'react-router'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
 import { canManage, canView } from '@/lib/access'
 import { Badge } from '@/components/ui/Badge'
-import { StatCard } from '@/components/ui/StatCard'
-import { RadialGauge } from '@/components/ui/RadialGauge'
 import { MapView } from '@/components/map/MapView'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { useThemeColors } from '@/lib/useThemeColors'
+import { MetricTile } from '@/components/dash/MetricTile'
+import { EmptyNote, Legend, LegendItem, Panel } from '@/components/dash/Panel'
+import { ArcGauge } from '@/components/dash/ArcGauge'
+import { CapsuleChart, type CapsuleDatum } from '@/components/dash/CapsuleChart'
+import { StackBars, type StackRow } from '@/components/dash/StackBars'
+import { Segmented } from '@/components/dash/Segmented'
+import { PriorityFeed, type PriorityItem } from '@/components/dash/PriorityFeed'
+import { OCCUPANCY_CRITICAL, SIGNAL_FILL, occupancySignal, type Signal } from '@/components/dash/tones'
+import { useNow } from '@/lib/useNow'
 import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
 import { useAmbulancePositions } from '@/lib/useAmbulancePositions'
 import { BED_EVENTS, BLOOD_REQUEST_EVENTS, MISSION_EVENTS, RealtimeEvent } from '@/lib/realtimeEvents'
-import { formatNumber, formatPercent } from '@/lib/format'
+import { formatNumber, formatPercent, formatRelative } from '@/lib/format'
 import type {
   BloodRequest,
+  BedCategory,
   BedSummaryRow,
   Ambulance,
   Mission,
   PredictionSummaryRow,
   FacilitySummary,
 } from '@/types/api'
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Cell,
-  ReferenceLine,
-} from 'recharts'
 import { QK } from '@/lib/queryKeys'
 import { AmbulanceManagerDashboard } from './dashboard/AmbulanceManagerDashboard'
 import { BedManagerDashboard } from './dashboard/BedManagerDashboard'
 import { BloodManagerDashboard } from './dashboard/BloodManagerDashboard'
 import { KpiPanel } from './dashboard/KpiPanel'
+import { VITAL_CATEGORIES, groupLabel, minutesSince, plural, shortCategory } from './dashboard/shared'
 import type { Role } from '@/types/api'
 import { FULL_FEATURES } from '@/lib/features'
 
@@ -60,13 +46,16 @@ const DOMAIN_DASHBOARDS: Partial<Record<Role, React.FC<{ facility: FacilitySumma
   ambulance_manager: AmbulanceManagerDashboard,
 }
 
-/** Colonnes de la grille d'indicateurs selon le nombre de cartes visibles. */
-const STAT_COLUMNS: Record<number, string> = {
+/** Colonnes de la rangée d'indicateurs selon le nombre de tuiles visibles. */
+const TILE_COLUMNS: Record<number, string> = {
   1: 'xl:grid-cols-1',
   2: 'xl:grid-cols-2',
   3: 'xl:grid-cols-3',
   4: 'xl:grid-cols-4',
 }
+
+/** Une mission sans ambulance au-delà de ce délai devient critique. */
+const PENDING_ALERT_MINUTES = 5
 
 type LayerKey = 'hospitals' | 'bloodBanks' | 'ambulances' | 'missions'
 
@@ -74,8 +63,10 @@ const LAYERS: { key: LayerKey; label: string; swatch: string }[] = [
   { key: 'hospitals', label: 'Hôpitaux', swatch: 'bg-info' },
   { key: 'bloodBanks', label: 'Banques de sang', swatch: 'bg-critical' },
   { key: 'ambulances', label: 'Ambulances', swatch: 'bg-ok' },
-  { key: 'missions', label: 'Missions', swatch: 'bg-warning' },
+  { key: 'missions', label: 'Missions', swatch: 'bg-viz-warn' },
 ]
+
+const URGENCY_RANK = { critical: 0, urgent: 1, normal: 2 } as const
 
 export const Dashboard: React.FC = () => {
   const { user, roles } = useAuth()
@@ -90,10 +81,19 @@ export const Dashboard: React.FC = () => {
   return <NetworkDashboard />
 }
 
+interface CategoryRow {
+  category: BedCategory
+  label: string
+  total: number
+  occupied: number
+  reserved: number
+  available: number
+}
+
 /** Vue réseau : administrateur général et rôles multi-domaines. */
 const NetworkDashboard: React.FC = () => {
   const { user, roles } = useAuth()
-  const colors = useThemeColors()
+  const now = useNow(15_000)
 
   // Chaque administrateur ne charge que les domaines de son rôle : le serveur
   // refuserait les autres (403).
@@ -123,7 +123,7 @@ const NetworkDashboard: React.FC = () => {
   }
 
   // 1. Demandes de sang ouvertes
-  const { data: bloodRequests = [] } = useQuery({
+  const bloodQuery = useQuery({
     queryKey: [...QK.bloodRequests, 'open'],
     queryFn: async () => {
       const res = await api.get<{ results: BloodRequest[] }>('/api/sang/requests/', {
@@ -133,16 +133,18 @@ const NetworkDashboard: React.FC = () => {
     },
     enabled: seeBlood,
   })
+  const bloodRequests = useMemo(() => bloodQuery.data ?? [], [bloodQuery.data])
 
   // 2. Synthèse des lits
-  const { data: bedSummary = [] } = useQuery<BedSummaryRow[]>({
+  const bedsQuery = useQuery<BedSummaryRow[]>({
     queryKey: QK.bedsSummary,
     queryFn: () => api.get<BedSummaryRow[]>('/api/lits/capacities/summary/'),
     enabled: seeBeds,
   })
+  const bedSummary = useMemo(() => bedsQuery.data ?? [], [bedsQuery.data])
 
   // 3. Flotte d'ambulances
-  const { data: ambulances = [] } = useQuery<Ambulance[]>({
+  const fleetQuery = useQuery<Ambulance[]>({
     queryKey: QK.ambulancesList,
     queryFn: async () => {
       const res = await api.get<{ results: Ambulance[] }>('/api/ambulances/vehicles/')
@@ -150,9 +152,10 @@ const NetworkDashboard: React.FC = () => {
     },
     enabled: seeFleet,
   })
+  const ambulances = fleetQuery.data ?? []
 
   // 4. Missions actives
-  const { data: activeMissions = [] } = useQuery<Mission[]>({
+  const missionsQuery = useQuery<Mission[]>({
     queryKey: QK.missionsActive,
     queryFn: async () => {
       const res = await api.get<{ results: Mission[] }>('/api/ambulances/missions/', {
@@ -162,13 +165,15 @@ const NetworkDashboard: React.FC = () => {
     },
     enabled: seeFleet,
   })
+  const activeMissions = useMemo(() => missionsQuery.data ?? [], [missionsQuery.data])
 
   // 5. Synthèse des risques ML (Massogui Diop)
-  const { data: predictionSummary = [] } = useQuery<PredictionSummaryRow[]>({
+  const predictionsQuery = useQuery<PredictionSummaryRow[]>({
     queryKey: QK.predictionsSummary,
     queryFn: () => api.get<PredictionSummaryRow[]>('/api/ml/predictions/summary/'),
     enabled: seeBlood,
   })
+  const predictionSummary = useMemo(() => predictionsQuery.data ?? [], [predictionsQuery.data])
 
   // 6. Établissements (pour la carte)
   const { data: facilities = [] } = useQuery<FacilitySummary[]>({
@@ -190,96 +195,188 @@ const NetworkDashboard: React.FC = () => {
   ])
   useAmbulancePositions(QK.ambulancesList)
 
-  // Statistiques calculées (Lits)
+  // ------------------------------------------------------------- Lits
   const totalAvailableBeds = bedSummary.reduce((acc, row) => acc + row.available_beds, 0)
   const totalReservedBeds = bedSummary.reduce((acc, row) => acc + (row.reserved_beds ?? 0), 0)
   const totalOccupiedBeds = bedSummary.reduce((acc, row) => acc + row.occupied_beds, 0)
   const totalBeds = bedSummary.reduce((acc, row) => acc + row.total_beds, 0)
   const globalOccupancy = totalBeds > 0 ? (totalBeds - totalAvailableBeds) / totalBeds : 0
+  const occupancy = occupancySignal(totalBeds > 0 ? globalOccupancy : null)
 
-  // Statistiques Flotte & Sang
+  const byCategory = useMemo(() => {
+    const map = new Map<BedCategory, CategoryRow>()
+    for (const row of bedSummary) {
+      const entry = map.get(row.category) ?? {
+        category: row.category,
+        label: shortCategory(row.category, row.category_display),
+        total: 0,
+        occupied: 0,
+        reserved: 0,
+        available: 0,
+      }
+      entry.total += row.total_beds
+      entry.occupied += row.occupied_beds
+      entry.reserved += row.reserved_beds ?? 0
+      entry.available += row.available_beds
+      map.set(row.category, entry)
+    }
+    return [...map.values()].sort((a, b) => b.occupied / (b.total || 1) - a.occupied / (a.total || 1))
+  }, [bedSummary])
+
+  const maxCategoryTotal = Math.max(1, ...byCategory.map((c) => c.total))
+  const categoryCapsules: CapsuleDatum[] = byCategory.map((c) => {
+    const rate = c.total > 0 ? c.occupied / c.total : 0
+    return {
+      key: c.category,
+      label: c.label,
+      value: c.occupied,
+      capacity: c.total,
+      heightRatio: bedChartMode === 'volume' ? Math.max(0.12, c.total / maxCategoryTotal) : 1,
+      signal: occupancySignal(rate),
+      valueText: bedChartMode === 'rate' ? formatPercent(rate) : `${formatNumber(c.available)} libres`,
+      details: [
+        `${formatNumber(c.occupied)} occupés sur ${formatNumber(c.total)}`,
+        `${formatNumber(c.available)} libres${c.reserved ? ` · ${formatNumber(c.reserved)} réservés` : ''}`,
+      ],
+    }
+  })
+
+  const regionRows: StackRow[] = useMemo(() => {
+    const map = new Map<string, { label: string; total: number; occupied: number; reserved: number; available: number }>()
+    for (const row of bedSummary) {
+      const label = row.region_display || row.region
+      const entry = map.get(label) ?? { label, total: 0, occupied: 0, reserved: 0, available: 0 }
+      entry.total += row.total_beds
+      entry.occupied += row.occupied_beds
+      entry.reserved += row.reserved_beds ?? 0
+      entry.available += row.available_beds
+      map.set(label, entry)
+    }
+    return [...map.values()]
+      .filter((r) => r.total > 0)
+      .sort((a, b) => b.occupied / b.total - a.occupied / a.total)
+      .slice(0, 6)
+      .map((r, index) => {
+        const rate = r.occupied / r.total
+        return {
+          key: r.label,
+          label: r.label,
+          emphasis: index === 0 && rate > OCCUPANCY_CRITICAL,
+          valueText: `${formatPercent(rate)} · ${formatNumber(r.available)} libres`,
+          parts: [
+            { label: 'Occupés', value: r.occupied, className: SIGNAL_FILL[occupancySignal(rate)] },
+            { label: 'Réservés', value: r.reserved, className: 'bg-info' },
+            { label: 'Libres', value: r.available, rest: true },
+          ],
+        }
+      })
+  }, [bedSummary])
+
+  // ------------------------------------------------------- Flotte, sang
   const availableAmbulances = ambulances.filter((a) => a.status === 'available').length
   const criticalPredictions = predictionSummary.reduce((acc, p) => acc + p.critical_count, 0)
-  const warningPredictions = predictionSummary.reduce((acc, p) => acc + p.warning_count, 0)
-  const normalPredictions = predictionSummary.reduce((acc, p) => acc + p.normal_count, 0)
-  const criticalBloodCount = bloodRequests.filter((r) => r.urgency === 'critical').length
+  const criticalBlood = bloodRequests.filter((r) => r.urgency === 'critical')
+  const sortedRequests = [...bloodRequests].sort((a, b) => URGENCY_RANK[a.urgency] - URGENCY_RANK[b.urgency])
+  const fleetSignal: Signal = ambulances.length === 0 ? 'neutral' : availableAmbulances <= 2 ? 'warning' : 'ok'
 
-  // Graphique d'occupation des lits par spécialité
-  const bedsChartData = bedSummary
-    .reduce(
-      (acc, row) => {
-        const existing = acc.find((item) => item.category === row.category_display)
-        if (existing) {
-          existing.total += row.total_beds
-          existing.occupied += row.occupied_beds
-          existing.available += row.available_beds
-          existing.rate = existing.total > 0 ? Math.round((existing.occupied / existing.total) * 100) : 0
-        } else {
-          acc.push({
-            category: row.category_display,
-            total: row.total_beds,
-            occupied: row.occupied_beds,
-            available: row.available_beds,
-            rate: row.total_beds > 0 ? Math.round((row.occupied_beds / row.total_beds) * 100) : 0,
-          })
-        }
-        return acc
-      },
-      [] as { category: string; total: number; occupied: number; available: number; rate: number }[]
-    )
-    .sort((a, b) => b.rate - a.rate)
+  const riskRows: StackRow[] = [...predictionSummary]
+    .filter((p) => p.total_predictions > 0 || p.critical_count + p.warning_count + p.normal_count > 0)
+    .sort((a, b) => b.critical_count - a.critical_count || b.warning_count - a.warning_count)
+    .slice(0, 7)
+    .map((p) => ({
+      key: p.region,
+      label: p.region_display || p.region,
+      emphasis: p.critical_count > 0,
+      valueText:
+        p.critical_count > 0
+          ? plural(p.critical_count, 'critique')
+          : p.warning_count > 0
+            ? `${formatNumber(p.warning_count)} vigilance`
+            : 'stable',
+      parts: [
+        { label: 'Critique', value: p.critical_count, className: 'bg-viz-crit' },
+        { label: 'Vigilance', value: p.warning_count, className: 'bg-viz-warn' },
+        { label: 'Nominal', value: p.normal_count, className: 'bg-viz-base-soft' },
+      ],
+    }))
 
-  // Synthèse régionale des lits pour le panneau d'équilibre capacitaire
-  const regionBedsData = bedSummary
-    .reduce(
-      (acc, row) => {
-        const label = row.region_display || row.region || 'Région'
-        const existing = acc.find((item) => item.region === label)
-        if (existing) {
-          existing.total += row.total_beds
-          existing.occupied += row.occupied_beds
-          existing.available += row.available_beds
-        } else {
-          acc.push({
-            region: label,
-            total: row.total_beds,
-            occupied: row.occupied_beds,
-            available: row.available_beds,
-          })
-        }
-        return acc
-      },
-      [] as { region: string; total: number; occupied: number; available: number }[]
-    )
-    .sort((a, b) => b.total - a.total)
+  // --------------------------------------------- À traiter maintenant
+  const priorities = useMemo(() => {
+    const items: PriorityItem[] = []
+    for (const r of bloodRequests.filter((req) => req.urgency === 'critical')) {
+      items.push({
+        id: `blood-${r.id}`,
+        severity: 'critical',
+        domain: 'Sang · urgence vitale',
+        title: `${groupLabel(r.blood_group)} · ${plural(r.units_remaining, 'poche manquante', 'poches manquantes')}`,
+        meta: `${r.facility?.name ?? 'Établissement'} · demandée ${formatRelative(r.created_at, now)}`,
+        to: '/blood',
+      })
+    }
+    for (const m of activeMissions.filter((mission) => mission.status === 'pending')) {
+      const waited = minutesSince(m.created_at, now) ?? 0
+      items.push({
+        id: `mission-${m.id}`,
+        severity: m.priority === 'critical' || waited > PENDING_ALERT_MINUTES ? 'critical' : 'warning',
+        domain: 'SAMU · sans ambulance',
+        title: m.description || `Mission n° ${m.id}`,
+        meta: `${m.pickup_address || m.region_display} · créée ${formatRelative(m.created_at, now)}`,
+        to: '/ambulances',
+      })
+    }
+    for (const row of bedSummary) {
+      const rate = row.total_beds > 0 ? row.occupied_beds / row.total_beds : 0
+      const saturatedVital = VITAL_CATEGORIES.has(row.category) && row.total_beds > 0 && row.available_beds === 0
+      if (!saturatedVital && rate <= OCCUPANCY_CRITICAL) continue
+      items.push({
+        id: `beds-${row.region}-${row.category}`,
+        severity: saturatedVital ? 'critical' : 'warning',
+        domain: saturatedVital ? 'Lits · service vital saturé' : 'Lits · tension',
+        title: `${shortCategory(row.category, row.category_display)} · ${row.region_display || row.region}`,
+        meta: `${formatNumber(row.available_beds)} libre${row.available_beds > 1 ? 's' : ''} sur ${formatNumber(row.total_beds)} · ${formatPercent(rate)} occupés`,
+        to: '/beds',
+      })
+    }
+    for (const p of predictionSummary.filter((row) => row.critical_count > 0)) {
+      items.push({
+        id: `risk-${p.region}`,
+        severity: 'warning',
+        domain: 'Prévision · 7 jours',
+        title: `Pénurie prévue · ${p.region_display || p.region}`,
+        meta: `${plural(p.critical_count, 'série critique', 'séries critiques')} (centre × groupe)`,
+        to: '/ml',
+      })
+    }
+    return items.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === 'critical' ? -1 : 1))
+  }, [bloodRequests, activeMissions, bedSummary, predictionSummary, now])
 
-  const occupancyTone = globalOccupancy > 0.85 ? 'danger' : globalOccupancy > 0.7 ? 'warning' : 'success'
-  const rateColor = (rate: number) => (rate > 85 ? colors.critical : rate > 70 ? colors.warning : colors.ok)
-  const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`
-  const visibleCards = [seeBeds, seeBlood, seeFleet, seeBlood].filter(Boolean).length
-
-  // Sparklines réelles extraites des séries présentes
-  const bedSparkline = bedsChartData.length >= 2 ? bedsChartData.map((d) => d.rate) : undefined
-  const mlSparkline =
-    predictionSummary.length >= 2
-      ? predictionSummary.map((p) => p.critical_count * 2 + p.warning_count)
-      : undefined
+  const lastUpdate = Math.max(
+    bloodQuery.dataUpdatedAt,
+    bedsQuery.dataUpdatedAt,
+    fleetQuery.dataUpdatedAt,
+    missionsQuery.dataUpdatedAt,
+    predictionsQuery.dataUpdatedAt
+  )
+  const visibleTiles = [seeBeds, seeBlood, seeFleet, seeBlood].filter(Boolean).length
 
   return (
     <div ref={rootRef} className={`space-y-6 ${crisisMode ? 'overflow-y-auto bg-canvas p-6' : ''}`}>
       <PageHeader
-        title={user?.facility ? user.facility.name : 'Supervision nationale'}
-        description={
-          user?.facility
-            ? `Indicateurs temps réel · ${user.facility.city}`
-            : 'Indicateurs temps réel du réseau de santé · Sénégal'
+        eyebrow={
+          <>
+            <span>{user?.facility ? user.facility.city : 'Supervision nationale'}</span>
+            <span aria-hidden="true">·</span>
+            <span>{lastUpdate > 0 ? `Actualisé ${formatRelative(new Date(lastUpdate), now)}` : 'Chargement des données'}</span>
+          </>
         }
+        title={user?.facility ? user.facility.name : 'Situation du réseau'}
+        description="Lits, sang et SAMU en temps réel : l’urgent d’abord, la tendance ensuite."
         actions={
           FULL_FEATURES && (
-            <div className="flex items-center gap-2">
+            <>
               <Link
                 to="/rapport"
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3.5 text-sm font-medium text-fg shadow-2xs transition-colors hover:bg-raised"
+                className="inline-flex h-10 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-fg transition-colors hover:bg-raised"
               >
                 <FileText className="h-4 w-4 text-muted" aria-hidden="true" /> Rapport
               </Link>
@@ -287,7 +384,7 @@ const NetworkDashboard: React.FC = () => {
                 type="button"
                 onClick={toggleCrisisMode}
                 aria-pressed={crisisMode}
-                className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg bg-[#0f2547] px-3.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#16335e]"
+                className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-strong"
                 title="Plein écran pour un écran mural de salle de crise"
               >
                 {crisisMode ? (
@@ -297,112 +394,194 @@ const NetworkDashboard: React.FC = () => {
                 )}
                 {crisisMode ? 'Quitter' : 'Salle de crise'}
               </button>
-            </div>
+            </>
           )
         }
       />
 
-      {/* Rangée Bento KPI : première carte en Hero plein, suivantes avec jauges et sparklines */}
-      <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${STAT_COLUMNS[visibleCards] ?? 'xl:grid-cols-4'}`}>
+      {/* Indicateurs : une tuile mise en avant, les autres blanches, chacune mène à son module. */}
+      <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${TILE_COLUMNS[visibleTiles] ?? 'xl:grid-cols-4'}`}>
         {seeBeds && (
-          <Link to="/beds" className="group block rounded-2xl">
-            <StatCard
-              title="Lits disponibles"
-              accent="blue"
-              variant="hero"
-              stagger={0}
-              icon={<BedDouble className="h-5 w-5" />}
-              value={formatNumber(totalAvailableBeds)}
-              unit={`/ ${formatNumber(totalBeds)}`}
-              trend={`${formatPercent(globalOccupancy)} occupés`}
-              trendTone={occupancyTone}
-              progress={{
-                value: totalBeds > 0 ? totalBeds - totalAvailableBeds : 0,
-                max: totalBeds || 1,
-                tone: occupancyTone,
-              }}
-              description="Réseau hospitalier"
-              className="h-full"
-            />
-          </Link>
+          <MetricTile
+            i={0}
+            variant="featured"
+            icon={BedDouble}
+            to="/beds"
+            label="Lits disponibles"
+            loading={bedsQuery.isPending}
+            value={totalAvailableBeds}
+            unit={`/ ${formatNumber(totalBeds)}`}
+            meter={{ value: totalOccupiedBeds + totalReservedBeds, max: totalBeds, signal: occupancy, label: 'Lits occupés ou réservés' }}
+            status={{ text: `${formatPercent(globalOccupancy)} occupés`, signal: occupancy }}
+            hint="Réseau hospitalier"
+          />
         )}
-
         {seeBlood && (
-          <Link to="/blood" className="group block rounded-2xl">
-            <StatCard
-              title="Demandes de sang"
-              accent="red"
-              stagger={1}
-              icon={<Droplets className="h-5 w-5" />}
-              value={bloodRequests.length}
-              unit="ouvertes"
-              badge={criticalBloodCount > 0 ? plural(criticalBloodCount, 'vitale') : undefined}
-              badgeTone={criticalBloodCount > 0 ? 'danger' : 'neutral'}
-              trend={criticalBloodCount > 0 ? 'Urgence vitale en cours' : 'Aucune urgence vitale'}
-              trendTone={criticalBloodCount > 0 ? 'danger' : 'success'}
-              description="CNTS et régions"
-              className="h-full group-hover:border-line-strong"
-            />
-          </Link>
+          <MetricTile
+            i={1}
+            icon={Droplets}
+            to="/blood"
+            label="Demandes de sang"
+            loading={bloodQuery.isPending}
+            value={bloodRequests.length}
+            unit="ouvertes"
+            badge={criticalBlood.length > 0 ? { label: plural(criticalBlood.length, 'vitale'), signal: 'critical' } : undefined}
+            status={
+              criticalBlood.length > 0
+                ? { text: 'Urgence vitale en cours', signal: 'critical' }
+                : { text: 'Aucune urgence vitale', signal: 'ok' }
+            }
+            hint="CNTS et régions"
+          />
         )}
-
         {seeFleet && (
-          <Link to="/ambulances" className="group block rounded-2xl">
-            <StatCard
-              title="Ambulances disponibles"
-              accent="green"
-              stagger={2}
-              icon={<AmbulanceIcon className="h-5 w-5" />}
-              value={availableAmbulances}
-              unit={`/ ${ambulances.length}`}
-              trend={plural(activeMissions.length, 'mission') + ' en cours'}
-              trendTone={availableAmbulances <= 2 ? 'warning' : 'neutral'}
-              progress={{
-                value: availableAmbulances,
-                max: ambulances.length || 1,
-                tone: availableAmbulances <= 2 ? 'warning' : 'success',
-              }}
-              description="Flotte SAMU"
-              className="h-full group-hover:border-line-strong"
-            />
-          </Link>
+          <MetricTile
+            i={2}
+            icon={AmbulanceIcon}
+            to="/ambulances"
+            label="Ambulances disponibles"
+            loading={fleetQuery.isPending}
+            value={availableAmbulances}
+            unit={`/ ${ambulances.length}`}
+            meter={{
+              value: ambulances.length - availableAmbulances,
+              max: ambulances.length,
+              signal: fleetSignal,
+              label: 'Ambulances engagées ou hors service',
+            }}
+            status={{
+              text: `${plural(activeMissions.length, 'mission')} en cours`,
+              signal: activeMissions.some((m) => m.status === 'pending') ? 'warning' : 'neutral',
+            }}
+            hint="Flotte SAMU"
+          />
         )}
-
         {seeBlood && (
-          <Link to="/ml" className="group block rounded-2xl">
-            <StatCard
-              title="Risques de pénurie"
-              accent="yellow"
-              stagger={3}
-              sparkline={mlSparkline}
-              icon={<BrainCircuit className="h-5 w-5" />}
-              value={criticalPredictions}
-              unit="critiques à 7 j"
-              badgeTone={criticalPredictions > 0 ? 'danger' : 'neutral'}
-              trend={criticalPredictions > 0 ? 'Action requise' : 'Aucun risque critique'}
-              trendTone={criticalPredictions > 0 ? 'danger' : 'success'}
-              description="Modèle quantile CQR"
-              className="h-full group-hover:border-line-strong"
-            />
-          </Link>
+          <MetricTile
+            i={3}
+            icon={BrainCircuit}
+            to="/ml"
+            label="Risques de pénurie"
+            loading={predictionsQuery.isPending}
+            value={criticalPredictions}
+            unit="critiques à 7 j"
+            status={
+              criticalPredictions > 0
+                ? { text: 'Action requise', signal: 'critical' }
+                : { text: 'Aucun risque critique', signal: 'ok' }
+            }
+            hint="Modèle quantile CQR"
+          />
         )}
       </div>
 
-      {/* Carte opérationnelle avec contrôles de calques enrichis */}
-      <section className="panel dash-panel-in overflow-hidden" style={{ '--stagger': 1 } as React.CSSProperties}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-info/10 text-info">
-              <Layers className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <div>
-              <h2 className="text-sm font-semibold text-fg">Carte opérationnelle</h2>
-              <p className="text-2xs text-muted">
-                Géolocalisation temps réel des structures, banques de sang, véhicules SAMU et interventions
-              </p>
-            </div>
-          </div>
-          {/* Légende = calques : chaque entrée s'affiche ou se masque. */}
+      {/* Ce qui demande une action et le risque à venir, face à la capacité hospitalière. */}
+      <div className={`grid grid-cols-1 items-stretch gap-6 ${seeBeds ? 'xl:grid-cols-12' : ''}`}>
+        <div className={`flex min-w-0 flex-col gap-6 ${seeBeds ? 'xl:col-span-7' : ''}`}>
+          <Panel
+            i={2}
+            title={
+              <span className="flex items-center gap-2">
+                À traiter maintenant
+                {priorities.length > 0 && (
+                  <span className="num inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-critical/10 px-1.5 text-[0.6875rem] font-semibold text-critical">
+                    {priorities.length}
+                  </span>
+                )}
+              </span>
+            }
+            subtitle="Du plus grave au moins grave, tous modules confondus"
+            bodyClassName="pt-2"
+          >
+            <PriorityFeed items={priorities} />
+          </Panel>
+
+          {seeBlood && (
+            <Panel
+              i={5}
+              title="Risque de pénurie par région"
+              subtitle="Prévisions à 7 jours · par centre et groupe sanguin"
+              actions={
+                <Link to="/ml" className="inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-fg">
+                  Prévisions <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              }
+              footer={
+                <Legend>
+                  <LegendItem className="bg-viz-crit">Critique</LegendItem>
+                  <LegendItem className="bg-viz-warn">Vigilance</LegendItem>
+                  <LegendItem className="bg-viz-base-soft">Nominal</LegendItem>
+                </Legend>
+              }
+              bodyClassName="px-5 pb-5 pt-4"
+            >
+              {predictionsQuery.isPending ? (
+                <div className="space-y-3" aria-label="Chargement">
+                  {[0, 1, 2, 3].map((k) => (
+                    <span key={k} className="skeleton block h-2.5 w-full" />
+                  ))}
+                </div>
+              ) : riskRows.length === 0 ? (
+                <EmptyNote title="Aucune prévision disponible" hint="Le modèle n’a pas encore produit de prévision pour le réseau." />
+              ) : (
+                <StackBars rows={riskRows} ariaLabel="Risque de pénurie par région" />
+              )}
+            </Panel>
+          )}
+        </div>
+
+        {seeBeds && (
+          <Panel
+            i={3}
+            className="h-full xl:col-span-5"
+            title="Tension hospitalière"
+            subtitle="Lits déclarés du réseau · en direct"
+            actions={
+              <Badge tone={occupancy === 'critical' ? 'danger' : occupancy === 'warning' ? 'warning' : 'success'} size="sm">
+                {occupancy === 'critical' ? 'Tension forte' : occupancy === 'warning' ? 'Vigilance' : 'Équilibre'}
+              </Badge>
+            }
+            bodyClassName="px-5 pb-5 pt-4"
+          >
+            {totalBeds === 0 ? (
+              <EmptyNote title="Aucune capacité déclarée" hint="Les établissements n’ont pas encore publié leurs lits." />
+            ) : (
+              <>
+                <ArcGauge
+                  size={300}
+                  centerValue={formatPercent(globalOccupancy)}
+                  centerLabel="Taux d’occupation du réseau"
+                  segments={[
+                    {
+                      label: 'Occupés',
+                      value: totalOccupiedBeds,
+                      color: `var(--viz-${occupancy === 'critical' ? 'crit' : occupancy === 'warning' ? 'warn' : 'base'})`,
+                      unit: 'lits',
+                    },
+                    ...(totalReservedBeds > 0
+                      ? [{ label: 'Réservés', value: totalReservedBeds, color: 'var(--info)', unit: 'lits' }]
+                      : []),
+                    { label: 'Libres', value: totalAvailableBeds, rest: true, unit: 'lits' },
+                  ]}
+                />
+                {regionRows.length > 1 && (
+                  <div className="mt-6 rounded-2xl bg-raised p-4">
+                    <p className="mb-3 text-xs font-medium text-muted">Régions les plus tendues</p>
+                    <StackBars rows={regionRows} ariaLabel="Occupation des lits par région" />
+                  </div>
+                )}
+              </>
+            )}
+          </Panel>
+        )}
+      </div>
+
+      <Panel
+        i={4}
+        title="Carte opérationnelle"
+        subtitle="Structures, véhicules SAMU et interventions · positions en direct"
+        actions={
+          // Légende = calques : chaque entrée s'affiche ou se masque.
           <ul className="flex flex-wrap items-center gap-1.5 text-xs" aria-label="Calques de la carte">
             {LAYERS.map((layer) => (
               <li key={layer.key}>
@@ -410,19 +589,25 @@ const NetworkDashboard: React.FC = () => {
                   type="button"
                   aria-pressed={layers[layer.key]}
                   onClick={() => setLayers((current) => ({ ...current, [layer.key]: !current[layer.key] }))}
-                  className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 font-medium transition-all ${
+                  className={`flex h-8 cursor-pointer items-center gap-2 rounded-full border px-3 font-medium transition-colors ${
                     layers[layer.key]
-                      ? 'border-line-strong bg-raised/70 text-fg shadow-2xs'
-                      : 'border-line text-subtle line-through opacity-65'
+                      ? 'border-transparent bg-sunken text-fg hover:bg-track'
+                      : 'border-dashed border-line-strong text-subtle hover:text-muted'
                   }`}
                 >
-                  <span className={`h-2 w-2 rounded-full ${layer.swatch}`} /> {layer.label}
+                  <span
+                    aria-hidden="true"
+                    className={`h-2 w-2 rounded-full transition-opacity ${layer.swatch} ${layers[layer.key] ? '' : 'opacity-30'}`}
+                  />
+                  {layer.label}
                 </button>
               </li>
             ))}
           </ul>
-        </div>
-        <div className="p-2">
+        }
+        bodyClassName="p-2 pt-3"
+      >
+        <div className="overflow-hidden rounded-2xl">
           <MapView
             facilities={facilities.filter((f) =>
               f.facility_type === 'blood_bank'
@@ -433,309 +618,134 @@ const NetworkDashboard: React.FC = () => {
             )}
             ambulances={layers.ambulances ? ambulances : []}
             missions={layers.missions ? activeMissions : []}
-            height={crisisMode ? '62vh' : '420px'}
+            height={crisisMode ? '62vh' : '440px'}
           />
         </div>
-      </section>
+      </Panel>
 
-      {/* Grille analytique principale : Occupation par spécialité + Équilibre Capacitaire / Demandes de sang */}
-      <div className={`grid grid-cols-1 gap-6 ${seeBeds && seeBlood ? 'xl:grid-cols-12' : ''}`}>
-        {seeBeds && (
-          <section
-            className={`panel dash-panel-in flex flex-col justify-between ${
-              seeBlood ? 'xl:col-span-7' : ''
-            }`}
-            style={{ '--stagger': 2 } as React.CSSProperties}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3.5">
-              <div>
-                <h3 className="text-sm font-semibold text-fg">Occupation par spécialité</h3>
-                <p className="text-2xs text-muted">
-                  Temps réel · Seuil d’alerte critique fixé à 85 % ({bedSparkline ? `${bedsChartData.length} spécialités` : 'aucune donnée'})
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="inline-flex rounded-full border border-line bg-raised p-0.5 text-2xs" role="group" aria-label="Mode du graphique">
-                  <button
-                    type="button"
-                    onClick={() => setBedChartMode('rate')}
-                    aria-pressed={bedChartMode === 'rate'}
-                    className={`cursor-pointer rounded-full px-2.5 py-0.5 font-medium transition-colors ${
-                      bedChartMode === 'rate' ? 'bg-surface text-fg shadow-2xs' : 'text-muted hover:text-fg'
-                    }`}
-                  >
-                    Taux (%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBedChartMode('volume')}
-                    aria-pressed={bedChartMode === 'volume'}
-                    className={`cursor-pointer rounded-full px-2.5 py-0.5 font-medium transition-colors ${
-                      bedChartMode === 'volume' ? 'bg-surface text-fg shadow-2xs' : 'text-muted hover:text-fg'
-                    }`}
-                  >
-                    Volumes
-                  </button>
-                </div>
-                <Link to="/beds" className="flex items-center gap-1 text-xs font-medium text-muted hover:text-fg">
-                  Lits <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-            </div>
-
-            <div className="h-68 w-full px-3 pb-2 pt-4">
-              {bedsChartData.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-xs text-muted">
-                  Aucune capacité déclarée.
-                </div>
+      {(seeBeds || seeBlood) && (
+        <div className={`grid grid-cols-1 gap-6 ${seeBeds && seeBlood ? 'xl:grid-cols-12' : ''}`}>
+          {seeBeds && (
+            <Panel
+              i={6}
+              className={seeBlood ? 'xl:col-span-7' : ''}
+              title="Occupation par spécialité"
+              subtitle={
+                bedChartMode === 'rate'
+                  ? 'Part des lits occupés · seuil critique à 85 %'
+                  : 'Hauteur = capacité du service · remplissage = lits occupés'
+              }
+              actions={
+                <Segmented
+                  ariaLabel="Mode du graphique"
+                  value={bedChartMode}
+                  onChange={setBedChartMode}
+                  options={[
+                    { value: 'rate', label: 'Taux' },
+                    { value: 'volume', label: 'Volumes' },
+                  ]}
+                />
+              }
+              footer={
+                <>
+                  <Legend>
+                    <LegendItem className={SIGNAL_FILL.ok}>Nominal (≤ 70 %)</LegendItem>
+                    <LegendItem className={SIGNAL_FILL.warning}>Vigilance (70–85 %)</LegendItem>
+                    <LegendItem className={SIGNAL_FILL.critical}>Critique (&gt; 85 %)</LegendItem>
+                    <LegendItem kind="rest">Lits libres</LegendItem>
+                  </Legend>
+                  <span className="num font-medium text-fg">
+                    {`${formatNumber(totalOccupiedBeds)} occupés · ${formatNumber(totalAvailableBeds)} libres`}
+                  </span>
+                </>
+              }
+              bodyClassName="px-5 pb-5 pt-10"
+            >
+              {categoryCapsules.length === 0 ? (
+                <EmptyNote title="Aucune capacité déclarée" />
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={bedsChartData} margin={{ top: 8, right: 12, left: -14, bottom: 28 }}>
-                    <CartesianGrid stroke={colors.line} strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="category"
-                      tick={{ fill: colors.muted }}
-                      tickLine={false}
-                      axisLine={{ stroke: colors.line }}
-                      fontSize={11}
-                      interval={0}
-                      angle={-16}
-                      textAnchor="end"
-                    />
-                    <YAxis
-                      tick={{ fill: colors.muted }}
-                      tickLine={false}
-                      axisLine={false}
-                      fontSize={11}
-                      domain={bedChartMode === 'rate' ? [0, 100] : [0, 'auto']}
-                      unit={bedChartMode === 'rate' ? '%' : ''}
-                    />
-                    <Tooltip
-                      cursor={{ fill: colors.raised }}
-                      contentStyle={{
-                        backgroundColor: colors.surface,
-                        borderColor: colors.lineStrong,
-                        borderRadius: 10,
-                        fontSize: 12,
-                        color: colors.fg,
-                        boxShadow: 'var(--shadow-raised)',
-                      }}
-                      labelStyle={{ color: colors.fg, fontWeight: 600 }}
-                      itemStyle={{ color: colors.muted }}
-                      formatter={(val, name) => {
-                        if (bedChartMode === 'rate') return [`${val ?? 0} %`, 'Occupation']
-                        return [`${val ?? 0} lits`, name === 'occupied' ? 'Occupés' : 'Libres']
-                      }}
-                    />
-                    {bedChartMode === 'rate' && (
-                      <ReferenceLine
-                        y={85}
-                        stroke={colors.critical}
-                        strokeDasharray="4 4"
-                        strokeOpacity={0.65}
-                      />
-                    )}
-                    {bedChartMode === 'rate' ? (
-                      <Bar dataKey="rate" radius={[8, 8, 0, 0]} maxBarSize={38}>
-                        {bedsChartData.map((entry) => (
-                          <Cell key={entry.category} fill={rateColor(entry.rate)} />
-                        ))}
-                      </Bar>
-                    ) : (
-                      <>
-                        <Bar dataKey="occupied" stackId="beds" fill={colors.info} radius={[0, 0, 0, 0]} maxBarSize={38} />
-                        <Bar dataKey="available" stackId="beds" fill={colors.ok} radius={[8, 8, 0, 0]} maxBarSize={38} />
-                      </>
-                    )}
-                  </BarChart>
-                </ResponsiveContainer>
+                <CapsuleChart
+                  mode="fill"
+                  data={categoryCapsules}
+                  threshold={bedChartMode === 'rate' ? { at: OCCUPANCY_CRITICAL, label: 'Seuil 85 %' } : undefined}
+                  height={220}
+                  ariaLabel="Occupation des lits par spécialité"
+                />
               )}
-            </div>
+            </Panel>
+          )}
 
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-raised/35 px-5 py-2.5 text-2xs text-muted">
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-ok" /> Nominal (&lt; 70 %)
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-warning" /> Vigilance (70–85 %)
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-critical" /> Critique (&gt; 85 %)
-                </span>
-              </div>
-              <span className="num font-medium text-fg">
-                {`${totalOccupiedBeds} occupés · ${totalAvailableBeds} libres`}
-              </span>
-            </div>
-          </section>
-        )}
-
-        {seeBeds && (
-          <section
-            className={`panel dash-panel-in flex flex-col justify-between ${
-              seeBlood ? 'xl:col-span-5' : ''
-            }`}
-            style={{ '--stagger': 3 } as React.CSSProperties}
-          >
-            <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
-              <div>
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
-                  <Activity className="h-4 w-4 text-accent-blue" aria-hidden="true" />
-                  Jauge de tension hospitalière
-                </h3>
-                <p className="text-2xs text-muted">Répartition temps réel de la capacité déclarée</p>
-              </div>
-              <Badge tone={occupancyTone === 'danger' ? 'danger' : occupancyTone === 'warning' ? 'warning' : 'success'} size="sm">
-                {globalOccupancy > 0.85 ? 'Tension forte' : globalOccupancy > 0.7 ? 'Vigilance' : 'Équilibre'}
-              </Badge>
-            </div>
-
-            <div className="flex flex-1 flex-col justify-center px-5 py-4">
-              <RadialGauge
-                mode="semi"
-                centerValue={formatPercent(globalOccupancy)}
-                centerLabel="Taux global réseau"
-                segments={[
-                  { label: 'Occupés', value: totalOccupiedBeds, color: rateColor(Math.round(globalOccupancy * 100)), unit: 'lits' },
-                  ...(totalReservedBeds > 0
-                    ? [{ label: 'Réservés', value: totalReservedBeds, color: colors.info, unit: 'lits' }]
-                    : []),
-                  { label: 'Disponibles', value: totalAvailableBeds, color: colors.ok, unit: 'lits' },
-                ]}
-              />
-
-              {regionBedsData.length > 0 && (
-                <div className="mt-4 space-y-2 border-t border-line pt-3">
-                  <p className="eyebrow text-2xs">Capacité par région</p>
-                  <ul className="space-y-1.5 text-xs">
-                    {regionBedsData.slice(0, 3).map((reg) => {
-                      const regRate = reg.total > 0 ? Math.round((reg.occupied / reg.total) * 100) : 0
-                      return (
-                        <li key={reg.region} className="space-y-1">
-                          <div className="flex items-center justify-between text-2xs">
-                            <span className="font-medium text-fg">{reg.region}</span>
-                            <span className="num text-muted">
-                              {`${reg.available} libres sur ${reg.total} (${regRate} %)`}
-                            </span>
-                          </div>
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-raised">
-                            <div
-                              className="bar-origin-left h-full rounded-full"
-                              style={{ width: `${regRate}%`, backgroundColor: rateColor(regRate) }}
-                            />
-                          </div>
-                        </li>
-                      )
-                    })}
-                  </ul>
+          {seeBlood && (
+            <Panel
+              i={7}
+              className={seeBeds ? 'xl:col-span-5' : ''}
+              title={
+                <>
+                  Demandes de sang ouvertes <span className="num ml-1 font-normal text-muted">{bloodRequests.length}</span>
+                </>
+              }
+              subtitle="Urgences vitales d’abord · poches collectées"
+              actions={
+                <Link to="/blood" className="inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-fg">
+                  Tout voir <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              }
+              bodyClassName="pt-2"
+            >
+              {bloodQuery.isPending ? (
+                <div className="space-y-3 px-5 pb-5" aria-label="Chargement">
+                  {[0, 1, 2].map((k) => (
+                    <span key={k} className="skeleton block h-12 w-full" />
+                  ))}
                 </div>
-              )}
-            </div>
-          </section>
-        )}
-      </div>
-
-      {/* Section Sang & Prévisions ML (affichée si le rôle a accès au sang) */}
-      {seeBlood && (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <section className="panel dash-panel-in flex flex-col xl:col-span-8" style={{ '--stagger': 4 } as React.CSSProperties}>
-            <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
-              <div>
-                <h3 className="text-sm font-semibold text-fg">
-                  Demandes de sang ouvertes
-                  <span className="num ml-1.5 font-normal text-muted">{bloodRequests.length}</span>
-                </h3>
-                <p className="text-2xs text-muted">Priorisées par niveau d’urgence médicale et besoin restant</p>
-              </div>
-              <Link to="/blood" className="flex items-center gap-1 text-xs font-medium text-muted hover:text-fg">
-                Tout voir <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-
-            {bloodRequests.length === 0 ? (
-              <div className="flex flex-1 items-center justify-center py-12 text-xs text-muted">
-                Aucune demande en attente.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="ops-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Groupe</th>
-                      <th scope="col">Établissement</th>
-                      <th scope="col" className="text-right">
-                        Poches
-                      </th>
-                      <th scope="col">Urgence</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bloodRequests.slice(0, 6).map((req) => (
-                      <tr
+              ) : bloodRequests.length === 0 ? (
+                <EmptyNote tone="calm" title="Aucune demande en attente" />
+              ) : (
+                <ul className="divide-y divide-line">
+                  {sortedRequests.slice(0, 6).map((req, index) => {
+                    const pct = req.units_needed > 0 ? (req.units_collected / req.units_needed) * 100 : 0
+                    return (
+                      <li
                         key={req.id}
-                        data-severity={
-                          req.urgency === 'critical' ? 'critical' : req.urgency === 'urgent' ? 'warning' : undefined
-                        }
+                        className="reveal grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 px-5 py-3"
+                        style={{ '--i': index + 2 } as React.CSSProperties}
                       >
-                        <td className="num font-medium text-fg">
-                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-accent-red/10 font-bold text-accent-red">
-                            {req.blood_group}
+                        <span
+                          className={`num inline-flex h-10 w-11 items-center justify-center rounded-xl text-sm font-semibold ${
+                            req.urgency === 'critical' ? 'bg-critical/10 text-critical' : 'bg-sunken text-fg'
+                          }`}
+                        >
+                          {groupLabel(req.blood_group)}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-fg">{req.facility?.name || '—'}</span>
+                          <span className="mt-1 flex items-center gap-2">
+                            <span className="block h-1.5 w-20 overflow-hidden rounded-full bg-track" aria-hidden="true">
+                              <span className="bar-fill block h-full rounded-full bg-viz-base" style={{ width: `${pct}%` }} />
+                            </span>
+                            <span className="num truncate text-2xs text-muted">
+                              {req.units_collected} / {req.units_needed} poches · {formatRelative(req.created_at, now)}
+                            </span>
                           </span>
-                        </td>
-                        <td className="w-full max-w-0">
-                          <div className="truncate font-medium text-fg">{req.facility?.name || '—'}</div>
-                          <div className="truncate text-2xs text-muted">{req.facility?.city}</div>
-                        </td>
-                        <td className="num text-right font-semibold text-fg">{req.units_remaining}</td>
-                        <td>
+                        </span>
+                        <span className="flex flex-col items-end gap-1">
                           <Badge
                             tone={req.urgency === 'critical' ? 'danger' : req.urgency === 'urgent' ? 'warning' : 'info'}
                             size="sm"
                           >
-                            {req.urgency_display}
+                            {req.urgency === 'critical' ? 'Vitale' : req.urgency_display}
                           </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-
-          <section className="panel dash-panel-in flex flex-col justify-between xl:col-span-4" style={{ '--stagger': 5 } as React.CSSProperties}>
-            <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
-              <div>
-                <h3 className="flex items-center gap-2 text-sm font-semibold text-fg">
-                  <BrainCircuit className="h-4 w-4 text-warning" aria-hidden="true" />
-                  Radar prédictif CQR (7 j)
-                </h3>
-                <p className="text-2xs text-muted">Répartition des séries de stocks analysées</p>
-              </div>
-              <Link to="/ml" className="flex items-center gap-1 text-xs font-medium text-muted hover:text-fg">
-                Détails <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-
-            <div className="flex flex-1 flex-col justify-center p-5">
-              {predictionSummary.length === 0 ? (
-                <p className="py-8 text-center text-xs text-muted">Aucune prévision disponible.</p>
-              ) : (
-                <RadialGauge
-                  mode="donut"
-                  size={136}
-                  centerValue={`${criticalPredictions + warningPredictions + normalPredictions} séries`}
-                  centerLabel="Séries suivies"
-                  segments={[
-                    { label: 'Critique', value: criticalPredictions, color: colors.critical, unit: 'séries' },
-                    { label: 'Vigilance', value: warningPredictions, color: colors.warning, unit: 'séries' },
-                    { label: 'Nominal', value: normalPredictions, color: colors.ok, unit: 'séries' },
-                  ]}
-                />
+                          <span className="num text-2xs text-muted">
+                            <span className="font-semibold text-fg">{req.units_remaining}</span> manquante{req.units_remaining > 1 ? 's' : ''}
+                          </span>
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
               )}
-            </div>
-          </section>
+            </Panel>
+          )}
         </div>
       )}
 

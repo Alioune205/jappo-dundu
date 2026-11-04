@@ -71,6 +71,7 @@ export const BedsManagement: React.FC = () => {
   return (
     <div className="space-y-5">
       <PageHeader
+        eyebrow="Jappo Lits · capacités du réseau"
         title="Lits"
         description={DESCRIPTIONS[view]}
         actions={

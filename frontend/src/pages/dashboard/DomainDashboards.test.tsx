@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { renderWithProviders } from '@/test/render'
 import { ambulance, bloodRequest, mission } from '@/test/fixtures'
 import { Dashboard } from '../Dashboard'
@@ -66,10 +66,13 @@ describe('Tableaux de bord par domaine', () => {
     renderWithProviders(<Dashboard />)
     expect(await screen.findByText('Pénurie prévue')).toBeInTheDocument()
     // Stock régional : somme des centres pour un même groupe (6 + 4).
-    expect(await screen.findByText('10')).toBeInTheDocument()
+    expect((await screen.findAllByText('10 poches')).length).toBeGreaterThan(0)
+    // Aucun relevé pour B+ : jamais présenté comme un stock stable.
+    expect(screen.getByRole('button', { name: /^B\+ : Pas de relevé/ })).toBeInTheDocument()
     expect(screen.getByText(/données simulées/)).toBeInTheDocument()
     // 3 + 2 poches manquantes, 2 donneurs en route.
-    expect(screen.getByText('5')).toBeInTheDocument()
+    const tile = screen.getByText('Poches manquantes').closest('div.panel') as HTMLElement
+    expect(within(tile).getByText('5')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith('/api/ml/stocks/', { region: 'dakar', days: 1 })
     expect(api.get).not.toHaveBeenCalledWith('/api/lits/capacities/summary/', expect.anything())
   })
@@ -78,7 +81,10 @@ describe('Tableaux de bord par domaine', () => {
     auth.roles = ['ambulance_manager']
     renderWithProviders(<Dashboard />)
     expect(await screen.findByText('Mission en attente')).toBeInTheDocument()
-    expect(screen.getByText('Accident sur la VDN')).toBeInTheDocument()
+    // Dans la liste des missions et dans le chronomètre (plus ancienne mission en attente).
+    expect(screen.getAllByText('Accident sur la VDN')).toHaveLength(2)
+    // Créée il y a 12 minutes : le chronomètre l'affiche à la seconde.
+    expect(screen.getByRole('timer')).toHaveTextContent(/^00:1[12]:\d\d$/)
     expect(await screen.findByText('DK-9')).toBeInTheDocument()
     expect(await screen.findByText(/Médiane sur 30 jours · 12 missions/)).toBeInTheDocument()
   })

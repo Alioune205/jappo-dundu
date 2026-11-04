@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { renderWithProviders } from '@/test/render'
 import { Landing } from './Landing'
 
@@ -10,15 +10,17 @@ describe('Landing', () => {
   it('présente les trois modules au même niveau, et le don de sang', () => {
     auth.isAuthenticated = false
     renderWithProviders(<Landing />)
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/sang, les lits et les ambulances/)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/Mieux coordonner\s*les ressources\.\s*Sauver des vies\./)
     for (const name of ['Jappo Sang', 'Jappo Lits', 'Jappo Ambulance']) {
       expect(screen.getByRole('heading', { name })).toBeInTheDocument()
     }
-    // Parcours d'une urgence, publics, don de sang.
+    // Parcours d'une urgence, vision, sécurité, don de sang.
     expect(screen.getByRole('heading', { name: 'L’appel arrive au SAMU' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Supervision nationale' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Une solution essentielle/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Vos données, notre priorité' })).toBeInTheDocument()
     expect(screen.getByText('Avoir entre 18 et 60 ans')).toBeInTheDocument()
-    expect(screen.getByText('O−')).toBeInTheDocument()
+    // Groupes en tension publiés par le CNTS (l'alerte du téléphone illustre aussi O−).
+    expect(within(screen.getByRole('list', { name: 'Groupes recherchés' })).getByText('O−')).toBeInTheDocument()
     // La source et la mention « non officiel » restent visibles.
     expect(screen.getByText(/n’est pas un service officiel du CNTS/)).toBeInTheDocument()
   })

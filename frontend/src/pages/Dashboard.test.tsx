@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { renderWithProviders } from '@/test/render'
 import { ambulance, bloodRequest, capacity, mission } from '@/test/fixtures'
 import { Dashboard } from './Dashboard'
@@ -53,15 +53,19 @@ describe('Dashboard', () => {
     renderWithProviders(<Dashboard />)
     // 1 + 5 = 6 lits libres sur 20 : 70 % d'occupation.
     expect(await screen.findByText('/ 20')).toBeInTheDocument()
-    expect(screen.getByText('6')).toBeInTheDocument()
+    const beds = screen.getByRole('link', { name: /Lits disponibles/ })
+    expect(within(beds).getByText('6')).toBeInTheDocument()
     // Formatage français : espace insécable fine avant « % ».
-    expect(screen.getByText(/^70\s%\soccupés$/)).toBeInTheDocument()
+    expect(within(beds).getByText(/^70\s%\soccupés$/)).toBeInTheDocument()
     // 2 demandes de sang ouvertes dont 1 vitale.
     expect(await screen.findByText('1 vitale')).toBeInTheDocument()
     // 2 ambulances disponibles sur 3.
     expect(screen.getByText('/ 3')).toBeInTheDocument()
     // 2 risques critiques de pénurie.
     expect(screen.getByText('Action requise')).toBeInTheDocument()
+    // File « à traiter maintenant » : urgence vitale et pénurie prévue, liens vers les modules.
+    expect(screen.getByText(/^O− · 3 poches manquantes$/)).toBeInTheDocument()
+    expect(screen.getByText(/^Pénurie prévue · dakar$/i)).toBeInTheDocument()
     expect(await screen.findByTestId('map')).toHaveTextContent('3 ambulances, 1 missions')
   })
 

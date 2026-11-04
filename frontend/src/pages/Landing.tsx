@@ -1,170 +1,193 @@
 import React, { useRef, useState } from 'react'
 import { Link } from 'react-router'
 import {
-  Activity,
   Ambulance,
   ArrowRight,
   BedDouble,
-  Bell,
-  BrainCircuit,
-  Building2,
-  Check,
+  BellRing,
+  Cake,
+  CalendarClock,
   Droplets,
   ExternalLink,
+  Handshake,
+  HeartPulse,
+  KeyRound,
+  LayoutDashboard,
   LockKeyhole,
+  Menu,
   Plus,
-  Radio,
+  ScrollText,
   ShieldCheck,
   Smartphone,
   Sparkles,
-  Users,
+  Stethoscope,
+  Weight,
+  X,
+  Zap,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { BrandMark, BrandName } from '@/components/layout/BrandMark'
-import {
-  AUDIENCES,
-  BLOOD_NEEDS,
-  DONOR_CONDITIONS,
-  FAQ,
-  KEY_FIGURES,
-  MODULES,
-  PILOTING,
-  SCENARIO,
-  SOURCE,
-  type ModuleKey,
-} from './landing/content'
+import { REGIONS } from '@/lib/constants'
+import { BLOOD_NEEDS, DONOR_CONDITIONS, FAQ, MODULES, SCENARIO, SOURCE, type ModuleKey } from './landing/content'
 import { useLandingMotion } from './landing/motion'
+import { DonorAlertPhone, MissionCard, PlatformStage } from './landing/Mockups'
 import { FULL_FEATURES } from '@/lib/features'
 
 const NAV = [
-  { href: '#modules', label: 'Modules' },
+  { href: '#accueil', label: 'Accueil' },
+  { href: '#solutions', label: 'Nos solutions' },
   { href: '#fonctionnement', label: 'Fonctionnement' },
-  { href: '#publics', label: 'Publics' },
+  { href: '#vision', label: 'Notre vision' },
   { href: '#don', label: 'Don de sang' },
   { href: '#faq', label: 'FAQ' },
 ]
 
-/** Identité de chaque module : icône, couleur, badge et photo. */
+/**
+ * Chaque module : icône, voile de sa carte photo, couleur propre (frise du
+ * fonctionnement) et teinte de ses pastilles.
+ */
 const MODULE_STYLE: Record<
   ModuleKey,
-  { icon: React.ElementType; text: string; bar: string; softBg: string; badge: string; photo: string; alt: string }
+  { icon: React.ElementType; overlay: string; iconColor: string; hex: string; tint: string; photo: string; alt: string }
 > = {
   blood: {
     icon: Droplets,
-    text: 'text-accent-red',
-    bar: 'bg-accent-red',
-    softBg: 'bg-accent-red/10',
-    badge: 'Module 01 · Transfusion',
-    photo: 'module-sang',
-    alt: 'Une infirmière range des poches de sang dans un réfrigérateur de banque de sang',
+    overlay: 'bg-[linear-gradient(90deg,rgb(153_0_22/0.9),rgb(110_0_20/0.08))]',
+    iconColor: 'text-[#f20b2b]',
+    hex: '#f20b2b',
+    tint: 'bg-[#fde9ec] text-[#c8102e]',
+    photo: 'jappo-sang',
+    alt: 'Une soignante contrôle une poche de sang',
   },
   beds: {
     icon: BedDouble,
-    text: 'text-accent-blue',
-    bar: 'bg-accent-blue',
-    softBg: 'bg-accent-blue/10',
-    badge: 'Module 02 · Hospitalisation',
-    photo: 'module-lits',
-    alt: 'Une soignante prépare un lit dans une chambre d’hôpital lumineuse',
+    overlay: 'bg-[linear-gradient(90deg,rgb(0_37_92/0.9),rgb(0_37_92/0.08))]',
+    iconColor: 'text-[#0871db]',
+    hex: '#0871db',
+    tint: 'bg-[#e6f0fc] text-[#0659b5]',
+    photo: 'jappo-lits',
+    alt: 'Une salle d’hospitalisation lumineuse, lits prêts à accueillir',
   },
   ambulances: {
     icon: Ambulance,
-    text: 'text-accent-green',
-    bar: 'bg-accent-green',
-    softBg: 'bg-accent-green/10',
-    badge: 'Module 03 · Régulation SAMU',
-    photo: 'module-ambulance',
+    overlay: 'bg-[linear-gradient(90deg,rgb(0_62_49/0.9),rgb(0_62_49/0.08))]',
+    iconColor: 'text-[#0a9a6d]',
+    hex: '#0a9a6d',
+    tint: 'bg-[#e2f5ee] text-[#067a55]',
+    photo: 'jappo-ambulances',
     alt: 'Une ambulance roule dans une avenue de Dakar',
   },
 }
 
-const AUDIENCE_ICONS = [Smartphone, Building2, Radio, Users]
-const PILOTING_ICONS = [Activity, BrainCircuit, LockKeyhole]
-
-/** Engagements de la plateforme, affichés sous l'accroche (faits vérifiables dans le code). */
-const ASSURANCES = [
-  'Accès par rôle et par établissement',
-  'Mises à jour en temps réel',
-  'Application mobile pour les donneurs',
+const PLATFORM_FEATURES = [
+  {
+    icon: LayoutDashboard,
+    title: 'Un tableau de bord par rôle',
+    text: 'Supervision nationale, banque de sang, lits ou SAMU : chacun voit son périmètre, rien de plus.',
+  },
+  {
+    icon: BellRing,
+    title: 'Les urgences d’abord',
+    text: 'Services saturés, stocks sous le seuil et missions vitales remontent en tête.',
+  },
+  {
+    icon: Sparkles,
+    title: 'Jappo IA',
+    text: 'Posez une question simple : l’assistant répond avec les chiffres de vos tableaux de bord et cite ses sources.',
+  },
 ]
 
-const btnPrimary =
-  'btn inline-flex items-center justify-center gap-2 rounded-xl bg-brand font-semibold text-on-brand shadow-[0_10px_24px_-8px_var(--brand)] transition-all hover:bg-brand-strong'
-const btnOnDark =
-  'btn inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/[0.04] font-semibold text-white backdrop-blur-xs transition-all hover:border-white/45 hover:bg-white/10'
-const btnOutline =
-  'btn inline-flex items-center justify-center gap-2 rounded-xl border border-line-strong bg-surface font-semibold text-fg shadow-2xs transition-all hover:border-fg/40 hover:bg-raised/50'
+const BENEFITS = [
+  { icon: Zap, title: 'Réactivité accrue', text: 'Lits, stocks et ambulances au même endroit : moins d’appels, moins d’attente.' },
+  {
+    icon: Handshake,
+    title: 'Coordination renforcée',
+    text: 'Hôpitaux, centres de transfusion et SAMU partagent la même information, au même moment.',
+  },
+  { icon: ShieldCheck, title: 'Sécurité des données', text: 'Chaque compte ne voit que son domaine ; les actions sensibles sont tracées.' },
+  {
+    icon: HeartPulse,
+    title: 'Solidarité nationale',
+    text: 'Les donneurs compatibles les plus proches sont alertés quand un hôpital a besoin d’eux.',
+  },
+]
+
+/** Garanties de sécurité réellement en place dans la plateforme (voir backend/security). */
+const SECURITY = [
+  { icon: LockKeyhole, title: 'Accès par rôle', text: 'Chaque compte ne voit que son domaine et son établissement.' },
+  {
+    icon: KeyRound,
+    title: 'Double authentification',
+    text: 'Un code temporaire, généré par une application d’authentification, protège la connexion.',
+  },
+  {
+    icon: ScrollText,
+    title: 'Journal d’audit',
+    text: 'Consultations de donneurs, accès d’urgence, changements de rôle : tout est tracé.',
+  },
+  { icon: ShieldCheck, title: 'Données patients protégées', text: 'Les donneurs ne reçoivent jamais d’information sur les patients.' },
+]
+
+const CONDITION_ICON: Record<(typeof DONOR_CONDITIONS)[number]['key'], React.ElementType> = {
+  age: Cake,
+  weight: Weight,
+  men: CalendarClock,
+  women: CalendarClock,
+  health: Stethoscope,
+}
+
+const redButton =
+  'btn inline-flex items-center justify-center gap-2 rounded-full bg-[#f20b2b] px-6 font-bold text-white transition-[translate,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgb(242_11_43/0.3)]'
 
 /** Rang d'un élément dans sa série : décale son apparition (voir index.css). */
 const stagger = (i: number) => ({ '--i': i }) as React.CSSProperties
 
-/** Étiquette de section, titre et introduction. */
-const SectionHeader: React.FC<{
-  eyebrow: string
-  title: React.ReactNode
-  intro?: string
-  invert?: boolean
-  className?: string
-}> = ({ eyebrow, title, intro, invert = false, className = 'max-w-2xl' }) => (
-  <div data-reveal className={className}>
-    <p
-      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 font-label text-[11px] font-semibold ${
-        invert
-          ? 'border-white/15 bg-white/[0.06] text-amber'
-          : 'border-brand/20 bg-brand/[0.06] text-brand'
-      }`}
-    >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${invert ? 'bg-amber' : 'bg-brand'}`}
-        aria-hidden="true"
-      />
-      {eyebrow}
-    </p>
-    <h2
-      className={`font-display mt-4 text-3xl leading-[1.12] tracking-tight sm:text-4xl ${
-        invert ? 'text-white' : 'text-fg'
-      }`}
-    >
-      {title}
-    </h2>
-    {intro && (
-      <p className={`mt-4 text-base leading-relaxed sm:text-lg ${invert ? 'text-on-navy-muted' : 'text-muted'}`}>
-        {intro}
-      </p>
-    )}
+/** Libellé de section : trait rouge et capitales. */
+const Eyebrow: React.FC<{ children: React.ReactNode; light?: boolean }> = ({ children, light = false }) => (
+  <span className={`flex items-center gap-3 text-xs font-extrabold uppercase tracking-[0.08em] ${light ? 'text-[#ff314b]' : 'text-[#071b43]'}`}>
+    <span aria-hidden="true" className="h-[3px] w-6 bg-[#f20b2b]" />
+    {children}
+  </span>
+)
+
+const H2: React.FC<{ children: React.ReactNode; light?: boolean; className?: string }> = ({ children, light = false, className = '' }) => (
+  <h2
+    className={`font-manrope mt-3 text-balance text-[clamp(1.75rem,2.9vw,2.5rem)] font-extrabold leading-[1.1] tracking-[-0.035em] ${light ? 'text-white' : 'text-[#071b43]'} ${className}`}
+  >
+    {children}
+  </h2>
+)
+
+/** En-tête de section : le titre à gauche, sa mise en contexte à droite, derrière un filet. */
+const SectionHead: React.FC<{ eyebrow: string; title: React.ReactNode; children: React.ReactNode }> = ({ eyebrow, title, children }) => (
+  <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:items-center lg:gap-16">
+    <div data-reveal>
+      <Eyebrow>{eyebrow}</Eyebrow>
+      <H2>{title}</H2>
+    </div>
+    <div data-reveal className="border-l border-[#aab6c9] py-1 pl-6 text-base leading-relaxed text-[#3d4a63]">
+      {children}
+    </div>
   </div>
 )
 
-/** Formats essayés dans l'ordre pour chaque photo. */
-const PHOTO_FORMATS = ['webp', 'jpg']
-
 /**
- * Photo de la page (WebP, puis JPEG). Si aucun fichier n'existe encore, un
- * fond bleu nuit quadrillé avec un pictogramme prend sa place : jamais d'image
- * cassée.
+ * Photo : WebP, puis JPEG si le navigateur ou le fichier fait défaut. Sans
+ * aucun fichier, un fond d'encre prend sa place : jamais d'image cassée.
  */
-const Photo: React.FC<{
-  name: string
-  alt: string
-  className?: string
-  icon?: React.ElementType
-  eager?: boolean
-}> = ({ name, alt, className = '', icon: Icon = Activity, eager = false }) => {
+const Photo: React.FC<{ name: string; alt: string; className?: string; eager?: boolean }> = ({
+  name,
+  alt,
+  className = '',
+  eager = false,
+}) => {
+  const sources = [`/images/landing/${name}.webp`, `/images/landing/${name}.jpg`]
   const [attempt, setAttempt] = useState(0)
-  if (attempt >= PHOTO_FORMATS.length) {
-    return (
-      <div
-        role="img"
-        aria-label={alt}
-        className={`flex h-full w-full items-center justify-center bg-navy bg-[radial-gradient(circle_at_70%_20%,color-mix(in_oklab,var(--brand)_28%,transparent),transparent_60%)] ${className}`}
-      >
-        <Icon className="h-12 w-12 text-white/20" aria-hidden="true" />
-      </div>
-    )
+  if (attempt >= sources.length) {
+    return <div role="img" aria-label={alt} className={`h-full w-full bg-[#031632] ${className}`} />
   }
   return (
     <img
-      src={`/images/landing/${name}.${PHOTO_FORMATS[attempt]}`}
+      src={sources[attempt]}
       alt={alt}
       loading={eager ? 'eager' : 'lazy'}
       decoding="async"
@@ -174,319 +197,193 @@ const Photo: React.FC<{
   )
 }
 
-/** Activité récente affichée dans l'aperçu (décorative). */
-const MOCK_ACTIVITY = [
-  { dot: 'bg-accent-red', title: 'Demande urgente · groupe O−', place: 'Hôpital Principal de Dakar', time: '1 min' },
-  { dot: 'bg-accent-blue', title: 'Lit libéré · Réanimation', place: 'CHU de Fann', time: '3 min' },
-  { dot: 'bg-accent-green', title: 'Ambulance affectée · DK-5120', place: 'SAMU 15', time: '6 min' },
-]
-
-const MOCK_KPIS = [
-  { label: 'Lits libres', value: '78', note: '+3 depuis ce matin', icon: BedDouble, cls: 'text-accent-blue', bar: 'w-3/4 bg-accent-blue' },
-  { label: 'Stock O−', value: '2', note: 'poches · critique', icon: Droplets, cls: 'text-accent-red', bar: 'w-1/4 bg-accent-red' },
-  { label: 'Missions', value: '4', note: 'en cours', icon: Ambulance, cls: 'text-accent-green', bar: 'w-2/3 bg-accent-green' },
-]
-
-/** Aperçu du tableau de bord (décoratif) : indicateurs, carte et activité. */
-const ProductMock: React.FC = () => (
-  <div aria-hidden="true" className="relative">
-    <div className="overflow-hidden rounded-2xl border border-white/15 bg-surface shadow-[0_40px_90px_-20px_rgb(0_0_0/0.65)]">
-      {/* Barre de fenêtre */}
-      <div className="flex items-center gap-2 border-b border-line bg-raised/90 px-4 py-3">
-        <span className="h-2.5 w-2.5 rounded-full bg-accent-red/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-amber/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-accent-green/70" />
-        <span className="ml-2 text-xs font-bold tracking-tight text-fg">Supervision nationale</span>
-        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-accent-green/25 bg-accent-green/10 px-2.5 py-0.5 text-2xs font-semibold text-accent-green">
-          <span className="live-pulse h-1.5 w-1.5 rounded-full bg-accent-green" /> Temps réel
-        </span>
-      </div>
-
-      <div className="space-y-3.5 p-4">
-        <div className="grid grid-cols-3 gap-3">
-          {MOCK_KPIS.map((kpi) => (
-            <div key={kpi.label} className="rounded-xl border border-line bg-raised/40 p-3">
-              <div className="flex items-center justify-between text-2xs font-medium text-muted">
-                {kpi.label}
-                <kpi.icon className={`h-3.5 w-3.5 ${kpi.cls}`} />
-              </div>
-              <div className="num mt-1.5 text-2xl font-bold tracking-tight text-fg">{kpi.value}</div>
-              <div className={`mt-0.5 truncate text-2xs font-medium ${kpi.cls}`}>{kpi.note}</div>
-              <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-line">
-                <div className={`h-full rounded-full ${kpi.bar}`} />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="relative h-40 overflow-hidden rounded-xl border border-line bg-raised">
-          <svg className="absolute inset-0 h-full w-full" viewBox="0 0 400 160" preserveAspectRatio="none">
-            <defs>
-              <pattern id="mock-grid" width="24" height="24" patternUnits="userSpaceOnUse">
-                <path d="M24 0H0V24" fill="none" stroke="var(--line)" strokeWidth="0.75" />
-              </pattern>
-            </defs>
-            <rect width="400" height="160" fill="url(#mock-grid)" />
-            <path
-              className="route-flow"
-              d="M50 125 C 130 110, 160 55, 240 62 S 320 35, 350 28"
-              fill="none"
-              stroke="var(--accent-green)"
-              strokeWidth="2.5"
-              strokeDasharray="6 7"
-              strokeLinecap="round"
-            />
-          </svg>
-          <span className="absolute left-[10%] top-[72%] flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent-green bg-surface shadow-sm">
-            <Ambulance className="h-4 w-4 text-accent-green" />
-          </span>
-          <span className="route-runner absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-green shadow-[0_0_0_4px_color-mix(in_oklab,var(--accent-green)_25%,transparent)]" />
-          <span className="route-target absolute left-[84%] top-[8%] flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent-blue bg-surface shadow-sm">
-            <BedDouble className="h-4 w-4 text-accent-blue" />
-          </span>
-          <span className="ping absolute left-[48%] top-[30%] flex h-8 w-8 items-center justify-center rounded-full border-2 border-accent-red bg-surface text-accent-red shadow-sm">
-            <Droplets className="h-4 w-4" />
-          </span>
-        </div>
-
-        <ul className="divide-y divide-line rounded-xl border border-line bg-raised/25">
-          {MOCK_ACTIVITY.map((row) => (
-            <li key={row.title} className="flex items-center gap-3 px-3.5 py-2.5">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${row.dot}`} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-semibold text-fg">{row.title}</span>
-                <span className="block truncate text-2xs text-muted">{row.place}</span>
-              </span>
-              <span className="num shrink-0 rounded-md bg-raised px-1.5 py-0.5 text-2xs font-medium text-subtle">
-                {row.time}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  </div>
+const Brand: React.FC<{ small?: boolean }> = ({ small = false }) => (
+  <a href="#accueil" className="flex shrink-0 items-center gap-2.5 text-white">
+    <img src="/logo-mark-dark.png" alt="" aria-hidden="true" className={small ? 'h-9 w-9' : 'h-11 w-11'} />
+    <span className="leading-tight">
+      <strong className={`font-manrope block font-extrabold tracking-[-0.03em] ${small ? 'text-base' : 'text-lg'}`}>
+        Jappo <span className="text-[#ff314b]">Dundu</span>
+      </strong>
+      <small className="block text-[0.6875rem] text-white/80">Santé · Coordination · Solidarité</small>
+    </span>
+  </a>
 )
 
-/** Visuel de l'accroche : une photo et les informations que la plateforme fait circuler. */
-const HeroVisual: React.FC = () => (
-  <div data-hero-mock className="relative mx-auto w-full max-w-xl lg:max-w-none">
-    <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border border-white/15 shadow-[0_44px_96px_-24px_rgb(0_0_0/0.68)] lg:aspect-[5/4]">
-      <Photo
-        name="hero"
-        eager
-        icon={Ambulance}
-        alt="Une équipe de secours sénégalaise prend en charge un patient devant une ambulance"
-        className="absolute inset-0 object-[55%_50%] transition-transform duration-700 hover:scale-[1.02]"
-      />
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 bg-gradient-to-t from-navy/85 via-navy/20 to-transparent"
-      />
-      {/* Mission en cours, sur la photo. */}
-      <div
-        aria-hidden="true"
-        className="absolute bottom-5 left-5 right-5 hidden items-center justify-between gap-3 rounded-2xl border border-white/15 bg-navy/80 px-4 py-3.5 text-white backdrop-blur-xl sm:flex"
-      >
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-green text-white shadow-sm">
-            <Ambulance className="h-5 w-5" />
-          </span>
-          <div>
-            <span className="block text-sm font-bold">Ambulance DK-5120 · en route</span>
-            <span className="block text-xs text-on-navy-muted">Lit réservé · CHU de Fann · ETA 6 min</span>
-          </div>
-        </div>
-        <span className="rounded-full border border-accent-green/35 bg-accent-green/15 px-2.5 py-1 text-2xs font-semibold text-accent-green">
-          Verrouillé
-        </span>
-      </div>
-    </div>
-
-    {/* Lits disponibles, comme sur le tableau de bord. */}
-    <div
-      aria-hidden="true"
-      className="absolute -left-3 top-6 hidden w-52 rounded-2xl border border-line bg-surface/95 p-4 shadow-[var(--shadow-raised)] backdrop-blur-md sm:block lg:-left-10"
-    >
-      <div className="flex items-center justify-between text-2xs font-medium text-muted">
-        Lits libres · Dakar
-        <span className="inline-flex items-center gap-1 rounded-full bg-accent-green/12 px-2 py-0.5 font-semibold text-accent-green">
-          <span className="live-pulse h-1.5 w-1.5 rounded-full bg-accent-green" /> Direct
-        </span>
-      </div>
-      <div className="num mt-1.5 flex items-baseline gap-2">
-        <span className="text-3xl font-extrabold tracking-tight text-fg">78</span>
-        <span className="text-2xs font-semibold text-accent-blue">+3 ce matin</span>
-      </div>
-      <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-raised">
-        <div className="h-full w-3/4 rounded-full bg-accent-blue" />
-      </div>
-    </div>
-
-    {/* Alerte telle que le donneur la reçoit sur son téléphone. */}
-    <div
-      aria-hidden="true"
-      className="hero-notif absolute -bottom-9 -right-2 w-68 rounded-2xl border border-line bg-surface/95 p-4 shadow-[var(--shadow-raised)] backdrop-blur-md sm:-right-6"
-    >
-      <div className="flex items-center justify-between text-2xs font-semibold text-brand">
-        <span className="inline-flex items-center gap-1.5">
-          <Bell className="h-3.5 w-3.5" /> Jappo Dundu · maintenant
-        </span>
-        <span className="rounded-md bg-brand/10 px-1.5 py-0.5 text-[10px]">Urgence vitale</span>
-      </div>
-      <p className="mt-1.5 text-sm font-bold text-fg">Sang O− recherché à 2,4 km</p>
-      <p className="text-xs text-muted">Hôpital Principal · 2 poches requises</p>
-    </div>
+/** Groupes en tension publiés par le CNTS (données réelles, datées). */
+const BloodNeeds: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <div className={`rounded-[1.375rem] bg-white p-5 shadow-[0_24px_50px_rgb(3_22_50/0.16)] ring-1 ring-[#e8edf5] ${className}`}>
+    <h3 id="groupes-recherches" className="font-manrope text-base font-extrabold">
+      Groupes recherchés
+    </h3>
+    <p className="mt-0.5 text-xs text-[#738099]">Publiés par le CNTS · {BLOOD_NEEDS.updated}</p>
+    <ul aria-labelledby="groupes-recherches" className="mt-3.5 grid grid-cols-4 gap-2">
+      {BLOOD_NEEDS.groups.map((g) => {
+        const critical = g.level === 'critical'
+        return (
+          <li key={g.group} className={`rounded-xl px-1 py-2.5 text-center ${critical ? 'bg-[#fde9ec]' : 'bg-[#f3f5fc]'}`}>
+            <span className={`font-manrope block text-xl font-extrabold ${critical ? 'text-[#e0102f]' : 'text-[#071b43]'}`}>{g.group}</span>
+            <span className={`mt-1 inline-flex items-center gap-1 text-[0.625rem] font-bold ${critical ? 'text-[#c8102e]' : 'text-[#64728a]'}`}>
+              {critical && <span aria-hidden="true" className="heartbeat h-1.5 w-1.5 rounded-full bg-[#f20b2b]" />}
+              {critical ? 'Critique' : 'En baisse'}
+            </span>
+          </li>
+        )
+      })}
+    </ul>
   </div>
 )
 
 /**
- * Page d'accueil publique : présenter la plateforme (sang, lits, ambulances),
- * ses publics et le don de sang. Style institutionnel et épuré de haut niveau.
+ * Page d'accueil publique : hero sombre plein cadre, trois piliers, aperçu du
+ * tableau de bord, fonctionnement, vision, sécurité, don de sang, FAQ.
  */
 export const Landing: React.FC = () => {
   const { isAuthenticated } = useAuth()
   const rootRef = useRef<HTMLDivElement>(null)
   useLandingMotion(rootRef)
+  const [menuOpen, setMenuOpen] = useState(false)
   const spaceLink = isAuthenticated
     ? { to: '/', label: 'Mon espace', short: 'Mon espace' }
-    : { to: '/login', label: 'Espace professionnel', short: 'Espace pro' }
+    : { to: '/login', label: 'Accéder à la plateforme', short: 'Espace pro' }
 
   return (
-    <div ref={rootRef} className="landing min-h-full overflow-x-hidden bg-canvas text-fg">
+    <div ref={rootRef} className="landing min-h-full overflow-x-hidden bg-[#f3f5fc] text-[#071b43]">
       <a
         href="#contenu"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-white focus:px-4 focus:py-2"
       >
         Aller au contenu
       </a>
 
-      {/* En-tête */}
-      <header className="landing-nav sticky top-0 z-40 border-b border-line/80 bg-surface/90 backdrop-blur-xl">
-        <nav aria-label="Navigation principale" className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-5">
-          <a href="#haut" className="flex shrink-0 items-center gap-2.5">
-            <BrandMark className="h-9 w-9" />
-            <BrandName className="text-lg" />
-          </a>
-          <ul className="mx-auto hidden items-center gap-1 rounded-full border border-line/70 bg-raised/50 p-1 lg:flex">
-            {NAV.map((item) => (
+      {/* Navigation */}
+      <header className="nav-dark fixed inset-x-0 top-0 z-40 border-b border-white/10 text-white">
+        <nav aria-label="Navigation principale" className="mx-auto flex h-[4.5rem] max-w-[84rem] items-center justify-between gap-6 px-5 lg:px-10">
+          <Brand />
+          <ul className="hidden items-center gap-8 lg:flex">
+            {NAV.map((item, k) => (
               <li key={item.href}>
                 <a
                   href={item.href}
-                  className="rounded-full px-3.5 py-1.5 text-sm font-medium text-muted transition-all hover:bg-surface hover:text-fg hover:shadow-2xs"
+                  className={`relative py-3 text-sm font-bold transition-colors hover:text-white ${k === 0 ? 'text-white' : 'text-white/80'} ${
+                    k === 0 ? 'after:absolute after:inset-x-0 after:bottom-1 after:h-0.5 after:bg-[#f20b2b]' : ''
+                  }`}
                 >
                   {item.label}
                 </a>
               </li>
             ))}
           </ul>
-          <div className="ml-auto flex items-center gap-2.5 lg:ml-0">
-            <a
-              href="#don"
-              className="hidden rounded-xl px-3.5 py-2 text-sm font-semibold text-fg transition-colors hover:bg-raised hover:text-brand md:block"
+          <div className="flex items-center gap-2">
+            <Link
+              to={spaceLink.to}
+              className="btn inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-full bg-white px-5 text-sm font-extrabold text-[#031632] transition-colors hover:bg-white/90"
             >
-              Devenir donneur
-            </a>
-            <Link to={spaceLink.to} className={`${btnPrimary} h-10 whitespace-nowrap px-4 text-sm`}>
               <span className="sm:hidden">{spaceLink.short}</span>
               <span className="hidden sm:inline">{spaceLink.label}</span>
               <ArrowRight className="btn-arrow h-4 w-4" aria-hidden="true" />
             </Link>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-expanded={menuOpen}
+              aria-label={menuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+              className="flex h-10 w-10 items-center justify-center rounded-full text-white lg:hidden"
+            >
+              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
           </div>
         </nav>
+        {menuOpen && (
+          <ul className="border-t border-white/10 bg-[#031632] px-5 py-4 lg:hidden">
+            {NAV.map((item) => (
+              <li key={item.href}>
+                <a href={item.href} onClick={() => setMenuOpen(false)} className="block py-2.5 text-sm font-bold text-white/85">
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
       </header>
 
       <main id="contenu">
-        {/* Accroche */}
-        <section id="haut" className="relative overflow-hidden bg-navy text-on-navy">
-          <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-0 opacity-75" />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-40 -top-56 h-[42rem] w-[42rem] rounded-full bg-[radial-gradient(circle,color-mix(in_oklab,var(--brand)_30%,transparent),transparent_65%)]"
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -left-32 bottom-0 h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,rgb(37_99_235/0.18),transparent_65%)]"
-          />
-          <div className="relative mx-auto grid max-w-7xl items-center gap-16 px-5 pb-28 pt-16 lg:grid-cols-[1.02fr_0.98fr] lg:pb-32 lg:pt-24">
-            <div>
-              <p
-                data-hero
-                style={stagger(0)}
-                className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3.5 py-1.5 text-xs font-medium text-on-navy-muted backdrop-blur-xs"
-              >
-                <span className="live-pulse h-2 w-2 rounded-full bg-amber" aria-hidden="true" />
-                Plateforme de coordination des urgences · Sénégal
-              </p>
+        {/* HERO */}
+        <section id="accueil" className="relative isolate overflow-hidden bg-[#031632] text-white">
+          <div className="absolute inset-0 -z-10">
+            <Photo
+              name="hero-blood-donation"
+              eager
+              alt="Une infirmière contrôle une poche de sang avant transfusion"
+              className="hero-photo object-[72%_30%]"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgb(2_14_34/0.98)_0%,rgb(2_14_34/0.92)_30%,rgb(2_14_34/0.4)_56%,rgb(2_14_34/0.02)_100%),linear-gradient(0deg,rgb(2_14_34/0.3),transparent_45%)] max-lg:bg-[linear-gradient(90deg,rgb(2_14_34/0.96),rgb(2_14_34/0.75)_65%,rgb(2_14_34/0.25))]" />
+          </div>
+
+          <div className="mx-auto flex min-h-[min(44rem,100svh)] max-w-[84rem] items-center px-5 pb-28 pt-32 lg:px-10">
+            <div className="max-w-[40rem]">
               <h1
                 data-hero
-                style={stagger(1)}
-                className="font-display mt-6 text-4xl leading-[1.06] tracking-tight text-white sm:text-5xl lg:text-[3.55rem]"
+                style={stagger(0)}
+                className="font-manrope text-[clamp(2.5rem,5vw,4.4rem)] font-extrabold leading-[1.06] tracking-[-0.045em]"
               >
-                Le sang, les lits et les ambulances, <span className="text-amber">enfin connectés.</span>
+                Mieux coordonner
+                <br />
+                les ressources.
+                <br />
+                <span className="relative whitespace-nowrap text-[#f20b2b]">
+                  Sauver des vies.
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 200 14"
+                    preserveAspectRatio="none"
+                    className="absolute -bottom-3 left-[55%] h-3.5 w-[45%]"
+                  >
+                    <path d="M2 10 C 60 2, 140 2, 198 8" fill="none" stroke="#f20b2b" strokeWidth="3" strokeLinecap="round" />
+                  </svg>
+                </span>
               </h1>
-              <p data-hero style={stagger(2)} className="mt-6 max-w-xl text-lg leading-relaxed text-on-navy-muted">
-                Jappo Dundu relie en temps réel les donneurs, les hôpitaux et le SAMU : l’ambulance la plus proche, le
-                lit disponible et le donneur compatible, au même endroit.
+              <p data-hero style={stagger(1)} className="mt-8 max-w-md text-lg leading-relaxed text-[#f0f4fc]/90">
+                Jappo Dundu relie le sang, les lits et les ambulances du Sénégal sur une seule plateforme, pour une
+                meilleure coordination des ressources sanitaires au service de tous.
               </p>
-              <div data-hero style={stagger(3)} className="mt-9 flex flex-wrap gap-3.5">
-                <a href="#modules" className={`${btnPrimary} h-12 px-6 text-base`}>
-                  Découvrir les modules
-                  <ArrowRight className="btn-arrow h-5 w-5" aria-hidden="true" />
+              <div data-hero style={stagger(2)} className="mt-9 flex flex-wrap items-center gap-6">
+                <a href="#solutions" className={`${redButton} h-13 text-[0.9375rem]`}>
+                  Découvrir la plateforme <ArrowRight className="btn-arrow h-5 w-5" aria-hidden="true" />
                 </a>
-                <a href="#don" className={`${btnOnDark} h-12 px-6 text-base`}>
+                <a href="#don" className="group flex items-center gap-3 text-[0.9375rem] font-bold">
+                  <span className="grid h-12 w-12 place-items-center rounded-full border border-white/80 transition-colors group-hover:bg-white/10">
+                    <HeartPulse className="h-5 w-5" aria-hidden="true" />
+                  </span>
                   Devenir donneur
                 </a>
               </div>
-              <ul data-hero style={stagger(4)} className="mt-10 flex flex-wrap gap-x-6 gap-y-2.5 border-t border-white/10 pt-6">
-                {ASSURANCES.map((item) => (
-                  <li key={item} className="flex items-center gap-2 text-sm text-on-navy-muted">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-accent-green/15">
-                      <Check className="h-3.5 w-3.5 text-accent-green" aria-hidden="true" />
-                    </span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
             </div>
-            <HeroVisual />
           </div>
+
+          <svg aria-hidden="true" viewBox="0 0 1440 100" preserveAspectRatio="none" className="absolute -bottom-px left-0 z-10 h-16 w-full lg:h-24">
+            <path d="M0,48 C180,105 330,75 510,45 C710,10 850,90 1030,55 C1210,20 1320,20 1440,0 L1440,100 L0,100Z" fill="#f3f5fc" />
+          </svg>
         </section>
 
-        {/* Repères Bento */}
-        <section aria-label="La plateforme en chiffres" className="border-b border-line bg-surface">
-          <dl className="mx-auto grid max-w-7xl grid-cols-2 px-5 lg:grid-cols-4 lg:divide-x lg:divide-line">
-            {KEY_FIGURES.map((figure, index) => (
-              <div
-                key={figure.label}
-                data-reveal
-                style={stagger(index)}
-                className="group flex flex-col px-3 py-10 transition-colors hover:bg-raised/35 lg:px-8"
-              >
-                <span className="num mb-2 text-2xs font-bold tracking-widest text-brand/80 uppercase">
-                  0{index + 1}
-                </span>
-                <dt className="order-2 mt-2 max-w-[15rem] text-sm leading-snug text-muted">{figure.label}</dt>
-                <dd className="num -order-1 text-4xl font-extrabold tracking-tight text-fg sm:text-[2.65rem]">
-                  <span aria-hidden="true" data-count={figure.value}>
-                    {figure.value}
-                  </span>
-                  <span className="sr-only">{figure.value}</span>
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </section>
+        {/* Écosystème : trois piliers */}
+        <section id="solutions" className="scroll-mt-20 px-5 pb-24 pt-10 lg:px-10">
+          <div className="mx-auto max-w-[84rem]">
+            <SectionHead
+              eyebrow="Notre écosystème"
+              title={
+                <>
+                  Une plateforme, trois piliers
+                  <br className="hidden sm:block" /> pour une santé mieux organisée.
+                </>
+              }
+            >
+              <p>
+                Jappo Dundu réunit trois solutions complémentaires qui partagent les mêmes données : un lit libéré ou une
+                ambulance disponible se voit partout, aussitôt.
+              </p>
+            </SectionHead>
 
-        {/* Modules */}
-        <section id="modules" className="scroll-mt-16 py-24">
-          <div className="mx-auto max-w-7xl px-5">
-            <SectionHeader
-              eyebrow="Trois modules, une seule plateforme"
-              title="Tout ce qu’il faut pour gérer une urgence"
-              intro="Chaque module fonctionne seul, et ils partagent les mêmes données : un lit libéré ou une ambulance disponible se voit partout, aussitôt."
-            />
-            <div className="mt-14 grid gap-7 lg:grid-cols-3">
+            <div className="mt-12 grid gap-5 md:grid-cols-3">
               {MODULES.map((module, index) => {
                 const style = MODULE_STYLE[module.key]
                 const Icon = style.icon
@@ -495,42 +392,24 @@ export const Landing: React.FC = () => {
                     key={module.key}
                     data-reveal
                     style={stagger(index)}
-                    className="lift group relative flex flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-panel)] transition-all hover:border-line-strong"
+                    className="group relative isolate h-[17rem] overflow-hidden rounded-[1.375rem] text-white shadow-[0_8px_24px_rgb(7_24_57/0.14)]"
                   >
-                    <div className="relative aspect-[16/10] overflow-hidden">
-                      <Photo
-                        name={style.photo}
-                        alt={style.alt}
-                        icon={Icon}
-                        className="absolute inset-0 transition-transform duration-500 group-hover:scale-105"
-                      />
-                      <div
-                        aria-hidden="true"
-                        className="absolute inset-0 bg-gradient-to-t from-navy/65 via-transparent to-transparent"
-                      />
-                      <span className="absolute left-4 top-4 rounded-full border border-white/20 bg-navy/70 px-3 py-1 text-2xs font-semibold text-white backdrop-blur-md">
-                        {style.badge}
+                    <Photo
+                      name={style.photo}
+                      alt={style.alt}
+                      className="absolute inset-0 -z-20 transition-transform duration-500 group-hover:scale-[1.06]"
+                    />
+                    <div className={`absolute inset-0 -z-10 ${style.overlay}`} />
+                    <div className="absolute bottom-6 left-6 right-6">
+                      <span className={`mb-3 grid h-12 w-12 place-items-center rounded-full bg-white ${style.iconColor}`}>
+                        <Icon className="h-6 w-6" aria-hidden="true" />
                       </span>
-                      <span aria-hidden="true" className={`absolute inset-x-0 bottom-0 h-1.5 ${style.bar}`} />
-                    </div>
-                    <div className="relative flex flex-1 flex-col px-7 pb-8">
-                      <span className="lift-icon -mt-6 flex h-12 w-12 items-center justify-center rounded-xl border border-line bg-surface shadow-[var(--shadow-panel)]">
-                        <Icon className={`h-6 w-6 ${style.text}`} aria-hidden="true" />
-                      </span>
-                      <h3 className="mt-5 text-xl font-bold tracking-tight text-fg">{module.name}</h3>
-                      <p className={`mt-1 text-sm font-semibold ${style.text}`}>{module.tagline}</p>
-                      <ul className="mt-6 space-y-3 border-t border-line pt-6">
-                        {module.features.map((feature) => (
-                          <li key={feature} className="flex gap-3 text-sm leading-relaxed text-muted">
-                            <span
-                              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${style.softBg}`}
-                            >
-                              <Check className={`h-3.5 w-3.5 ${style.text}`} aria-hidden="true" />
-                            </span>
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
+                      <h3 className="font-manrope text-2xl font-extrabold tracking-[-0.02em]">{module.name}</h3>
+                      <p className="mb-3 mt-1.5 max-w-[16rem] text-sm leading-snug text-white/90">{module.tagline}</p>
+                      <a href="#fonctionnement" className="inline-flex items-center gap-1.5 text-sm font-bold">
+                        En savoir plus
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                      </a>
                     </div>
                   </article>
                 )
@@ -539,242 +418,264 @@ export const Landing: React.FC = () => {
           </div>
         </section>
 
+        {/* Plateforme : le tableau de bord en scène */}
+        <section id="plateforme" className="scroll-mt-20 px-5 pb-24 lg:px-10">
+          <div className="mx-auto max-w-[84rem]">
+            <SectionHead eyebrow="Une expérience unique" title="Une vision claire pour une santé plus performante.">
+              <p>
+                Un tableau de bord par rôle : lits, sang et missions SAMU se suivent en temps réel, et ce qui demande une
+                intervention passe en premier.
+              </p>
+              <Link to={spaceLink.to} className={`${redButton} mt-5 h-11 text-sm`}>
+                Explorer le tableau de bord <ArrowRight className="btn-arrow h-4 w-4" aria-hidden="true" />
+              </Link>
+            </SectionHead>
+
+            <div className="mt-12">
+              <PlatformStage />
+            </div>
+
+            <ul className="mt-12 grid gap-8 md:grid-cols-3 md:gap-10">
+              {PLATFORM_FEATURES.map((feature, index) => (
+                <li key={feature.title} data-reveal style={stagger(index)} className="border-t border-[#d5ddea] pt-6">
+                  <span className="grid h-11 w-11 place-items-center rounded-full bg-[#031632] text-white">
+                    <feature.icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <h3 className="font-manrope mt-4 text-lg font-extrabold">{feature.title}</h3>
+                  <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-[#3d4a63]">{feature.text}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
         {/* Fonctionnement : une urgence de bout en bout */}
-        <section id="fonctionnement" className="scroll-mt-16 border-y border-line bg-surface py-24">
-          <div className="mx-auto grid max-w-7xl gap-14 px-5 lg:grid-cols-[0.92fr_1.08fr]">
+        <section id="fonctionnement" className="scroll-mt-20 bg-white px-5 py-24 lg:px-10">
+          <div className="mx-auto grid max-w-[84rem] gap-14 lg:grid-cols-2 lg:gap-20">
             <div>
-              <SectionHeader
-                eyebrow="Fonctionnement"
-                title="Une urgence, du premier appel au don de sang"
-                intro="Un accident sur la route : voici comment les trois modules se relaient, minute par minute."
-              />
-              <div
-                data-reveal="photo"
-                className="relative mt-10 aspect-[4/3] overflow-hidden rounded-2xl border border-line shadow-[var(--shadow-panel)]"
-              >
-                <Photo
-                  name="urgence"
-                  icon={Radio}
-                  alt="Une régulatrice du SAMU coordonne une intervention depuis la salle de régulation"
-                  className="absolute inset-0 object-[80%_50%]"
-                />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-navy/95 via-navy/50 to-transparent p-6 pt-20">
-                  <p className="inline-flex items-center gap-2 text-xs font-semibold tracking-wider text-amber uppercase">
-                    <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Chaîne de survie synchronisée
-                  </p>
-                  <p className="mt-1 text-lg font-bold text-white">
-                    25 minutes, trois modules, une seule chaîne de secours.
-                  </p>
-                </div>
+              <div data-reveal>
+                <Eyebrow>Fonctionnement</Eyebrow>
+                <H2>Une urgence, du premier appel au don de sang.</H2>
+                <p className="mt-4 max-w-lg text-base leading-relaxed text-[#3d4a63]">
+                  Quatre acteurs, une seule plateforme : chacun voit aussitôt ce que l’autre vient de faire.
+                </p>
               </div>
-            </div>
-            <ol className="space-y-4 lg:pt-2">
-              {SCENARIO.map((step, index) => {
-                const style = MODULE_STYLE[step.module]
-                const Icon = style.icon
-                return (
-                  <li
-                    key={step.title}
-                    data-reveal
-                    style={stagger(index)}
-                    className="group relative flex gap-5 rounded-2xl border border-line bg-canvas/55 p-5 transition-all hover:border-line-strong hover:bg-surface hover:shadow-xs"
-                  >
-                    <span
-                      className={`relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line bg-surface shadow-2xs ${style.softBg}`}
-                    >
-                      <Icon className={`h-5 w-5 ${style.text}`} aria-hidden="true" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="num rounded-md bg-raised px-2 py-0.5 text-2xs font-bold uppercase tracking-wider text-fg">
-                          Étape {index + 1}
-                        </span>
-                        <span className={`num text-xs font-semibold ${style.text}`}>T + {step.time}</span>
-                      </div>
-                      <h3 className="mt-2 text-lg font-bold text-fg">{step.title}</h3>
-                      <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-muted">{step.text}</p>
-                    </div>
-                  </li>
-                )
-              })}
-            </ol>
-          </div>
-        </section>
-
-        {/* Publics */}
-        <section id="publics" className="scroll-mt-16 py-24">
-          <div className="mx-auto max-w-7xl px-5">
-            <SectionHeader
-              eyebrow="Publics"
-              title="Chacun son espace, chacun son rôle"
-              intro="Un administrateur par domaine : chacun ne voit que ce qui le concerne, pour son établissement."
-            />
-            <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {AUDIENCES.map((audience, index) => {
-                const Icon = AUDIENCE_ICONS[index]
-                return (
-                  <div
-                    key={audience.who}
-                    data-reveal
-                    style={stagger(index)}
-                    className="lift flex flex-col rounded-2xl border border-line bg-surface p-7 shadow-[var(--shadow-panel)] transition-all hover:border-line-strong"
-                  >
-                    <span className="lift-icon flex h-12 w-12 items-center justify-center rounded-xl bg-navy text-white shadow-sm">
-                      <Icon className="h-5 w-5 text-amber" aria-hidden="true" />
-                    </span>
-                    <h3 className="mt-5 text-lg font-bold tracking-tight text-fg">{audience.who}</h3>
-                    <p className="mt-3 flex-1 text-sm leading-relaxed text-muted">{audience.text}</p>
-                    <p className="mt-5 inline-flex w-fit items-center gap-1.5 rounded-lg border border-line bg-raised/70 px-3 py-1 text-2xs font-semibold text-fg">
-                      <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" />
-                      {audience.where}
-                    </p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* Pilotage */}
-        <section className="relative overflow-hidden bg-navy py-24 text-on-navy">
-          <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-0 opacity-75" />
-          <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-5 lg:grid-cols-[1.1fr_0.9fr]">
-            <div data-reveal className="order-2 lg:order-1">
-              <ProductMock />
-            </div>
-            <div className="order-1 lg:order-2">
-              <SectionHeader
-                invert
-                eyebrow="Pilotage"
-                title="Voir, anticiper, protéger"
-                intro="Un tableau de bord par rôle : l’essentiel du réseau sur un seul écran."
-              />
-              <ul className="mt-10 space-y-5">
-                {PILOTING.map((item, index) => {
-                  const Icon = PILOTING_ICONS[index]
+              <ol data-reveal data-timeline className="mt-10">
+                {SCENARIO.map((step, index) => {
+                  const style = MODULE_STYLE[step.module]
+                  const next = SCENARIO[index + 1]
+                  const Icon = style.icon
                   return (
-                    <li
-                      key={item.title}
-                      data-reveal
-                      style={stagger(index)}
-                      className="flex gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-xs"
-                    >
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
-                        <Icon className="h-5 w-5 text-amber" aria-hidden="true" />
+                    <li key={step.title} className="relative grid grid-cols-[2.75rem_minmax(0,1fr)] gap-5 pb-9 last:pb-0">
+                      {next && (
+                        <span aria-hidden="true" className="absolute bottom-0 left-[1.375rem] top-11 w-0.5 -translate-x-1/2 bg-[#e6ebf3]">
+                          <span
+                            className="timeline-fill-y absolute inset-0"
+                            style={{
+                              backgroundImage: `linear-gradient(${style.hex}, ${MODULE_STYLE[next.module].hex})`,
+                              ...stagger(index),
+                            }}
+                          />
+                        </span>
+                      )}
+                      <span className={`grid h-11 w-11 place-items-center rounded-full ${style.tint}`}>
+                        <Icon className="h-5 w-5" aria-hidden="true" />
                       </span>
-                      <div>
-                        <h3 className="text-base font-bold text-white">{item.title}</h3>
-                        <p className="mt-1 text-sm leading-relaxed text-on-navy-muted">{item.text}</p>
+                      <div className="pt-0.5">
+                        <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span className="font-mono text-[0.8125rem] font-semibold">T + {step.time}</span>
+                          <span className={`rounded-full px-2.5 py-0.5 text-[0.6875rem] font-bold ${style.tint}`}>
+                            {MODULES.find((m) => m.key === step.module)?.name}
+                          </span>
+                        </p>
+                        <h3 className="font-manrope mt-1.5 text-lg font-extrabold leading-snug">{step.title}</h3>
+                        <p className="mt-1 max-w-md text-[0.9375rem] leading-relaxed text-[#3d4a63]">{step.text}</p>
                       </div>
                     </li>
                   )
                 })}
+              </ol>
+              <p className="mt-8 pl-16 text-xs text-[#738099]">Scénario type : les temps sont indicatifs.</p>
+            </div>
+
+            <figure data-reveal className="relative isolate min-h-[30rem] overflow-hidden rounded-[1.75rem] bg-[#031632]">
+              <Photo
+                name="urgence"
+                alt="Une régulatrice du SAMU suit les interventions depuis la salle de régulation"
+                className="absolute inset-0 object-[72%_center]"
+              />
+              <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgb(2_14_34/0)_40%,rgb(2_14_34/0.8))]" />
+              <MissionCard className="absolute inset-x-4 bottom-4 sm:inset-x-auto sm:bottom-6 sm:left-6 sm:w-[23rem]" />
+            </figure>
+          </div>
+        </section>
+
+        {/* Vision : pourquoi Jappo Dundu */}
+        <section id="vision" className="scroll-mt-20 px-5 py-24 lg:px-10">
+          <div className="mx-auto grid max-w-[84rem] items-center gap-14 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-20">
+            <figure data-reveal className="relative isolate overflow-hidden rounded-[1.75rem] bg-[#020b26] shadow-[0_30px_60px_rgb(3_22_50/0.22)]">
+              <div className="aspect-[4/3]">
+                <Photo name="senegal-map" alt="Carte du Sénégal : les structures du réseau reliées entre elles" className="object-[72%_50%]" />
+              </div>
+              <figcaption className="absolute inset-y-0 left-0 flex w-3/5 flex-col justify-between p-6 text-white sm:w-1/2 sm:p-9">
+                <Eyebrow light>Réseau national</Eyebrow>
+                <span>
+                  <span className="font-manrope block text-[clamp(3rem,6vw,4.75rem)] font-extrabold leading-none tracking-[-0.05em]">
+                    {REGIONS.length}
+                  </span>
+                  <span className="font-manrope mt-1 block text-lg font-bold">régions</span>
+                  <span className="mt-3 hidden max-w-[15rem] text-sm leading-relaxed text-white/75 sm:block">
+                    Un même référentiel pour les hôpitaux, les centres de transfusion et le SAMU.
+                  </span>
+                </span>
+              </figcaption>
+            </figure>
+
+            <div>
+              <div data-reveal>
+                <Eyebrow>Pourquoi Jappo Dundu ?</Eyebrow>
+                <H2>Une solution essentielle pour notre système de santé.</H2>
+                <p className="mt-4 max-w-lg text-base leading-relaxed text-[#3d4a63]">
+                  Parce qu’une meilleure coordination des ressources rend le système de santé plus fort, plus réactif et
+                  plus solidaire.
+                </p>
+              </div>
+              <ul className="mt-10 grid gap-x-10 gap-y-8 sm:grid-cols-2">
+                {BENEFITS.map((benefit, index) => (
+                  <li key={benefit.title} data-reveal style={stagger(index)} className="border-t border-[#d5ddea] pt-5">
+                    <span className="grid h-11 w-11 place-items-center rounded-full bg-[#e3eaf8] text-[#0b3471]">
+                      <benefit.icon className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <h3 className="font-manrope mt-4 text-[1.0625rem] font-extrabold">{benefit.title}</h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-[#3d4a63]">{benefit.text}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* Confiance & sécurité */}
+        <section className="bg-[#031632] text-white">
+          <div className="grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <div className="relative min-h-[22rem] overflow-hidden">
+              <Photo name="doctor-security" alt="Un médecin dans le hall d’un hôpital" className="absolute inset-0 object-[30%_20%]" />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 bg-[linear-gradient(180deg,transparent_55%,#031632)] lg:bg-[linear-gradient(90deg,transparent_55%,#031632)]"
+              />
+            </div>
+            <div className="px-5 py-16 sm:px-10 lg:py-24 lg:pl-14 lg:pr-[max(2.5rem,calc((100vw-84rem)/2))]">
+              <div data-reveal>
+                <Eyebrow light>Confiance & sécurité</Eyebrow>
+                <H2 light>Vos données, notre priorité</H2>
+                <p className="mt-4 max-w-lg text-base leading-relaxed text-[#c3d0e4]">
+                  Chaque accès est contrôlé selon le rôle, chaque action sensible est tracée : la plateforme se doit
+                  d’être irréprochable.
+                </p>
+              </div>
+              <ul data-reveal className="mt-10 grid gap-px overflow-hidden rounded-[1.375rem] bg-white/10 ring-1 ring-white/10 sm:grid-cols-2">
+                {SECURITY.map((item) => (
+                  <li key={item.title} className="flex gap-4 bg-[#062049] p-6">
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white/10">
+                      <item.icon className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <h3 className="font-manrope text-base font-extrabold">{item.title}</h3>
+                      <p className="mt-1 text-sm leading-relaxed text-[#b4c3da]">{item.text}</p>
+                    </div>
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
         </section>
 
         {/* Don de sang */}
-        <section id="don" className="scroll-mt-16 py-24">
-          <div className="mx-auto grid max-w-7xl gap-14 px-5 lg:grid-cols-2 lg:items-start">
+        <section id="don" className="scroll-mt-20 overflow-hidden px-5 py-24 lg:px-10">
+          <div className="mx-auto grid max-w-[84rem] items-center gap-16 lg:grid-cols-2 lg:gap-20">
             <div>
-              <SectionHeader
-                eyebrow="Don de sang"
-                title="Un don peut sauver jusqu’à trois vies"
-                intro="Avec l’application, vous êtes prévenu quand un hôpital proche a besoin de votre groupe sanguin."
-              />
-              <div data-reveal className="mt-10 rounded-2xl border border-line bg-surface p-7 shadow-[var(--shadow-panel)]">
-                <h3 className="text-sm font-bold tracking-wide text-fg uppercase">Conditions pour donner</h3>
-                <ul className="mt-5 space-y-3.5">
-                  {DONOR_CONDITIONS.map((condition) => (
-                    <li key={condition} className="flex items-start gap-3 text-[0.9375rem] text-fg">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-green/12">
-                        <Check className="h-3.5 w-3.5 text-accent-green" aria-hidden="true" />
-                      </span>
-                      <span>{condition}</span>
-                    </li>
-                  ))}
-                </ul>
+              <div data-reveal>
+                <Eyebrow>Don de sang</Eyebrow>
+                <H2>Un don peut sauver jusqu’à trois vies.</H2>
+                <p className="mt-4 max-w-lg text-base leading-relaxed text-[#3d4a63]">
+                  Avec l’application Jappo Dundu, vous êtes prévenu quand un hôpital proche a besoin de votre groupe
+                  sanguin. Un geste suffit pour répondre.
+                </p>
               </div>
-              <a
-                href={SOURCE.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`${btnOutline} mt-6 h-11 px-5 text-sm`}
-              >
-                Conditions complètes et lieux de don (CNTS)
-                <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </a>
-            </div>
-
-            <div className="flex flex-col gap-6">
-              <div
-                data-reveal="photo"
-                className="aspect-[16/10] overflow-hidden rounded-2xl border border-line shadow-[var(--shadow-panel)]"
-              >
-                <Photo
-                  name="don"
-                  icon={Droplets}
-                  alt="Une jeune donneuse sourit pendant son don de sang, accompagnée d’une infirmière"
-                />
-              </div>
-              <div data-reveal className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-panel)]">
-                <div className="flex items-baseline justify-between gap-4 border-b border-line bg-raised/35 px-6 py-4">
-                  <h3 className="text-base font-bold text-fg">Groupes recherchés</h3>
-                  <p className="text-xs font-medium text-muted">CNTS · {BLOOD_NEEDS.updated}</p>
-                </div>
-                <ul className="grid grid-cols-2 sm:grid-cols-4 sm:divide-x sm:divide-line">
-                  {BLOOD_NEEDS.groups.map((g, index) => {
-                    const critical = g.level === 'critical'
+              <div data-reveal className="mt-8 rounded-[1.375rem] bg-white p-6 shadow-[0_8px_24px_rgb(7_24_57/0.06)] sm:p-7">
+                <h3 className="font-manrope text-base font-extrabold">Qui peut donner ?</h3>
+                <ul className="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  {DONOR_CONDITIONS.map((condition) => {
+                    const Icon = CONDITION_ICON[condition.key]
                     return (
-                      <li key={g.group} data-reveal="scale" style={stagger(index + 1)} className="px-6 py-5">
-                        <span className="block text-3xl font-extrabold tracking-tight text-fg">{g.group}</span>
-                        <span
-                          className={`mt-2 inline-flex rounded-md px-2 py-0.5 text-2xs font-semibold ${
-                            critical ? 'heartbeat bg-brand text-on-brand' : 'bg-raised text-fg'
-                          }`}
-                        >
-                          {critical ? 'Critique' : 'En baisse'}
+                      <li key={condition.key} className={`flex items-start gap-3.5 ${condition.key === 'health' ? 'sm:col-span-2 lg:col-span-1 xl:col-span-2' : ''}`}>
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#fde9ec] text-[#e0102f]">
+                          <Icon className="h-[1.125rem] w-[1.125rem]" aria-hidden="true" />
+                        </span>
+                        <span className="pt-0.5">
+                          <strong className="block text-[0.9375rem] font-bold leading-snug">{condition.title}</strong>
+                          <span className="text-sm text-[#64728a]">{condition.detail}</span>
                         </span>
                       </li>
                     )
                   })}
                 </ul>
-                <div className="flex items-center gap-3 border-t border-line bg-raised/25 px-6 py-4">
-                  <Smartphone className="h-5 w-5 shrink-0 text-brand" aria-hidden="true" />
-                  <p className="text-sm text-muted">
-                    L’application des donneurs (Android et iPhone) est en phase de test avec les premiers centres.
-                  </p>
-                </div>
               </div>
+              <a href={SOURCE.url} target="_blank" rel="noopener noreferrer" className={`${redButton} mt-8 h-12 text-sm`}>
+                Conditions et lieux de don (CNTS) <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </a>
+            </div>
+
+            {/* L'alerte telle que la reçoit un donneur, dans son rayon de recherche. */}
+            <div data-reveal className="relative">
+              <div className="relative isolate mx-auto w-fit py-6">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-1/2 top-1/2 -z-10 aspect-square w-[38rem] -translate-x-1/2 -translate-y-1/2"
+                >
+                  <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgb(242_11_43/0.13),transparent_62%)]" />
+                  <span className="absolute inset-[6%] rounded-full border border-[#f20b2b]/10" />
+                  <span className="absolute inset-[20%] rounded-full border border-dashed border-[#f20b2b]/25" />
+                  {[0, 1, 2].map((i) => (
+                    <span key={i} className="ring-wave absolute inset-[14%] rounded-full border border-[#f20b2b]/30" style={stagger(i)} />
+                  ))}
+                  {[
+                    'left-[9%] top-[38%]',
+                    'left-[83%] top-[20%]',
+                    'left-[89%] top-[62%]',
+                    'left-[24%] top-[85%]',
+                    'left-[62%] top-[7%]',
+                  ].map((position) => (
+                    <span key={position} className={`absolute h-2.5 w-2.5 rounded-full bg-[#f20b2b] ring-4 ring-[#f20b2b]/15 ${position}`} />
+                  ))}
+                </div>
+                <DonorAlertPhone />
+              </div>
+              <p className="flex items-center justify-center gap-2 text-xs font-semibold text-[#64728a]">
+                <Smartphone className="h-4 w-4 text-[#f20b2b]" aria-hidden="true" />
+                Application donneurs, en test avec les premiers centres
+              </p>
+              <BloodNeeds className="relative z-20 mx-auto mt-6 max-w-sm sm:absolute sm:bottom-8 sm:left-0 sm:mt-0 sm:w-[21rem]" />
             </div>
           </div>
         </section>
 
         {/* FAQ */}
-        <section id="faq" className="scroll-mt-16 border-t border-line bg-surface py-24">
-          <div className="mx-auto grid max-w-7xl gap-12 px-5 lg:grid-cols-[0.8fr_1.2fr]">
-            <SectionHeader
-              eyebrow="Questions fréquentes"
-              title="Vous avez une question ?"
-              intro="L’essentiel sur la plateforme, les données et le don de sang."
-              className="lg:sticky lg:top-28 lg:self-start"
-            />
-            <div className="space-y-3">
-              {FAQ.map((item, index) => (
-                <details
-                  key={item.q}
-                  data-reveal
-                  style={stagger(index)}
-                  className="group rounded-2xl border border-line bg-canvas/45 px-6 transition-colors open:border-line-strong open:bg-surface"
-                >
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-base font-semibold text-fg hover:text-brand [&::-webkit-details-marker]:hidden">
+        <section id="faq" className="scroll-mt-20 bg-white px-5 py-20 lg:px-10">
+          <div className="mx-auto grid max-w-[84rem] gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+            <div data-reveal>
+              <Eyebrow>Questions fréquentes</Eyebrow>
+              <H2>Vous avez une question ?</H2>
+            </div>
+            <div className="divide-y divide-[#e3e8f0] border-y border-[#e3e8f0]">
+              {FAQ.map((item) => (
+                <details key={item.q} className="group">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-base font-bold [&::-webkit-details-marker]:hidden">
                     {item.q}
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-surface transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-open:rotate-45 motion-reduce:transition-none">
-                      <Plus className="h-4 w-4 text-brand" aria-hidden="true" />
-                    </span>
+                    <Plus className="h-5 w-5 shrink-0 text-[#f20b2b] transition-transform duration-300 group-open:rotate-45" aria-hidden="true" />
                   </summary>
-                  <p className="max-w-2xl pb-6 text-[0.9375rem] leading-relaxed text-muted">{item.a}</p>
+                  <p className="max-w-2xl pb-5 text-[0.9375rem] leading-relaxed text-[#3d4a63]">{item.a}</p>
                 </details>
               ))}
             </div>
@@ -782,121 +683,60 @@ export const Landing: React.FC = () => {
         </section>
 
         {/* Appel final */}
-        <section className="px-5 py-24">
-          <div
-            data-reveal
-            className="relative mx-auto grid max-w-7xl overflow-hidden rounded-3xl border border-white/10 bg-navy text-on-navy shadow-[0_32px_72px_-18px_rgb(11_31_58/0.45)] lg:grid-cols-2"
-          >
-            <div aria-hidden="true" className="bg-grid pointer-events-none absolute inset-0 opacity-75" />
-            <div className="relative p-8 sm:p-12 lg:p-14">
-              <p className="font-label font-semibold text-amber">Pourquoi Jappo Dundu</p>
-              <h2 className="font-display mt-3 text-3xl leading-tight text-white sm:text-4xl">
-                Derrière chaque alerte, une vie à sauver.
-              </h2>
-              <p className="mt-4 text-lg leading-relaxed text-on-navy-muted">
-                Une hémorragie après un accouchement, un accident de la route : quand le sang, le lit et l’ambulance
-                arrivent à temps, une famille reste entière.
-              </p>
-              <div className="mt-8 border-t border-white/10 pt-8">
-                <p className="text-base font-semibold text-white">Votre établissement veut rejoindre le réseau ?</p>
-                <p className="mt-1 text-sm text-on-navy-muted">
-                  Hôpitaux, centres de transfusion et services d’ambulances : envoyez une demande d’adhésion.
-                </p>
-                <div className="mt-6 flex flex-wrap gap-3">
-                  {FULL_FEATURES && (
-                    <Link to="/rejoindre" className={`${btnPrimary} h-12 px-6 text-base`}>
-                      Demander l’adhésion
-                      <ArrowRight className="btn-arrow h-5 w-5" aria-hidden="true" />
-                    </Link>
-                  )}
-                  <Link to={spaceLink.to} className={`${btnOnDark} h-12 px-6 text-base`}>
-                    {spaceLink.label}
-                  </Link>
-                </div>
-              </div>
-            </div>
-            <div className="relative min-h-72">
-              <Photo
-                name="impact"
-                alt="Une mère tient son nouveau-né dans ses bras"
-                className="absolute inset-0 object-[60%_45%]"
-              />
-              <div
-                aria-hidden="true"
-                className="absolute inset-0 bg-gradient-to-b from-navy via-transparent to-transparent lg:bg-gradient-to-r"
-              />
+        <section className="relative isolate overflow-hidden text-white">
+          <Photo
+            name="dakar-coast"
+            alt="La corniche de Dakar au coucher du soleil"
+            className="absolute inset-0 -z-20 object-[center_45%]"
+          />
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgb(2_24_56/0.94),rgb(2_24_56/0.68)_43%,rgb(2_24_56/0.04))]" />
+          <div data-reveal className="mx-auto max-w-[84rem] px-5 py-20 lg:px-10">
+            <span className="block border-l-[3px] border-[#f20b2b] pl-3 text-sm font-bold">Jappo Dundu</span>
+            <h2 className="font-manrope mt-3 text-[clamp(2rem,3.4vw,2.9rem)] font-extrabold leading-[1.08] tracking-[-0.03em]">
+              Ensemble, construisons
+              <br /> la santé de demain.
+            </h2>
+            <p className="mt-3 max-w-md text-base text-white/85">
+              Hôpitaux, centres de transfusion et services d’ambulances : rejoignez le réseau.
+            </p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Link to={spaceLink.to} className={`${redButton} h-12 text-sm`}>
+                {spaceLink.label} <ArrowRight className="btn-arrow h-4 w-4" aria-hidden="true" />
+              </Link>
+              {FULL_FEATURES && (
+                <Link
+                  to="/rejoindre"
+                  className="inline-flex h-12 items-center rounded-full border border-white px-6 text-sm font-bold transition-colors hover:bg-white/10"
+                >
+                  Demander l’adhésion
+                </Link>
+              )}
             </div>
           </div>
         </section>
       </main>
 
       {/* Pied de page */}
-      <footer className="bg-navy text-on-navy">
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 md:grid-cols-[1.6fr_1fr_1fr]">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <img src="/logo-mark-dark.png" alt="" aria-hidden="true" className="h-10 w-10 object-contain" />
-              <span className="text-lg font-bold tracking-tight">
-                <span className="text-white">Jappo</span> <span className="text-amber">Dundu</span>
-              </span>
-            </div>
-            <p className="mt-4 max-w-sm text-sm leading-relaxed text-on-navy-muted">
-              « Connecter la vie » : la plateforme qui relie donneurs, hôpitaux et ambulances au Sénégal. Projet de fin
-              d’études.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-label font-semibold text-white">Plateforme</h3>
-            <ul className="mt-4 space-y-2.5 text-sm">
-              {NAV.map((item) => (
-                <li key={item.href}>
-                  <a href={item.href} className="text-on-navy-muted transition-colors hover:text-white">
-                    {item.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h3 className="font-label font-semibold text-white">Accès</h3>
-            <ul className="mt-4 space-y-2.5 text-sm">
-              <li>
-                <Link to={spaceLink.to} className="text-on-navy-muted transition-colors hover:text-white">
-                  {spaceLink.label}
-                </Link>
-              </li>
-              <li>
-                <a
-                  href={SOURCE.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-on-navy-muted transition-colors hover:text-white"
-                >
-                  Donner son sang (CNTS)
-                </a>
-              </li>
-            </ul>
-          </div>
+      <footer className="bg-[#020e23] px-5 py-8 text-white lg:px-10">
+        <div className="mx-auto flex max-w-[84rem] flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <Brand small />
+          <nav aria-label="Pied de page" className="flex flex-wrap gap-x-6 gap-y-2">
+            {NAV.map((item) => (
+              <a key={item.href} href={item.href} className="text-sm font-semibold text-white/80 hover:text-white">
+                {item.label}
+              </a>
+            ))}
+          </nav>
+          <small className="text-xs text-[#b7c4d9]">© 2026 Jappo Dundu · Projet de fin d’études</small>
         </div>
-        <div className="border-t border-white/10">
-          <p className="mx-auto max-w-7xl px-5 py-6 text-xs leading-relaxed text-on-navy-muted">
-            <ShieldCheck className="mr-1.5 inline h-4 w-4 align-[-3px]" aria-hidden="true" />
-            Jappo Dundu n’est pas un service officiel du CNTS. Informations sur le don de sang issues de{' '}
-            <a href={SOURCE.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
-              cnts.gouv.sn
-            </a>
-            {`, consulté le ${SOURCE.consulted}. Images d’illustration ; photo « mère et nouveau-né » : `}
-            <a
-              href="https://unsplash.com/license"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-white"
-            >
-              Unsplash
-            </a>
-            .
-          </p>
-        </div>
+        <p className="mx-auto mt-6 max-w-[84rem] border-t border-white/10 pt-5 text-xs leading-relaxed text-white/55">
+          <ShieldCheck className="mr-1.5 inline h-4 w-4 align-[-3px]" aria-hidden="true" />
+          Jappo Dundu n’est pas un service officiel du CNTS. Informations sur le don de sang issues de{' '}
+          <a href={SOURCE.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
+            cnts.gouv.sn
+          </a>
+          {`, consulté le ${SOURCE.consulted}. Images d’illustration.`}
+        </p>
       </footer>
     </div>
   )

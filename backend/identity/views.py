@@ -12,12 +12,14 @@ Responsable du domaine : Pape Alioune Sene (application mobile)
 """
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from core.openapi import DetailResponse, TokenPairResponse
 from users.views import token_pair
 
 from . import services
@@ -54,6 +56,12 @@ class PasswordResetRequestView(ScopedView):
 
     throttle_scope = 'password_reset'
 
+    @extend_schema(
+        summary="Demander un code de réinitialisation",
+        request=ResetRequestSerializer,
+        responses={202: DetailResponse},
+        auth=[],
+    )
     def post(self, request):
         serializer = ResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -66,6 +74,12 @@ class PasswordResetConfirmView(ScopedView):
 
     throttle_scope = 'password_reset_confirm'
 
+    @extend_schema(
+        summary="Choisir un nouveau mot de passe avec le code reçu",
+        request=ResetConfirmSerializer,
+        responses=TokenPairResponse,
+        auth=[],
+    )
     def post(self, request):
         serializer = ResetConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -84,6 +98,33 @@ class SocialLoginView(ScopedView):
 
     throttle_scope = 'login'
 
+    @extend_schema(
+        summary="Connexion par Google, Facebook ou Apple",
+        request=inline_serializer(
+            'SocialLoginRequest',
+            fields={
+                'id_token': serializers.CharField(required=False, help_text="Google."),
+                'access_token': serializers.CharField(required=False, help_text="Facebook."),
+                'identity_token': serializers.CharField(required=False, help_text="Apple."),
+                'first_name': serializers.CharField(required=False),
+                'last_name': serializers.CharField(required=False),
+            },
+        ),
+        responses={
+            200: inline_serializer(
+                'SocialLoginResponse',
+                fields={
+                    'access': serializers.CharField(),
+                    'refresh': serializers.CharField(),
+                    'created': serializers.BooleanField(),
+                    'profile_complete': serializers.BooleanField(),
+                },
+            ),
+            201: None,
+            400: DetailResponse,
+        },
+        auth=[],
+    )
     def post(self, request, provider):
         try:
             identity = verify(provider, request.data if isinstance(request.data, dict) else {})

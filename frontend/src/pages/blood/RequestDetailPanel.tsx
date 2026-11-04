@@ -197,8 +197,9 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
             {responses.map((resp) => {
               const isConfirming = confirmDonation.isPending && confirmDonation.variables === resp.id
               return (
-                <li key={resp.id} className="flex items-center justify-between gap-2 py-2">
-                  <div className="min-w-0">
+                <li key={resp.id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 py-2">
+                  {/* Largeur minimale : sans place, les actions passent à la ligne au lieu de chevaucher le téléphone. */}
+                  <div className="min-w-[9rem] flex-1">
                     <div className="truncate text-fg">{resp.donor.full_name || `Donneur #${resp.donor.id}`}</div>
                     {resp.donor.phone_number && (
                       <a

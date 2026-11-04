@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 
 /** Connexion avec un compte de démonstration (affichés en développement). */
-export async function loginAs(page: Page, accountLabel = 'Administration') {
+export async function loginAs(page: Page, accountLabel = 'Administrateur général') {
   await page.goto('/login')
   await page.getByRole('button', { name: new RegExp(accountLabel) }).click()
   await page.getByRole('button', { name: 'Se connecter' }).click()

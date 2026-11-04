@@ -35,6 +35,6 @@ export const BrandLogo: React.FC<LogoProps> = ({ className = 'h-40 w-auto' }) =>
 /** Nom de l'application aux couleurs du logo : « Jappo » marine, « Dundu » rouge. */
 export const BrandName: React.FC<{ className?: string }> = ({ className = '' }) => (
   <span className={`font-bold tracking-tight ${className}`}>
-    <span className="text-fg">Jappo</span> <span className="text-brand">Dundu</span>
+    <span className="text-fg">Jappo</span> <span className="text-signal">Dundu</span>
   </span>
 )

@@ -9,18 +9,19 @@ import { formatTime } from '@/lib/format'
 import { notificationPermission, requestNotificationPermission } from '@/lib/browserNotifications'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { FALLBACK_POLL_MS } from '@/lib/useFallbackPolling'
-import { JappoAIAssistant } from '@/components/ai/JappoAIAssistant'
 import type { RealtimeStatus } from '@/context/RealtimeContext'
-
-interface HeaderProps {
-  title?: string
-  subtitle?: string
-}
 
 const dakarClock = new Intl.DateTimeFormat('fr-SN', {
   hour: '2-digit',
   minute: '2-digit',
   second: '2-digit',
+  timeZone: 'Africa/Dakar',
+})
+
+const dakarDay = new Intl.DateTimeFormat('fr-SN', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
   timeZone: 'Africa/Dakar',
 })
 
@@ -33,15 +34,20 @@ const PAGE_LABELS: Record<string, string> = {
   '/ml': 'Prévisions de pénurie',
   '/facilities': 'Structures',
   '/profile': 'Mon profil',
+  '/rapport': 'Rapport',
 }
 
 const iconButton =
-  'relative inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-raised hover:text-fg'
+  'relative inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface hover:text-fg hover:shadow-[0_0_0_1px_var(--line)]'
 
-export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
+/**
+ * En-tête de l'application : où l'on est, l'heure de Dakar, l'état de la
+ * liaison temps réel, puis les outils (Jappo IA, thème, alertes, compte).
+ * Le titre de la page reste dans la page : il n'est jamais répété ici.
+ */
+export const Header: React.FC = () => {
   const { logout, user, roles } = useAuth()
   const displayName = user?.full_name || user?.username || ''
-  const firstName = user?.first_name || displayName.split(' ')[0]
   const initial = (displayName || 'U').charAt(0).toUpperCase()
   const { pathname } = useLocation()
   const pageLabel = PAGE_LABELS[`/${pathname.split('/')[1] ?? ''}`] ?? ''
@@ -49,12 +55,11 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const online = useOnlineStatus()
   const { theme, toggleTheme } = useTheme()
   const [showAlertsMenu, setShowAlertsMenu] = useState(false)
-  const [isAiOpen, setIsAiOpen] = useState(false)
-  const [currentTime, setCurrentTime] = useState(() => dakarClock.format(new Date()))
+  const [now, setNow] = useState(() => new Date())
   const alertsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(dakarClock.format(new Date())), 1000)
+    const timer = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(timer)
   }, [])
 
@@ -77,34 +82,20 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-20 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface/95 px-4 backdrop-blur-md lg:px-10">
-        <div className="min-w-0">
-          <p className="truncate text-xl font-bold text-fg">{title ?? pageLabel}</p>
-          <p className="truncate text-sm text-muted">
-            {subtitle ?? (firstName ? `Bon retour, ${firstName}` : 'Bienvenue')}
+      <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-4 bg-canvas/85 px-4 backdrop-blur-md lg:pl-4 lg:pr-8">
+        <div className="flex min-w-0 items-center gap-3">
+          <p className="whitespace-nowrap text-sm font-semibold text-fg">{pageLabel}</p>
+          <span aria-hidden="true" className="hidden h-4 w-px bg-line-strong xl:block" />
+          <p className="hidden items-baseline gap-1.5 truncate text-xs text-muted xl:flex">
+            <span className="first-letter:uppercase">{dakarDay.format(now)}</span>
+            <time className="num font-medium text-fg">{dakarClock.format(now)}</time>
+            <span className="text-subtle">Dakar</span>
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           {/* État de la liaison : dit clairement quand les données ne sont plus en direct. */}
           <ConnectionStatus online={online} status={status} interruptedSince={interruptedSince} />
-
-          {/* Bouton Assistant IA (inspiré de la vidéo de référence) */}
-          <button
-            type="button"
-            onClick={() => setIsAiOpen((prev) => !prev)}
-            aria-expanded={isAiOpen}
-            aria-haspopup="dialog"
-            className="mr-1 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs font-medium text-fg transition-colors hover:bg-raised"
-            title="Ouvrir l’assistant"
-          >
-            <span>Assistant</span>
-          </button>
-
-          <div className="mr-2 hidden items-baseline gap-1.5 border-l border-line pl-3 sm:flex">
-            <time className="num text-sm font-medium text-fg">{currentTime}</time>
-            <span className="text-2xs text-subtle">Dakar</span>
-          </div>
 
           <button
             type="button"
@@ -127,17 +118,17 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
             >
               <Bell className="h-4 w-4" />
               {unreadCount > 0 && (
-                <span className="num absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-surface">
+                <span className="num absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold leading-none text-on-critical ring-2 ring-canvas">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
             </button>
 
             {showAlertsMenu && (
-              <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-lg border border-line bg-surface shadow-[var(--shadow-raised)] sm:w-96">
-                <div className="flex items-center justify-between border-b border-line px-3 py-2.5">
-                  <span className="eyebrow">
-                    Alertes réseau <span className="num ml-1 text-fg">{alerts.length}</span>
+              <div className="reveal absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-raised)] sm:w-96">
+                <div className="flex items-center justify-between border-b border-line px-4 py-3">
+                  <span className="text-sm font-semibold text-fg">
+                    Alertes réseau <span className="num ml-1 font-normal text-muted">{alerts.length}</span>
                   </span>
                   {alerts.length > 0 && (
                     <div className="flex items-center gap-3 text-xs">
@@ -154,15 +145,15 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
                 <SystemNotificationsPrompt />
                 <ul className="max-h-80 divide-y divide-line overflow-y-auto">
                   {alerts.length === 0 ? (
-                    <li className="px-3 py-6 text-center text-xs text-muted">Aucune alerte en cours.</li>
+                    <li className="px-4 py-8 text-center text-xs text-muted">Aucune alerte en cours.</li>
                   ) : (
                     alerts.map((alert) => (
-                      <li key={alert.id} className="relative space-y-0.5 px-3 py-2.5 text-xs">
+                      <li key={alert.id} className="relative space-y-0.5 px-4 py-3 text-xs">
                         {!alert.isRead && (
-                          <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-critical" />
+                          <span aria-hidden="true" className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-critical" />
                         )}
                         <div className="flex items-baseline justify-between gap-3">
-                          <span className={`font-medium ${alert.isRead ? 'text-muted' : 'text-fg'}`}>
+                          <span className={`font-semibold ${alert.isRead ? 'text-muted' : 'text-fg'}`}>
                             {alert.title}
                             {!alert.isRead && <span className="sr-only"> (non lue)</span>}
                           </span>
@@ -177,6 +168,24 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
             )}
           </div>
 
+          <span aria-hidden="true" className="mx-2 hidden h-6 w-px bg-line-strong sm:block" />
+
+          <Link
+            to="/profile"
+            className="flex items-center gap-3 rounded-full py-1 pl-1 pr-1 transition-colors hover:bg-surface sm:pr-3"
+            title="Mon profil"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-semibold text-on-ink dark:bg-brand dark:text-on-brand">
+              {initial}
+            </span>
+            <span className="hidden text-left leading-tight xl:block">
+              <span className="block max-w-[14rem] truncate text-xs font-semibold text-fg">
+                {user?.facility?.name ?? displayName}
+              </span>
+              <span className="block text-2xs text-muted">{primaryRoleLabel(roles)}</span>
+            </span>
+          </Link>
+
           <button
             type="button"
             onClick={logout}
@@ -186,26 +195,9 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
           >
             <LogOut className="h-4 w-4" />
           </button>
-
-          <Link
-            to="/profile"
-            className="ml-2 flex items-center gap-3 rounded-full py-1 pl-1 transition-colors hover:bg-raised sm:pl-3"
-            title="Mon profil"
-          >
-            <span className="hidden text-right leading-tight md:block">
-              <span className="block text-sm font-semibold text-fg">{user?.facility?.name ?? displayName}</span>
-              <span className="block text-2xs text-brand">
-                {primaryRoleLabel(roles)}
-              </span>
-            </span>
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-[#05244a] text-sm font-semibold text-white shadow-[var(--shadow-panel)]">
-              {initial}
-            </span>
-          </Link>
         </div>
       </header>
 
-      <JappoAIAssistant isOpen={isAiOpen} onClose={() => setIsAiOpen(false)} />
     </>
   )
 }
@@ -227,10 +219,10 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ online, status, int
         title: 'Le poste n’a plus de connexion réseau : les données affichées ne sont plus mises à jour.',
       }
     : status === 'open'
-      ? { dot: 'live-pulse bg-ok', text: 'text-muted', label: 'Temps réel', title: 'Données mises à jour en direct.' }
+      ? { dot: 'bg-ok', text: 'text-fg', label: 'Temps réel', title: 'Données mises à jour en direct.', live: true }
       : status === 'interrupted'
         ? {
-            dot: 'bg-warning',
+            dot: 'bg-viz-warn',
             text: 'text-warning',
             label: `Flux interrompu${interruptedSince ? ` depuis ${formatTime(new Date(interruptedSince))}` : ''}`,
             title: `Reconnexion en cours. En attendant, les données sont relues toutes les ${pollSeconds} s.`,
@@ -238,8 +230,14 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ online, status, int
         : { dot: 'bg-subtle', text: 'text-muted', label: 'Connexion…', title: 'Ouverture du flux temps réel.' }
 
   return (
-    <div className="mr-1 flex items-center gap-2 rounded-full border border-line px-2.5 py-0.5 text-xs font-medium" role="status" title={state.title}>
-      <span aria-hidden="true" className={`h-2 w-2 rounded-full ${state.dot}`} />
+    <div
+      className="hidden items-center gap-2 whitespace-nowrap rounded-full bg-surface px-3 py-1 text-xs font-medium shadow-[var(--shadow-panel)] sm:flex"
+      role="status"
+      title={state.title}
+    >
+      <span aria-hidden="true" className={`relative flex h-2 w-2 rounded-full ${state.dot}`}>
+        {'live' in state && <span className={`ping-ring absolute inset-0 rounded-full text-ok`} />}
+      </span>
       <span className={state.text}>{state.label}</span>
       {online && status === 'interrupted' && (
         <span className="hidden text-2xs text-subtle lg:inline">· relevé toutes les {pollSeconds} s</span>
@@ -253,11 +251,11 @@ const SystemNotificationsPrompt: React.FC = () => {
   const [permission, setPermission] = useState(notificationPermission)
   if (permission !== 'default') return null
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-line bg-raised px-3 py-2 text-xs">
+    <div className="flex items-center justify-between gap-3 border-b border-line bg-raised px-4 py-2.5 text-xs">
       <span className="text-muted">Être prévenu même quand cet onglet est en arrière-plan.</span>
       <button
         type="button"
-        className="shrink-0 cursor-pointer font-semibold text-brand hover:underline"
+        className="shrink-0 cursor-pointer font-semibold text-fg underline-offset-4 hover:underline"
         onClick={() => requestNotificationPermission().then(setPermission)}
       >
         Activer
