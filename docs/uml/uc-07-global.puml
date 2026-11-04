@@ -1,0 +1,63 @@
+@startuml uc-07-global
+!include _theme.iuml
+title Diagramme de cas d'utilisation global de Jappo Dundu
+left to right direction
+skinparam nodesep 12
+skinparam ranksep 90
+
+' Acteurs web à gauche (A --> cas), acteurs mobiles et machine à droite (cas <-- A).
+actor "Administrateur\ngénéral" as ADM
+actor "Gestionnaire\ndes lits" as GL
+actor "Gestionnaire\ndu sang" as GS
+actor "Régulateur\nSAMU" as RS
+actor "Donneur /\ncitoyen" as DON
+actor "Ambulancier" as AMB
+actor "SIH" as SIH <<système>>
+
+rectangle "Jappo Dundu" {
+  usecase "Superviser le réseau national" as S1
+  usecase "Gérer établissements et comptes" as S2
+  usecase "Prévoir les pénuries de sang\n(apprentissage automatique)" as B6
+  usecase "Gérer les capacités en lits\n(admissions, sorties)" as L1
+  usecase "Réserver un lit" as L2
+  usecase "Rechercher des lits libres proches" as L3
+  usecase "Gérer les stocks de poches" as B5
+  usecase "Créer une demande de sang urgente" as B1
+  usecase "Confirmer un don" as B4
+  usecase "Alerter les donneurs\ncompatibles proches" as B2
+  usecase "Répondre à une alerte" as B3
+  usecase "Créer et réguler une mission" as A1
+  usecase "Affecter une ambulance" as A2
+  usecase "Déclencher une alerte SOS" as A4
+  usecase "Faire progresser la mission" as A3
+}
+
+ADM --> S1
+ADM --> S2
+ADM --> B6
+GL --> L1
+GL --> L2
+GL --> L3
+GS --> B5
+GS --> B1
+GS --> B4
+GS --> B6
+RS --> A1
+RS --> A2
+RS --> L3
+
+B3 <-- DON
+A4 <-- DON
+A3 <-- AMB
+L1 <-- SIH
+B5 <-- SIH
+
+B1 ..> B2 : <<include>>
+B3 ..> B2 : <<extend>>
+A4 ..> A1 : <<include>>
+
+legend bottom
+  Chaque cas d'un acteur humain inclut « S'authentifier » (jeton JWT ; code de double
+  authentification si activée), détaillé dans les diagrammes par acteur. Le SIH s'authentifie par clé d'API.
+endlegend
+@enduml

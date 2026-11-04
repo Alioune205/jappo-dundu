@@ -1,0 +1,32 @@
+@startuml uc-01-admin
+!include _theme.iuml
+title Cas d'utilisation : Administrateur général
+left to right direction
+actor "Administrateur\ngénéral" as ADM
+rectangle "Jappo Dundu : supervision nationale" {
+  usecase "S'authentifier" as AUTH
+  usecase "Saisir le code de double\nauthentification" as OTP
+  usecase "Superviser le réseau national\nen temps réel" as UC1
+  usecase "Consulter la carte opérationnelle\n(structures, ambulances, missions)" as UC2
+  usecase "Gérer les établissements\n(créer, modifier, désactiver)" as UC3
+  usecase "Gérer les comptes du personnel\net leurs rôles" as UC4
+  usecase "Rattacher un compte\nà un établissement" as UC4b
+  usecase "Consulter les prévisions\nde pénurie nationales" as UC5
+  usecase "Interroger l'assistant\nJappo IA" as UC6
+  usecase "Gérer les clés d'API SIH" as UC7
+}
+ADM --> UC1
+ADM --> UC3
+ADM --> UC4
+ADM --> UC5
+ADM --> UC6
+ADM --> UC7
+UC1 ..> AUTH : <<include>>
+UC3 ..> AUTH : <<include>>
+UC4 ..> AUTH : <<include>>
+UC5 ..> AUTH : <<include>>
+UC7 ..> AUTH : <<include>>
+UC4b ..> UC4 : <<extend>>
+OTP ..> AUTH : <<extend>>
+UC2 ..> UC1 : <<extend>>
+@enduml

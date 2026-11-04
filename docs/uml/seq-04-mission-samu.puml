@@ -1,0 +1,48 @@
+@startuml seq-04-mission-samu
+!include _theme.iuml
+!include _seq.iuml
+title Séquence : régulation d'une mission SAMU, de l'appel à l'arrivée à l'hôpital
+autonumber
+
+actor "Régulateur\nSAMU" as RS
+participant "Interface web\n(React)" as WEB
+participant "API Django REST\n(Jappo Ambulances)" as API
+database "PostgreSQL\n+ PostGIS" as DB
+participant "Channels\n+ Redis" as WS
+participant "Expo Push" as PUSH
+participant "Application\nambulancier" as APP
+actor "Ambulancier" as AMB
+
+RS -> WEB : Saisit l'appel (lieu, priorité, tri)
+WEB -> API : POST /api/ambulances/missions/
+API -> DB : INSERT Mission (statut « en attente »)
+API -> WS : Mission diffusée à la régulation de la région
+API --> WEB : 201 Mission créée
+RS -> WEB : Ouvre la fenêtre d'affectation
+WEB -> API : GET /api/ambulances/vehicles/nearest/?latitude=…&longitude=…
+API -> DB : Véhicules disponibles dans le rayon (PostGIS)
+API -> API : Classement par temps de trajet\n(OSRM, sinon estimation)
+API --> WEB : Ambulances classées avec durée estimée
+RS -> WEB : Choisit une ambulance
+WEB -> API : POST /api/ambulances/missions/{id}/assign/
+API -> DB : Ambulance « en mission » ; mission « affectée » ;\nheure d'arrivée estimée
+API -> WS : Mission et statut d'ambulance diffusés
+API -> PUSH : « Nouvelle mission »
+PUSH -> APP : Notification
+API --> WEB : 200 Mission affectée
+loop Pendant la mission
+  APP -> API : POST /api/ambulances/vehicles/{id}/position/
+  API -> WS : Position diffusée
+  WS --> WEB : Le véhicule se déplace sur la carte
+end
+AMB -> APP : « Sur place »
+APP -> API : POST /api/ambulances/missions/{id}/status/ {on_site}
+AMB -> APP : « Transport » vers l'hôpital choisi
+APP -> API : POST …/status/ {transporting, destination}
+API -> API : Vérifie la transition\n(destination obligatoire)
+API -> WS : Pré-alerte à l'hôpital de destination
+AMB -> APP : « Terminée »
+APP -> API : POST …/status/ {completed}
+API -> DB : Mission terminée ; ambulance de nouveau disponible ;\nlit réservé (s'il existe) occupé
+API -> WS : Mise à jour diffusée
+@enduml

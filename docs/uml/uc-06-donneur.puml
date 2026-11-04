@@ -1,0 +1,34 @@
+@startuml uc-06-donneur
+!include _theme.iuml
+title Cas d'utilisation : Donneur et citoyen (application mobile)
+left to right direction
+actor "Donneur /\ncitoyen" as DON
+rectangle "Application mobile : espace donneur" {
+  usecase "Créer un compte" as REG
+  usecase "S'authentifier" as AUTH
+  usecase "Réinitialiser son\nmot de passe" as RESET
+  usecase "Créer son profil donneur\n(groupe, sexe, âge, poids)" as UC1
+  usecase "Recevoir les alertes compatibles\nproches (notification push)" as UC2
+  usecase "Répondre à une alerte\n(j'y vais, plus tard)" as UC3
+  usecase "Consulter son aptitude au don" as UC4
+  usecase "Présenter sa carte donneur\n(QR code)" as UC5
+  usecase "Consulter l'historique\nde ses dons" as UC6
+  usecase "Trouver les centres\nde don proches" as UC7
+  usecase "Déclencher une alerte SOS" as UC8
+  usecase "Partager sa position" as GEO
+}
+DON --> REG
+DON --> UC1
+DON --> UC2
+DON --> UC4
+DON --> UC5
+DON --> UC6
+DON --> UC7
+DON --> UC8
+UC1 ..> AUTH : <<include>>
+RESET ..> AUTH : <<extend>>
+UC3 ..> UC2 : <<extend>>
+UC2 ..> GEO : <<include>>
+UC8 ..> GEO : <<include>>
+UC7 ..> GEO : <<include>>
+@enduml

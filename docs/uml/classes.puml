@@ -1,0 +1,363 @@
+@startuml classes
+!include _theme.iuml
+title Diagramme de classes de Jappo Dundu (modèles Django)
+skinparam classAttributeIconSize 0
+skinparam class {
+  BorderColor #4A2E1B
+  BackgroundColor #FFFFFF
+  HeaderBackgroundColor #F6EEE4
+  ArrowColor #4A2E1B
+  FontSize 12
+  AttributeFontSize 11
+}
+skinparam nodesep 10
+skinparam ranksep 34
+left to right direction
+hide circle
+hide empty members
+
+package "Comptes et établissements" #FBF6EF {
+  class User <<Django>> {
+    username : str
+    email : str
+    is_staff : bool
+    is_active : bool
+  }
+  class UserProfile {
+    phone_number : str
+    region : str
+    email_verified : bool
+    terms_accepted_at : datetime
+  }
+  class HealthFacility {
+    name : str
+    facility_type : str
+    region : str
+    city : str
+    latitude : float
+    longitude : float
+    is_active : bool
+    capabilities : json
+  }
+  class FacilityApplication {
+    name : str
+    facility_type : str
+    contact_name : str
+    status : str
+  }
+}
+
+package "Jappo Sang" #FDF2F2 {
+  class Donor {
+    blood_group : str
+    sex : str
+    date_of_birth : date
+    weight_kg : int
+    card_code : str
+    is_available : bool
+    latitude, longitude : float
+    last_donation_date : date
+    rare_phenotype : str
+    --
+    ineligibility_reasons() : list
+    next_eligible_date() : date
+    record_donation_date(date)
+  }
+  class BloodRequest {
+    blood_group : str
+    component : str
+    units_needed : int
+    units_collected : int
+    urgency : str
+    status : str
+    search_radius_km : int
+    alert_wave : int
+    --
+    units_remaining() : int
+    is_open() : bool
+  }
+  class DonorResponse {
+    status : str
+    on_the_way_at : datetime
+    eta_at : datetime
+    arrived_at : datetime
+  }
+  class DonorAlert {
+    wave : int
+    channel : str
+    sent_at : datetime
+  }
+  class Donation {
+    donated_on : date
+  }
+  class Badge {
+    code : str
+    name : str
+    category : str
+    points_bonus : int
+    required_donations : int
+  }
+  class DonorBadge {
+    awarded_at : datetime
+  }
+  class BloodStock {
+    blood_group : str
+    component : str
+    units_available : int
+    units_expiring_soon : int
+  }
+  class BloodSupplyOrder {
+    blood_group : str
+    units : int
+    urgency : str
+    status : str
+    --
+    is_open() : bool
+  }
+  class BloodDrive {
+    title : str
+    location : str
+    starts_at, ends_at : datetime
+    target_units : int
+  }
+  class DonorCampaign {
+    region : str
+    blood_group : str
+    message : str
+  }
+}
+
+package "Jappo Lits" #F1F6FC {
+  class BedCapacity {
+    category : str
+    total_beds : int
+    occupied_beds : int
+    reserved_beds : int
+    expected_discharges : int
+    confirmed_at : datetime
+    --
+    available_beds() : int
+    occupancy_rate() : float
+    freshness() : str
+  }
+  class BedReservation {
+    reference : str
+    status : str
+    expires_at : datetime
+    closing_reason : str
+    --
+    is_active() : bool
+  }
+}
+
+package "Jappo Ambulances" #F0F8F4 {
+  class Ambulance {
+    plate_number : str
+    ambulance_type : str
+    status : str
+    latitude, longitude : float
+    location_updated_at : datetime
+  }
+  class Mission {
+    priority : str
+    status : str
+    description : str
+    pickup_address : str
+    pickup_latitude, pickup_longitude : float
+    source : str
+    destination_status : str
+    triage : json
+    eta_at : datetime
+    --
+    can_transition_to(statut) : bool
+    is_active() : bool
+    is_final() : bool
+  }
+  class Incident {
+    description : str
+    victims : int
+    region : str
+  }
+  class EmergencyProfile {
+    share_with_samu : bool
+    allergies : str
+    conditions : str
+    contacts : json
+  }
+  class LocationLink {
+    token : str
+    phone_number : str
+    expires_at : datetime
+    used_at : datetime
+  }
+  class ShiftCheck {
+    oxygen_ok : bool
+    equipment_ok : bool
+    fuel : str
+    crew_count : int
+    --
+    issues() : list
+  }
+}
+
+package "Prévision (apprentissage automatique)" #F7F2FB {
+  class BloodStockRecord {
+    center_name : str
+    region : str
+    blood_group : str
+    date : date
+    units_available : int
+    units_donated, units_used : int
+    units_expired : int
+    source : str
+  }
+  class PredictionResult {
+    center_name : str
+    blood_group : str
+    prediction_date : date
+    predicted_units : float
+    lower_bound, upper_bound : float
+    days_of_supply : float
+    risk_level : str
+    confidence_score : float
+  }
+  class MLModelMetadata {
+    version : str
+    algorithm : str
+    training_samples : int
+    mae, rmse, r2_score : float
+    is_active : bool
+  }
+}
+
+package "Sécurité, temps réel et intégration" #F4F4F4 {
+  class AuditEvent {
+    action : str
+    target_type : str
+    target_id : str
+    ip_address : str
+  }
+  class EmergencyAccess {
+    domain : str
+    reason : str
+    expires_at : datetime
+    --
+    is_active() : bool
+  }
+  class TwoFactor {
+    secret : str
+    confirmed_at : datetime
+    --
+    enabled() : bool
+  }
+  class CriticalAlert {
+    kind : str
+    title : str
+    region : str
+    acknowledged_at : datetime
+    escalation_level : int
+  }
+  class PushDevice {
+    token : str
+    platform : str
+    is_active : bool
+  }
+  class HospitalApiKey {
+    name : str
+    key_prefix : str
+    key_hash : str
+    allow_beds : bool
+    allow_blood : bool
+  }
+  class HospitalSyncLog {
+    sync_type : str
+    status : str
+    items_count : int
+  }
+  class Webhook {
+    url : str
+    events : json
+    is_active : bool
+  }
+  class SocialAccount {
+    provider : str
+    uid : str
+  }
+  class PasswordResetCode {
+    code_hash : str
+    attempts : int
+    expires_at : datetime
+    --
+    is_usable() : bool
+  }
+}
+
+' --- Comptes et établissements
+User "1" -- "0..1" UserProfile
+UserProfile "0..*" --> "0..1" HealthFacility : rattaché à
+FacilityApplication "0..*" --> "0..1" HealthFacility : crée
+
+' --- Sang
+User "1" -- "0..1" Donor : profil donneur
+Donor "0..*" --> "0..1" Donor : parrainé par
+HealthFacility "1" -- "0..*" BloodRequest : émet
+BloodRequest "1" *-- "0..*" DonorResponse
+Donor "1" -- "0..*" DonorResponse : répond
+BloodRequest "1" *-- "0..*" DonorAlert
+Donor "1" -- "0..*" DonorAlert : reçoit
+Donor "1" -- "0..*" Donation : effectue
+HealthFacility "1" -- "0..*" Donation : recueille
+Donation "0..*" --> "0..1" BloodRequest : couvre
+Donation "0..1" -- "0..1" DonorResponse : concrétise
+Donor "1" -- "0..*" DonorBadge
+Badge "1" -- "0..*" DonorBadge
+HealthFacility "1" -- "0..*" BloodStock : détient
+BloodSupplyOrder "0..*" --> "1" HealthFacility : demandeur
+BloodSupplyOrder "0..*" --> "1" HealthFacility : fournisseur
+BloodSupplyOrder "0..*" --> "0..1" BloodRequest : pour
+HealthFacility "1" -- "0..*" BloodDrive : organise
+DonorCampaign "0..*" -- "0..*" Donor : destinataires
+
+' --- Lits
+HealthFacility "1" *-- "0..*" BedCapacity : services
+BedCapacity "1" *-- "0..*" BedReservation
+BedReservation "0..*" --> "0..1" Mission : pour
+
+' --- Ambulances
+HealthFacility "1" -- "0..*" Ambulance : flotte
+Ambulance "0..1" -- "0..1" User : conducteur
+Mission "0..*" --> "0..1" Ambulance : affectée à
+Mission "0..*" --> "0..1" HealthFacility : destination
+Mission "0..*" --> "0..1" Incident : fait partie de
+User "1" -- "0..1" EmergencyProfile : fiche d'urgence
+Mission "1" *-- "0..*" LocationLink
+Ambulance "1" *-- "0..*" ShiftCheck
+
+' --- Sécurité, temps réel, intégration
+User "1" -- "0..1" TwoFactor
+User "0..1" -- "0..*" AuditEvent : auteur
+EmergencyAccess "0..*" --> "1" User
+EmergencyAccess "0..*" --> "1" HealthFacility
+CriticalAlert "0..*" --> "0..1" HealthFacility
+User "1" -- "0..*" PushDevice : téléphones
+HealthFacility "1" *-- "0..*" HospitalApiKey
+HospitalApiKey "0..1" -- "0..*" HospitalSyncLog
+HealthFacility "1" *-- "0..*" Webhook
+User "1" -- "0..*" SocialAccount
+User "1" *-- "0..*" PasswordResetCode
+
+' --- Mise en page : deux colonnes pour le paquet Sécurité (liens invisibles, sans effet sur le modèle)
+AuditEvent -[hidden]- TwoFactor
+Webhook -[hidden]- PasswordResetCode
+EmergencyAccess -[hidden]- PushDevice
+SocialAccount -[hidden]- CriticalAlert
+
+' --- Prévision
+BloodStockRecord ..> PredictionResult : alimente
+MLModelMetadata ..> PredictionResult : produit
+note bottom of BloodStockRecord
+  Historique par centre (center_name, region) :
+  lien par le nom, sans clé étrangère,
+  pour accepter l'import CSV du CNTS.
+end note
+@enduml

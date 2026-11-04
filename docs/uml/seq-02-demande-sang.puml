@@ -1,0 +1,47 @@
+@startuml seq-02-demande-sang
+!include _theme.iuml
+!include _seq.iuml
+title Séquence : demande de sang urgente, alerte des donneurs et confirmation du don
+autonumber
+
+actor "Gestionnaire\ndu sang" as GS
+participant "Interface web\n(React)" as WEB
+participant "API Django REST\n(Jappo Sang)" as API
+database "PostgreSQL\n+ PostGIS" as DB
+participant "Channels\n+ Redis" as WS
+participant "Expo Push\n/ passerelle SMS" as PUSH
+participant "Application\nmobile" as APP
+actor "Donneur" as DON
+
+GS -> WEB : Remplit la demande\n(groupe, poches, urgence)
+WEB -> API : POST /api/sang/requests/
+API -> API : Vérifie rôle et périmètre\n(établissement ; CNTS : région)
+API -> DB : INSERT BloodRequest (statut « ouverte »)
+API --> WEB : 201 Demande créée
+== Après validation de la transaction (on_commit) ==
+API -> WS : Diffuse « blood » à la région et à l'hôpital
+WS --> WEB : Tableaux de bord mis à jour en direct
+API -> DB : Donneurs compatibles, aptes et disponibles\nles plus proches (ST_DWithin, tri <->)
+DB --> API : Première vague (jusqu'à 30 donneurs en urgence vitale)
+API -> DB : INSERT DonorAlert (vague 1, canal push ou SMS)
+API -> PUSH : Notification aux donneurs alertés
+PUSH -> APP : « Urgence O− à 2,4 km »
+APP --> DON : Alerte affichée
+DON -> APP : « J'y vais maintenant »
+APP -> API : POST /api/sang/requests/{id}/respond/ {status: accepted}
+API -> API : Vérifie compatibilité ABO-Rh\net aptitude au don
+API -> DB : INSERT DonorResponse (acceptée)
+API -> WS : Réponse diffusée à l'hôpital
+WS --> WEB : « 1 donneur en route »
+... Le donneur se présente au centre de don ...
+GS -> WEB : Scanne la carte donneur (QR) et confirme le don
+WEB -> API : POST /api/sang/requests/{id}/responses/{rid}/confirm/
+API -> DB : INSERT Donation ; poches collectées + 1 ;\nclôture si la demande est couverte
+API -> API : Attribue points et badges
+API -> PUSH : « Votre don a servi à … »
+PUSH -> APP : Notification de remerciement
+API --> WEB : 200 Don confirmé
+opt Engagements insuffisants après le délai d'une vague
+  API -> DB : Vague suivante, rayon doublé si personne à portée
+end
+@enduml

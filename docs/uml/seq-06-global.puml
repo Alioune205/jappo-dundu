@@ -1,0 +1,42 @@
+@startuml seq-06-global
+!include _theme.iuml
+!include _seq.iuml
+title Séquence globale : fonctionnement de Jappo Dundu (requête, traitement, diffusion)
+autonumber
+
+actor "Utilisateur\n(web ou mobile)" as U
+box "Présentation" #FBF6EF
+participant "Interface\nReact / Expo" as UI
+end box
+box "Application (Django)" #F6EEE4
+participant "API REST\n(DRF, JWT)" as API
+participant "Contrôle d'accès\n(rôle + périmètre)" as SEC
+participant "Services métier\n(sang, lits, ambulances, ML)" as SRV
+participant "Channels" as CH
+end box
+box "Données" #EFE3D3
+database "PostgreSQL\n+ PostGIS" as DB
+database "Redis" as R
+end box
+participant "Expo Push\n/ SMS" as PUSH
+
+U -> UI : Action (créer, affecter, admettre…)
+UI -> API : Requête HTTPS + jeton Bearer
+API -> SEC : Authentifie le jeton ; relit les rôles en base
+SEC --> API : Autorisé dans le périmètre (sinon 401 / 403)
+API -> API : Validation par le sérialiseur (sinon 400)
+API -> SRV : Appel du service métier
+SRV -> DB : Lecture / écriture transactionnelle\n(requêtes géographiques PostGIS)
+DB --> SRV : Données
+SRV --> API : Résultat (ou 409 si conflit métier)
+API --> UI : Réponse JSON
+UI --> U : Écran mis à jour
+== Après validation de la transaction ==
+SRV -> CH : Événement temps réel
+CH -> R : Publication dans les groupes (région, établissement)
+R --> CH : Distribution
+CH --> UI : WebSocket : autres écrans concernés mis à jour
+opt Destinataires hors application
+  SRV -> PUSH : Notification push ou SMS
+end
+@enduml

@@ -1,0 +1,33 @@
+@startuml uc-03-sang
+!include _theme.iuml
+title Cas d'utilisation : Gestionnaire du sang (Jappo Sang)
+left to right direction
+actor "Gestionnaire du sang\n(hôpital ou CNTS)" as GS
+rectangle "Jappo Sang" {
+  usecase "S'authentifier" as AUTH
+  usecase "Créer une demande\nde sang urgente" as UC1
+  usecase "Alerter les donneurs compatibles\nà proximité" as UC1a
+  usecase "Relancer une nouvelle vague\nd'alertes (rayon élargi)" as UC1b
+  usecase "Suivre les réponses\ndes donneurs" as UC2
+  usecase "Confirmer un don" as UC3
+  usecase "Retrouver un donneur\n(carte QR ou téléphone)" as UC3a
+  usecase "Enregistrer un don spontané" as UC4
+  usecase "Tenir l'inventaire\ndes stocks de poches" as UC5
+  usecase "Consulter les prévisions\nde pénurie à 7 jours" as UC6
+  usecase "Clôturer une demande" as UC7
+}
+GS --> UC1
+GS --> UC2
+GS --> UC3
+GS --> UC4
+GS --> UC5
+GS --> UC6
+GS --> UC7
+UC1 ..> AUTH : <<include>>
+UC1 ..> UC1a : <<include>>
+UC1b ..> UC1a : <<extend>>
+UC3 ..> UC3a : <<include>>
+UC4 ..> UC3a : <<include>>
+UC5 ..> AUTH : <<include>>
+UC6 ..> AUTH : <<include>>
+@enduml

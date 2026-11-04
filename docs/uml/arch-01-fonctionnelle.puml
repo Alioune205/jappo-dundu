@@ -1,0 +1,56 @@
+@startuml arch-01-fonctionnelle
+!include _theme.iuml
+title Architecture fonctionnelle : cheminement d'une requête dans Jappo Dundu
+left to right direction
+skinparam nodesep 30
+skinparam ranksep 60
+skinparam componentStyle rectangle
+skinparam rectangle {
+  RoundCorner 14
+}
+
+rectangle "1. Présentation (clients)" as P #E8F1FB {
+  component "Application web\nReact 19 + TypeScript\n(hôpitaux, CNTS, SAMU, admin)" as WEB #FFFFFF
+  component "Application mobile\nExpo / React Native\n(donneurs, ambulanciers)" as MOB #FFFFFF
+  component "Logiciel hospitalier (SIH)\nappel machine à machine" as SIH #FFFFFF
+}
+
+rectangle "2. Exposition" as X #FDF1E1 {
+  component "Caddy\nHTTPS, en-têtes de sécurité (CSP),\nfichiers du frontend" as CADDY #FFFFFF
+}
+
+rectangle "3. Application (Django 6, serveur ASGI Daphne)" as A #EAF5EC {
+  component "API REST\nDjango REST Framework\n(sérialiseurs, validation)" as API #FFFFFF
+  component "Sécurité\nJWT, rôles + périmètre,\nlimitation de débit, audit" as SEC #FFFFFF
+  component "Services métier\nsang · lits · ambulances\ngéolocalisation" as SRV #FFFFFF
+  component "Prévision des pénuries\nscikit-learn\n(HistGradientBoosting)" as ML #FFFFFF
+  component "Temps réel\nDjango Channels\n(WebSocket)" as CH #FFFFFF
+}
+
+rectangle "4. Données" as D #F3ECF8 {
+  database "PostgreSQL 16\n+ PostGIS" as DB #FFFFFF
+  database "Redis 7\n(canaux temps réel)" as R #FFFFFF
+}
+
+rectangle "Notifications externes" as E #F4F4F4 {
+  component "Expo Push\n(FCM, APNs)" as PUSH #FFFFFF
+  component "Passerelle SMS" as SMS #FFFFFF
+}
+
+WEB --> CADDY : HTTPS + jeton JWT
+MOB --> CADDY : HTTPS + jeton JWT
+SIH --> CADDY : HTTPS + clé d'API
+CADDY --> API : /api/*
+CADDY --> CH : /ws/* (WebSocket)
+API --> SEC : authentifier, autoriser
+API --> SRV : appel métier
+SRV --> ML : prévision
+SRV --> DB : SQL et requêtes spatiales
+ML --> DB : historique et prédictions
+SRV --> CH : événement après validation
+CH <--> R : publication / abonnement
+SRV --> PUSH : alertes donneurs, missions
+SRV --> SMS : repli sans Internet
+WEB <.. CH : mise à jour en direct
+MOB <.. CH : mise à jour en direct
+@enduml

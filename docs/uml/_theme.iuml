@@ -1,0 +1,43 @@
+' Thème commun des diagrammes du rapport (charte ISEP-AT : brun #4A2E1B, sable #C19A6B).
+' Mise en page : Graphviz (dot). Sans Graphviz, décommenter la ligne suivante.
+' !pragma layout smetana
+skinparam dpi 220
+skinparam defaultFontName "Times New Roman"
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam roundCorner 10
+skinparam backgroundColor #FFFFFF
+skinparam ArrowColor #4A2E1B
+skinparam ArrowThickness 1.1
+skinparam actorStyle awesome
+skinparam actor {
+  BorderColor #4A2E1B
+  BackgroundColor #F6EEE4
+  FontStyle bold
+}
+skinparam usecase {
+  BorderColor #8C6A45
+  BackgroundColor #FBF6EF
+  FontColor #2B1A0F
+  ArrowColor #4A2E1B
+}
+skinparam rectangle {
+  BorderColor #4A2E1B
+  FontStyle bold
+}
+skinparam package {
+  BorderColor #8C6A45
+  FontColor #4A2E1B
+}
+skinparam note {
+  BackgroundColor #FFF8E8
+  BorderColor #C19A6B
+}
+skinparam database {
+  BorderColor #4A2E1B
+  BackgroundColor #EFE3D3
+}
+skinparam queue {
+  BorderColor #4A2E1B
+  BackgroundColor #EFE3D3
+}

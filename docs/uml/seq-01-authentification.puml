@@ -1,0 +1,43 @@
+@startuml seq-01-authentification
+!include _theme.iuml
+!include _seq.iuml
+title Séquence : authentification d'un utilisateur (JWT) et ouverture du temps réel
+autonumber
+
+actor "Utilisateur" as U
+participant "Interface\n(React ou Expo)" as UI
+participant "API Django REST\n/api/auth/token/" as API
+participant "Service de sécurité\n(rôles, double authentification)" as SEC
+database "PostgreSQL" as DB
+participant "Django Channels\n+ Redis" as WS
+
+U -> UI : Saisit identifiant (nom, e-mail ou téléphone)\net mot de passe
+UI -> API : POST /api/auth/token/ {username, password}
+API -> SEC : resolve_login(identifiant)
+SEC -> DB : Recherche du compte
+DB --> SEC : Compte
+API -> API : Vérifie le mot de passe (hachage PBKDF2)
+alt Identifiants invalides
+  API --> UI : 401 « Identifiants incorrects »
+  UI --> U : Message d'erreur
+else Identifiants valides
+  API -> SEC : check_second_factor(compte, otp)
+  alt Double authentification activée et code absent
+    SEC --> API : refus « otp_required »
+    API --> UI : 401 code = otp_required
+    UI --> U : Demande le code à 6 chiffres
+    U -> UI : Saisit le code TOTP
+    UI -> API : POST /api/auth/token/ {username, password, otp}
+  end
+  API -> SEC : get_user_roles(compte)
+  SEC -> DB : Groupes et indicateur is_staff
+  API --> UI : 200 {access (30 min), refresh (7 j), user {rôle, rôles}}
+  UI -> UI : Conserve les jetons\n(mémoire, SecureStore sur mobile)
+  UI -> API : POST /api/realtime/ticket/ (Authorization: Bearer)
+  API --> UI : 201 {ticket à usage unique, expires_in}
+  UI -> WS : Connexion /ws/alerts/?ticket=…
+  WS -> WS : Valide et consomme le ticket ;\nabonne aux groupes du rôle et de la région
+  WS --> UI : Connexion ouverte
+  UI --> U : Tableau de bord du rôle
+end
+@enduml

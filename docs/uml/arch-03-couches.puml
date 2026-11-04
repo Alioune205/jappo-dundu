@@ -1,0 +1,22 @@
+@startuml arch-03-couches
+!include _theme.iuml
+title Architecture logicielle en couches du backend Django
+skinparam nodesep 20
+skinparam ranksep 35
+skinparam componentStyle rectangle
+
+rectangle "Routage — core/urls.py\n/api/auth · /api/sang · /api/lits · /api/ambulances · /api/ml · /api/sih · /api/docs" as URL #FDF1E1
+rectangle "Vues — views.py\nViewSet et APIView : contrôle d'accès (permissions), filtrage du périmètre (get_queryset)" as V #E8F1FB
+rectangle "Sérialiseurs — serializers.py\nValidation des entrées, format JSON des sorties, contrat OpenAPI (Swagger)" as S #E8F1FB
+rectangle "Services métier — services.py, alerts.py, geo/\nRègles métier transactionnelles : affectation, admissions, vagues d'alertes, recherche spatiale" as SV #EAF5EC
+rectangle "Modèles — models.py (ORM Django)\n35 modèles, contraintes d'intégrité, migrations" as M #F3ECF8
+database "PostgreSQL 16 + PostGIS" as DB #F3ECF8
+rectangle "Diffusion — realtime/, push/\nWebSocket (Channels), notifications push, SMS" as RT #F4F4F4
+
+URL -down-> V
+V -down-> S
+S -down-> SV
+SV -down-> M
+M -down-> DB
+SV -right-> RT : après validation\n(on_commit)
+@enduml

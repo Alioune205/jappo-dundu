@@ -1,0 +1,46 @@
+@startuml arch-02-deploiement
+!include _theme.iuml
+title Diagramme de déploiement de Jappo Dundu (production Docker Compose)
+skinparam nodesep 30
+skinparam ranksep 50
+
+node "Poste de travail\n(hôpital, CNTS, SAMU)" as PC #E8F1FB {
+  artifact "Navigateur web\n(application React)" as NAV
+}
+node "Téléphone Android / iOS" as TEL #E8F1FB {
+  artifact "Application Expo\n(donneur, ambulancier)" as APP
+}
+node "Serveur Linux (VPS) — Docker Engine + Compose" as VPS #FBF6EF {
+  node "caddy\n(caddy:2-alpine)\nports 80 / 443" as CADDY #FDF1E1 {
+    artifact "Build du frontend\n(Vite)" as BUILD
+  }
+  node "web\n(image jappo-dundu-backend)" as WEBN #EAF5EC {
+    artifact "Daphne (ASGI)\nDjango + DRF + Channels" as DJ
+    artifact "Modèle ML\n(.joblib)" as MODEL
+  }
+  node "db\n(postgis/postgis:16-3.5)" as DBN #F3ECF8 {
+    database "jappo_db" as DB
+  }
+  node "redis\n(redis:7-alpine)" as RN #F3ECF8 {
+    database "Canaux temps réel\n+ cache" as R
+  }
+}
+cloud "Services externes" as EXT #F4F4F4 {
+  node "Expo Push → FCM / APNs" as PUSH
+  node "Passerelle SMS" as SMS
+}
+
+NAV --> CADDY : HTTPS 443\n(Let's Encrypt)
+APP --> CADDY : HTTPS 443 / WSS
+CADDY --> DJ : HTTP 8000\n(réseau Docker interne)
+DJ --> DB : TCP 5432
+DJ --> R : TCP 6379
+DJ --> PUSH : HTTPS
+DJ --> SMS : HTTPS
+note bottom of VPS
+  Seul Caddy est exposé sur Internet ; la base, Redis
+  et l'API restent sur le réseau Docker interne.
+  Volumes persistants : postgres_data, ml_models,
+  static_files, caddy_data.
+end note
+@enduml

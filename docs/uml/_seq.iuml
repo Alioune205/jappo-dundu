@@ -1,0 +1,21 @@
+' Thème des diagrammes de séquence (complète _theme.iuml).
+skinparam sequenceMessageAlign left
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 260
+skinparam ParticipantPadding 12
+skinparam BoxPadding 8
+skinparam sequence {
+  LifeLineBorderColor #8C6A45
+  LifeLineBackgroundColor #F6EEE4
+  ParticipantBorderColor #4A2E1B
+  ParticipantBackgroundColor #FBF6EF
+  ParticipantFontStyle bold
+  ActorBorderColor #4A2E1B
+  ActorBackgroundColor #F6EEE4
+  DatabaseBorderColor #4A2E1B
+  DatabaseBackgroundColor #EFE3D3
+  GroupBorderColor #8C6A45
+  GroupBackgroundColor #FFFFFF
+  DividerBackgroundColor #F6EEE4
+  DividerBorderColor #C19A6B
+}

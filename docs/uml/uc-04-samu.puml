@@ -1,0 +1,30 @@
+@startuml uc-04-samu
+!include _theme.iuml
+title Cas d'utilisation : Régulateur SAMU (Jappo Ambulances)
+left to right direction
+actor "Régulateur\nSAMU" as RS
+rectangle "Jappo Ambulances : régulation" {
+  usecase "S'authentifier" as AUTH
+  usecase "Créer une mission\nà partir d'un appel" as UC1
+  usecase "Trier l'appel\n(protocole de questions)" as UC1a
+  usecase "Affecter une ambulance\ndisponible" as UC2
+  usecase "Proposer les ambulances\nles plus proches" as UC2a
+  usecase "Choisir l'hôpital de destination\nselon les lits libres" as UC3
+  usecase "Suivre la flotte et les missions\nsur la carte en direct" as UC4
+  usecase "Traiter une alerte SOS\nd'un citoyen" as UC5
+  usecase "Annuler une mission" as UC6
+  usecase "Gérer la flotte\n(véhicules, ambulanciers)" as UC7
+}
+RS --> UC1
+RS --> UC2
+RS --> UC4
+RS --> UC5
+RS --> UC6
+RS --> UC7
+UC1 ..> AUTH : <<include>>
+UC1 ..> UC1a : <<include>>
+UC2 ..> UC2a : <<include>>
+UC3 ..> UC2 : <<extend>>
+UC5 ..> UC2 : <<include>>
+UC7 ..> AUTH : <<include>>
+@enduml

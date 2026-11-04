@@ -1,0 +1,32 @@
+@startuml seq-05-prevision
+!include _theme.iuml
+!include _seq.iuml
+title Séquence : prévision des pénuries de sang à la demande (tâche asynchrone)
+autonumber
+
+actor "Gestionnaire\ndu sang" as GS
+participant "Interface web\n(React)" as WEB
+participant "API Django REST\n/api/ml/" as API
+participant "File de calcul\n(thread dédié)" as JOB
+participant "Modèle actif\n(HistGradientBoosting)" as ML
+database "PostgreSQL" as DB
+participant "Channels\n+ Redis" as WS
+
+GS -> WEB : Lance une prévision à 7 jours
+WEB -> API : POST /api/ml/predict/ {region, days_ahead: 7}
+API -> API : Vérifie rôle et région ;\nmodèle disponible (sinon 503)
+API -> JOB : Soumet la tâche (une seule par périmètre)
+API --> WEB : 202 {job_id, status: pending, status_url}
+JOB -> DB : Historique des stocks (dons, utilisations, péremptions)
+JOB -> ML : Variables : niveau, tendances, calendrier\n(Ramadan, Tabaski, Magal), région, groupe
+ML --> JOB : Prévision centrale, intervalle P10–P90 calibré
+JOB -> JOB : Jours de stock et niveau de risque\n(critique < 2 j, vigilance < 5 j)
+JOB -> DB : INSERT PredictionResult
+JOB -> WS : Événement « prediction_update »
+WS --> WEB : Rafraîchit les prévisions
+opt Suivi explicite
+  WEB -> API : GET /api/ml/predict/{job_id}/
+  API --> WEB : 200 {status: succeeded, résultat}
+end
+WEB --> GS : Risques par centre et groupe sanguin
+@enduml

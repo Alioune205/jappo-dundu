@@ -1,0 +1,23 @@
+@startuml uc-05-ambulancier
+!include _theme.iuml
+title Cas d'utilisation : Ambulancier (application mobile)
+left to right direction
+actor "Ambulancier" as AMB
+rectangle "Application mobile : espace ambulancier" {
+  usecase "S'authentifier" as AUTH
+  usecase "Recevoir une mission\n(notification push)" as UC1
+  usecase "Consulter sa mission en cours\n(adresse, destination)" as UC2
+  usecase "Faire progresser la mission\n(sur place, transport, terminée)" as UC3
+  usecase "Transmettre sa position GPS" as UC4
+  usecase "Consulter les hôpitaux proches\navec lits d'urgence libres" as UC5
+  usecase "Se déclarer en service\nou hors service" as UC6
+}
+AMB --> UC1
+AMB --> UC2
+AMB --> UC3
+AMB --> UC6
+UC2 ..> AUTH : <<include>>
+UC3 ..> UC4 : <<include>>
+UC5 ..> UC2 : <<extend>>
+UC6 ..> AUTH : <<include>>
+@enduml

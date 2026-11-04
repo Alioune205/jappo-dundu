@@ -1,0 +1,34 @@
+@startuml uc-00-acteurs
+!include _theme.iuml
+title Hiérarchie des acteurs de Jappo Dundu
+skinparam nodesep 40
+skinparam ranksep 55
+
+actor "Utilisateur" as U
+actor "Utilisateur web\n(personnel de santé)" as W
+actor "Utilisateur mobile" as M
+actor "Administrateur général\n(super administrateur)" as ADM
+actor "Administrateur de domaine\n(responsable de structure)" as DOM
+actor "Gestionnaire\ndes lits" as GL
+actor "Gestionnaire du sang\n(hôpital ou CNTS)" as GS
+actor "Régulateur\nSAMU" as RS
+actor "Donneur /\ncitoyen" as DON
+actor "Ambulancier" as AMB
+actor "Système d'information\nhospitalier (SIH)" as SIH <<système>>
+
+U <|-- W
+U <|-- M
+W <|-- ADM
+W <|-- DOM
+DOM <|-- GL
+DOM <|-- GS
+DOM <|-- RS
+M <|-- DON
+M <|-- AMB
+
+note bottom of SIH
+  Acteur machine : authentifié
+  par clé d'API, sans compte
+  utilisateur.
+end note
+@enduml

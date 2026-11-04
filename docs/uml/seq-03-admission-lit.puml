@@ -1,0 +1,33 @@
+@startuml seq-03-admission-lit
+!include _theme.iuml
+!include _seq.iuml
+title Séquence : admission d'un patient et diffusion de la disponibilité des lits
+autonumber
+
+actor "Gestionnaire\ndes lits" as GL
+participant "Interface web\n(React)" as WEB
+participant "API Django REST\n(Jappo Lits)" as API
+database "PostgreSQL" as DB
+participant "Channels\n+ Redis" as WS
+participant "Tableaux de bord\n(SAMU, admin)" as DASH
+
+GL -> WEB : Clique « + » sur le service Réanimation
+WEB -> API : POST /api/lits/capacities/{id}/admit/
+API -> API : Vérifie rôle et établissement\n(bed_manager de cet hôpital)
+API -> DB : Libère les réservations expirées
+API -> DB : UPDATE occupés = occupés + 1\nWHERE occupés < total − réservés
+alt Aucune ligne modifiée (service complet)
+  API --> WEB : 409 « Aucun lit libre dans ce service »
+  WEB --> GL : Message d'erreur
+else Lit occupé
+  DB --> API : 1 ligne mise à jour
+  API --> WEB : 200 Capacité à jour (libres, taux, fraîcheur)
+  == Après validation de la transaction ==
+  API -> WS : KPI « lits » de l'établissement
+  opt Service vital qui devient saturé
+    API -> WS : Alerte « service saturé » à la région
+  end
+  WS --> DASH : Mise à jour immédiate, sans recharger
+  WEB --> GL : Jauge et compteurs actualisés
+end
+@enduml

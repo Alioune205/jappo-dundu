@@ -1,0 +1,31 @@
+@startuml uc-02-lits
+!include _theme.iuml
+title Cas d'utilisation : Gestionnaire des lits (Jappo Lits)
+left to right direction
+actor "Gestionnaire\ndes lits" as GL
+rectangle "Jappo Lits" {
+  usecase "S'authentifier" as AUTH
+  usecase "Consulter les capacités\nde ses services" as UC1
+  usecase "Enregistrer l'admission\nd'un patient" as UC2
+  usecase "Enregistrer la sortie\nd'un patient" as UC3
+  usecase "Ajuster et confirmer les\ncapacités d'un service" as UC4
+  usecase "Réserver un lit\npour un patient entrant" as UC5
+  usecase "Rechercher des lits libres\nà proximité" as UC6
+  usecase "Suivre les ambulances\nen route vers l'hôpital" as UC7
+  usecase "Accepter ou refuser\nune pré-alerte SAMU" as UC8
+  usecase "Diffuser la mise à jour\nen temps réel" as RT
+}
+GL --> UC1
+GL --> UC2
+GL --> UC3
+GL --> UC4
+GL --> UC5
+GL --> UC6
+GL --> UC7
+UC1 ..> AUTH : <<include>>
+UC2 ..> RT : <<include>>
+UC3 ..> RT : <<include>>
+UC4 ..> RT : <<include>>
+UC8 ..> UC7 : <<extend>>
+UC6 ..> UC5 : <<extend>>
+@enduml
