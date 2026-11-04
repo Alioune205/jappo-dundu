@@ -175,6 +175,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
           i={0}
           variant="featured"
           icon={Hourglass}
+          accent="amber"
           to="/ambulances"
           label="Missions en attente"
           loading={isPending}
@@ -189,6 +190,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         <MetricTile
           i={1}
           icon={Route}
+          accent="blue"
           label="Missions en cours"
           loading={isPending}
           value={inProgress.length}
@@ -201,6 +203,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         <MetricTile
           i={2}
           icon={AmbulanceIcon}
+          accent="green"
           label="Ambulances disponibles"
           loading={fleetPending}
           value={available.length}
@@ -220,6 +223,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         <MetricTile
           i={3}
           icon={Timer}
+          accent="violet"
           label="Délai d’affectation"
           loading={statsPending}
           value={stats?.assignment_delay_minutes.median ?? null}
@@ -245,6 +249,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         <Panel
           i={3}
           className="xl:col-span-5"
+          eyebrow="Flotte"
           title="Disponibilité de la flotte"
           subtitle="Véhicules de votre service · en direct"
           bodyClassName="px-5 pb-5 pt-4"
@@ -272,6 +277,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         <Panel
           i={4}
           className="xl:col-span-7"
+          eyebrow="Régulation"
           title={
             <>
               Missions actives <span className="num ml-1 font-normal text-muted">{sorted.length}</span>
@@ -358,6 +364,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         <Panel
           i={5}
           className="xl:col-span-5"
+          eyebrow="Véhicules"
           title={
             <>
               Ma flotte <span className="num ml-1 font-normal text-muted">{fleet.length}</span>
@@ -413,6 +420,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         <Panel
           i={6}
           className="xl:col-span-5"
+          eyebrow="Activité"
           title="Rythme des appels"
           subtitle={`Missions des ${demand?.days ?? 30} derniers jours, par ${rhythm === 'weekday' ? 'jour' : 'heure'}`}
           actions={
@@ -456,6 +464,7 @@ export const AmbulanceManagerDashboard: React.FC<{ facility: FacilitySummary }> 
         <Panel
           i={7}
           className="xl:col-span-7"
+          eyebrow="Géographie"
           title="Carte de la région"
           subtitle="Ambulances et lieux d’intervention · positions en direct"
           actions={

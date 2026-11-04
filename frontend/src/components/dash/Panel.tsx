@@ -1,6 +1,8 @@
 import React, { useId } from 'react'
 
 interface PanelProps {
+  /** Surtitre en petites capitales (« Surveillance », « Géographie »). */
+  eyebrow?: React.ReactNode
   title: React.ReactNode
   /** Période, unité, source : ce qu'il faut savoir pour lire le contenu. */
   subtitle?: React.ReactNode
@@ -22,6 +24,7 @@ interface PanelProps {
  * contenu, puis la légende. Aucun filet : l'espace sépare.
  */
 export const Panel: React.FC<PanelProps> = ({
+  eyebrow,
   title,
   subtitle,
   actions,
@@ -42,7 +45,8 @@ export const Panel: React.FC<PanelProps> = ({
     >
       <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-5 pb-1 pt-5 sm:flex-nowrap">
         <div className="min-w-[min(100%,14rem)] flex-1">
-          <h2 id={headingId} className="text-[0.9375rem] font-semibold leading-6 tracking-[-0.01em] text-fg">
+          {eyebrow && <p className="kicker mb-1">{eyebrow}</p>}
+          <h2 id={headingId} className="text-[0.9375rem] font-bold leading-6 tracking-[-0.01em] text-fg">
             {title}
           </h2>
           {subtitle && <p className="mt-0.5 text-xs text-subtle">{subtitle}</p>}

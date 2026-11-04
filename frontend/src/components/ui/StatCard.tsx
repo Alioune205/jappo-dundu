@@ -1,12 +1,14 @@
 import React from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { CountUp } from '@/components/dash/CountUp'
-import { SIGNAL_DOT, SIGNAL_FILL, SIGNAL_SOFT, type Signal } from '@/components/dash/tones'
+import { ACCENT_TILE, SIGNAL_DOT, SIGNAL_FILL, SIGNAL_SOFT, type Accent, type Signal } from '@/components/dash/tones'
 
 type StatTone = 'success' | 'danger' | 'warning' | 'neutral'
 
-/** Ancienne couleur d'identité de la carte : elle ne sert plus qu'à donner un sens à la jauge. */
+/** Teinte du pictogramme (sujet de la carte, jamais son état). */
 export type StatAccent = 'blue' | 'yellow' | 'green' | 'red'
+
+const STAT_ACCENT: Record<StatAccent, Accent> = { blue: 'blue', yellow: 'amber', green: 'green', red: 'red' }
 
 export interface StatCardProps {
   title: string
@@ -14,13 +16,13 @@ export interface StatCardProps {
   unit?: string
   trend?: string
   trendTone?: StatTone
-  /** Pictogramme discret en haut à droite (remplacé par une flèche si la carte est cliquable). */
+  /** Pictogramme en tête de carte, teinté selon accent. */
   icon?: React.ReactNode
   description?: string
   badge?: string
   badgeTone?: StatTone
   accent?: StatAccent
-  /** « hero » : la carte mise en avant (voile bleu pâle). */
+  /** « hero » : la carte mise en avant (liseré d'encre en tête). */
   variant?: 'default' | 'hero'
   /** Série de valeurs réelles (au moins deux) : mini-courbe sous le chiffre. */
   sparkline?: number[]
@@ -51,8 +53,8 @@ function sparklinePath(points: number[], width = 180, height = 32): string | nul
 
 /**
  * Tuile d'indicateur des pages modules : même grammaire que les tableaux de
- * bord (libellé, chiffre, jauge, état teinté). Seul le sens (critique,
- * vigilance) prend une couleur.
+ * bord (pictogramme teinté, libellé, chiffre, jauge, état). Le pictogramme
+ * situe le sujet ; seul l'état (critique, vigilance) porte un jugement.
  */
 export const StatCard: React.FC<StatCardProps> = ({
   title,
@@ -64,6 +66,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   description,
   badge,
   badgeTone = 'neutral',
+  accent,
   variant = 'default',
   sparkline,
   stagger = 0,
@@ -87,47 +90,58 @@ export const StatCard: React.FC<StatCardProps> = ({
       } ${className}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <span className="text-sm font-medium text-muted">{title}</span>
-        {(onClick || icon) && (
+        {icon ? (
           <span
             aria-hidden="true"
-            className={`lift-arrow -mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-subtle [&_svg]:h-4 [&_svg]:w-4 ${
-              featured ? 'bg-surface/80' : 'bg-sunken'
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.625rem] [&_svg]:h-5 [&_svg]:w-5 ${
+              ACCENT_TILE[accent ? STAT_ACCENT[accent] : 'neutral']
             }`}
           >
-            {onClick ? <ArrowUpRight /> : icon}
+            {icon}
           </span>
+        ) : (
+          <span />
         )}
+        <span className="flex items-center gap-2">
+          {badge && (
+            <span
+              className={`inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-2xs font-semibold ${SIGNAL_SOFT[TONE_SIGNAL[badgeTone]]}`}
+            >
+              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${SIGNAL_DOT[TONE_SIGNAL[badgeTone]]}`} />
+              {badge}
+            </span>
+          )}
+          {onClick && (
+            <ArrowUpRight
+              aria-hidden="true"
+              className="lift-arrow -mr-0.5 h-4 w-4 shrink-0 text-subtle transition-colors group-hover:text-fg"
+            />
+          )}
+        </span>
       </div>
 
-      <div className="mt-3 flex min-h-11 flex-wrap items-baseline gap-x-2 gap-y-1">
+      <span className="mt-4 block text-xs font-semibold leading-snug text-muted">{title}</span>
+
+      <div className="mt-1.5 flex min-h-9 flex-wrap items-baseline gap-x-2 gap-y-1">
         {typeof value === 'number' ? (
           <CountUp
             value={value}
-            className={`text-[2.25rem] font-semibold leading-none tracking-[-0.035em] ${valueIsAlert ? 'text-critical' : 'text-fg'}`}
+            className={`text-[2rem] font-bold leading-none tracking-[-0.03em] ${valueIsAlert ? 'text-critical' : 'text-fg'}`}
           />
         ) : (
           <span
-            className="num min-w-0 truncate text-[2.25rem] font-semibold leading-none tracking-[-0.035em] text-fg"
+            className="num min-w-0 truncate text-[2rem] font-bold leading-none tracking-[-0.03em] text-fg"
             title={value}
           >
             {value}
           </span>
         )}
-        {unit && <span className="text-sm text-subtle">{unit}</span>}
-        {badge && (
-          <span
-            className={`ml-auto inline-flex h-6 items-center gap-1.5 self-center rounded-full px-2.5 text-2xs font-medium ${SIGNAL_SOFT[TONE_SIGNAL[badgeTone]]}`}
-          >
-            <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${SIGNAL_DOT[TONE_SIGNAL[badgeTone]]}`} />
-            {badge}
-          </span>
-        )}
+        {unit && <span className="text-sm font-medium text-subtle">{unit}</span>}
       </div>
 
       {progress && (
         <div
-          className={`mt-4 h-1.5 w-full overflow-hidden rounded-full ${featured ? 'bg-surface/80' : 'bg-track'}`}
+          className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-track"
           role="meter"
           aria-valuemin={0}
           aria-valuemax={100}
@@ -154,7 +168,7 @@ export const StatCard: React.FC<StatCardProps> = ({
           {trend && (
             <span
               className={`inline-flex h-6 max-w-full items-center gap-1.5 rounded-full px-2.5 font-medium ${
-                featured && trendTone === 'neutral' ? 'bg-surface/80 text-muted' : SIGNAL_SOFT[TONE_SIGNAL[trendTone]]
+                SIGNAL_SOFT[TONE_SIGNAL[trendTone]]
               }`}
             >
               <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${SIGNAL_DOT[TONE_SIGNAL[trendTone]]}`} />

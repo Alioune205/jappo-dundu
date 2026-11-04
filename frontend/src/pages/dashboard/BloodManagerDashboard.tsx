@@ -272,6 +272,7 @@ export const BloodManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({
           i={0}
           variant="featured"
           icon={Droplets}
+          accent="red"
           to="/blood"
           label="Demandes ouvertes"
           loading={requestsPending}
@@ -287,6 +288,7 @@ export const BloodManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({
         <MetricTile
           i={1}
           icon={Droplet}
+          accent="amber"
           label="Poches manquantes"
           loading={requestsPending}
           value={missingUnits}
@@ -301,6 +303,7 @@ export const BloodManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({
         <MetricTile
           i={2}
           icon={HeartHandshake}
+          accent="green"
           label="Donneurs en route"
           loading={requestsPending}
           value={donorsComing}
@@ -314,6 +317,7 @@ export const BloodManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({
         <MetricTile
           i={3}
           icon={TrendingDown}
+          accent="violet"
           to="/ml"
           label="Groupes en pénurie"
           value={criticalGroups.length}
@@ -330,6 +334,7 @@ export const BloodManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({
         <Panel
           i={2}
           className="xl:col-span-7"
+          eyebrow="Réserves"
           title="Réserves par groupe sanguin"
           subtitle={
             <>
@@ -396,6 +401,7 @@ export const BloodManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({
         <Panel
           i={3}
           className="xl:col-span-5"
+          eyebrow="Demandes"
           title="Couverture des demandes"
           subtitle="Poches collectées sur poches demandées"
           actions={
@@ -443,6 +449,7 @@ export const BloodManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({
         <Panel
           i={4}
           className="xl:col-span-8"
+          eyebrow="Tendance"
           title={
             <>
               Évolution du stock · <span className="num">{groupLabel(focusGroup)}</span>
@@ -511,6 +518,7 @@ export const BloodManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({
         <Panel
           i={5}
           className="xl:col-span-4"
+          eyebrow="Prévisions"
           title={`Pénuries prévues à ${OUTLOOK_DAYS} jours`}
           subtitle={
             selectedGroup
@@ -553,6 +561,7 @@ export const BloodManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({
 
       <Panel
         i={6}
+        eyebrow="Suivi"
         title={
           <>
             Demandes en cours <span className="num ml-1 font-normal text-muted">{filteredOpen.length}</span>

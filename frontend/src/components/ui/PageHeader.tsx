@@ -15,10 +15,10 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ title, eyebrow, descript
   <div className={`reveal flex flex-wrap items-end justify-between gap-x-6 gap-y-4 ${className}`}>
     <div className="min-w-0">
       {eyebrow && <p className="kicker mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">{eyebrow}</p>}
-      <h1 className="text-[1.875rem] font-semibold leading-[1.15] tracking-[-0.025em] text-fg sm:text-[2.125rem]">
+      <h1 className="text-[1.625rem] font-bold leading-[1.15] tracking-[-0.03em] text-fg sm:text-[1.875rem]">
         {title}
       </h1>
-      {description && <p className="mt-1.5 text-[0.9375rem] text-muted">{description}</p>}
+      {description && <p className="mt-1.5 text-sm text-muted">{description}</p>}
     </div>
     {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
   </div>

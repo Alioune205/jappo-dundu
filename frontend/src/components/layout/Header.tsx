@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router'
-import { Bell, LogOut, Sun, Moon } from 'lucide-react'
+import { Bell, LogOut, Sun, Moon, Search } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
+import { useAssistant } from '@/components/ai/useAssistant'
 import { primaryRoleLabel } from '@/lib/access'
 import { useRealtime } from '@/context/RealtimeContext'
 import { useTheme } from '@/context/ThemeContext'
@@ -38,17 +39,27 @@ const PAGE_LABELS: Record<string, string> = {
 }
 
 const iconButton =
-  'relative inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface hover:text-fg hover:shadow-[0_0_0_1px_var(--line)]'
+  'relative inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface hover:text-fg hover:shadow-[var(--shadow-panel)]'
+
+/** Raccourci affiché selon le système (⌘ sur Mac). */
+const SHORTCUT = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K'
 
 /**
- * En-tête de l'application : où l'on est, l'heure de Dakar, l'état de la
- * liaison temps réel, puis les outils (Jappo IA, thème, alertes, compte).
- * Le titre de la page reste dans la page : il n'est jamais répété ici.
+ * En-tête de l'application, posé sur le fond : le champ de recherche (qui
+ * ouvre Jappo IA), l'heure de Dakar sur grand écran, puis l'état de la
+ * liaison temps réel et les outils (thème, alertes, compte).
  */
 export const Header: React.FC = () => {
   const { logout, user, roles } = useAuth()
+  const assistant = useAssistant()
   const displayName = user?.full_name || user?.username || ''
-  const initial = (displayName || 'U').charAt(0).toUpperCase()
+  const initials =
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('') || 'U'
   const { pathname } = useLocation()
   const pageLabel = PAGE_LABELS[`/${pathname.split('/')[1] ?? ''}`] ?? ''
   const { status, interruptedSince, alerts, unreadCount, markAllAsRead, clearAlerts } = useRealtime()
@@ -82,11 +93,27 @@ export const Header: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-4 bg-canvas/85 px-4 backdrop-blur-md lg:pl-4 lg:pr-8">
-        <div className="flex min-w-0 items-center gap-3">
-          <p className="whitespace-nowrap text-sm font-semibold text-fg">{pageLabel}</p>
-          <span aria-hidden="true" className="hidden h-4 w-px bg-line-strong xl:block" />
-          <p className="hidden items-baseline gap-1.5 truncate text-xs text-muted xl:flex">
+      <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-4 bg-canvas/80 px-4 backdrop-blur-md lg:h-[4.75rem] lg:px-8">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
+          {/* Champ de recherche : ouvre Jappo IA, qui répond sur les données du réseau. */}
+          <button
+            type="button"
+            onClick={assistant.open}
+            aria-haspopup="dialog"
+            aria-expanded={assistant.isOpen}
+            className="hidden h-11 w-full max-w-[28rem] cursor-pointer items-center gap-3 rounded-full bg-surface px-5 text-left text-sm text-muted shadow-[var(--shadow-panel)] transition-shadow hover:shadow-[var(--shadow-raised)] lg:flex"
+          >
+            <Search className="h-[1.125rem] w-[1.125rem] shrink-0 text-fg" aria-hidden="true" />
+            <span className="flex-1 truncate">Rechercher, demander à Jappo IA…</span>
+            <kbd className="rounded-md border border-line-strong px-1.5 py-0.5 font-sans text-[0.625rem] text-subtle">
+              {SHORTCUT}
+            </kbd>
+          </button>
+          {/* Petit écran : la page courante à la place du champ. */}
+          <p aria-current="page" className="truncate text-sm font-semibold text-fg lg:hidden">
+            {pageLabel}
+          </p>
+          <p className="hidden shrink-0 items-baseline gap-1.5 whitespace-nowrap text-xs text-muted 2xl:flex">
             <span className="first-letter:uppercase">{dakarDay.format(now)}</span>
             <time className="num font-medium text-fg">{dakarClock.format(now)}</time>
             <span className="text-subtle">Dakar</span>
@@ -94,6 +121,7 @@ export const Header: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1">
+
           {/* État de la liaison : dit clairement quand les données ne sont plus en direct. */}
           <ConnectionStatus online={online} status={status} interruptedSince={interruptedSince} />
 
@@ -175,8 +203,8 @@ export const Header: React.FC = () => {
             className="flex items-center gap-3 rounded-full py-1 pl-1 pr-1 transition-colors hover:bg-surface sm:pr-3"
             title="Mon profil"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-semibold text-on-ink dark:bg-brand dark:text-on-brand">
-              {initial}
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#dce8fa] text-2xs font-bold text-[#16417b]">
+              {initials}
             </span>
             <span className="hidden text-left leading-tight xl:block">
               <span className="block max-w-[14rem] truncate text-xs font-semibold text-fg">
@@ -231,7 +259,7 @@ const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ online, status, int
 
   return (
     <div
-      className="hidden items-center gap-2 whitespace-nowrap rounded-full bg-surface px-3 py-1 text-xs font-medium shadow-[var(--shadow-panel)] sm:flex"
+      className="hidden items-center gap-2 whitespace-nowrap rounded-full border border-line bg-raised px-3 py-1 text-xs font-medium sm:flex"
       role="status"
       title={state.title}
     >

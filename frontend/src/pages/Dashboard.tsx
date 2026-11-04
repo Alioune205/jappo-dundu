@@ -1,20 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Ambulance as AmbulanceIcon, ArrowRight, BedDouble, BrainCircuit, Droplets, FileText, Maximize2, Minimize2 } from 'lucide-react'
+import { Ambulance as AmbulanceIcon, ArrowRight, BedDouble, BrainCircuit, Droplets } from 'lucide-react'
 import { Link } from 'react-router'
-import { api } from '@/lib/api'
+import { api, fetchAllPages } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
-import { canManage, canView } from '@/lib/access'
+import { canManage, canOpen, canView } from '@/lib/access'
 import { Badge } from '@/components/ui/Badge'
 import { MapView } from '@/components/map/MapView'
-import { PageHeader } from '@/components/ui/PageHeader'
 import { MetricTile } from '@/components/dash/MetricTile'
 import { EmptyNote, Legend, LegendItem, Panel } from '@/components/dash/Panel'
 import { ArcGauge } from '@/components/dash/ArcGauge'
 import { CapsuleChart, type CapsuleDatum } from '@/components/dash/CapsuleChart'
 import { StackBars, type StackRow } from '@/components/dash/StackBars'
 import { Segmented } from '@/components/dash/Segmented'
-import { PriorityFeed, type PriorityItem } from '@/components/dash/PriorityFeed'
+import type { PriorityItem } from '@/components/dash/PriorityFeed'
 import { OCCUPANCY_CRITICAL, SIGNAL_FILL, occupancySignal, type Signal } from '@/components/dash/tones'
 import { useNow } from '@/lib/useNow'
 import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
@@ -29,6 +28,7 @@ import type {
   Mission,
   PredictionSummaryRow,
   FacilitySummary,
+  BedCapacity,
 } from '@/types/api'
 import { QK } from '@/lib/queryKeys'
 import { AmbulanceManagerDashboard } from './dashboard/AmbulanceManagerDashboard'
@@ -38,6 +38,12 @@ import { KpiPanel } from './dashboard/KpiPanel'
 import { VITAL_CATEGORIES, groupLabel, minutesSince, plural, shortCategory } from './dashboard/shared'
 import type { Role } from '@/types/api'
 import { FULL_FEATURES } from '@/lib/features'
+import { HeroBanner } from './dashboard/network/HeroBanner'
+import { ActivityPanel } from './dashboard/network/ActivityPanel'
+import { CoveragePanel } from './dashboard/network/CoveragePanel'
+import { FacilitiesPanel, RecentActivityPanel } from './dashboard/network/RecentPanels'
+import { AlertsCard, AssistantCard, DriveCard, SystemStatusCard } from './dashboard/network/SideCards'
+import { useActivitySeries, type ActivityPeriod } from './dashboard/network/useActivitySeries'
 
 /** Rôles qui ont une vue dédiée, centrée sur leur établissement. */
 const DOMAIN_DASHBOARDS: Partial<Record<Role, React.FC<{ facility: FacilitySummary }>>> = {
@@ -48,10 +54,11 @@ const DOMAIN_DASHBOARDS: Partial<Record<Role, React.FC<{ facility: FacilitySumma
 
 /** Colonnes de la rangée d'indicateurs selon le nombre de tuiles visibles. */
 const TILE_COLUMNS: Record<number, string> = {
-  1: 'xl:grid-cols-1',
-  2: 'xl:grid-cols-2',
+  1: 'sm:grid-cols-1',
+  2: '',
   3: 'xl:grid-cols-3',
-  4: 'xl:grid-cols-4',
+  // Tuiles compactes en ligne : quatre de front seulement sur très grand écran.
+  4: 'min-[1760px]:grid-cols-4',
 }
 
 /** Une mission sans ambulance au-delà de ce délai devient critique. */
@@ -65,8 +72,6 @@ const LAYERS: { key: LayerKey; label: string; swatch: string }[] = [
   { key: 'ambulances', label: 'Ambulances', swatch: 'bg-ok' },
   { key: 'missions', label: 'Missions', swatch: 'bg-viz-warn' },
 ]
-
-const URGENCY_RANK = { critical: 0, urgent: 1, normal: 2 } as const
 
 export const Dashboard: React.FC = () => {
   const { user, roles } = useAuth()
@@ -92,7 +97,8 @@ interface CategoryRow {
 
 /** Vue réseau : administrateur général et rôles multi-domaines. */
 const NetworkDashboard: React.FC = () => {
-  const { user, roles } = useAuth()
+  const { user, roles, isAdmin } = useAuth()
+  const greetingName = user?.full_name || user?.username || 'à vous'
   const now = useNow(15_000)
 
   // Chaque administrateur ne charge que les domaines de son rôle : le serveur
@@ -175,20 +181,39 @@ const NetworkDashboard: React.FC = () => {
   })
   const predictionSummary = useMemo(() => predictionsQuery.data ?? [], [predictionsQuery.data])
 
-  // 6. Établissements (pour la carte)
-  const { data: facilities = [] } = useQuery<FacilitySummary[]>({
+  // 6. Établissements (carte opérationnelle et couverture nationale)
+  const facilitiesQuery = useQuery<FacilitySummary[]>({
     queryKey: QK.facilitiesMap,
     queryFn: async () => {
       const res = await api.get<{ results: FacilitySummary[] }>('/api/facilities/')
       return res.results || []
     },
   })
+  const facilities = useMemo(() => facilitiesQuery.data ?? [], [facilitiesQuery.data])
+
+  // 7. Capacités par service et par établissement (journal, établissements principaux)
+  const capacitiesQuery = useQuery<BedCapacity[]>({
+    queryKey: [...QK.bedCapacities, 'network'],
+    queryFn: () => fetchAllPages<BedCapacity>('/api/lits/capacities/', {}, { maxPages: 6 }),
+    enabled: seeBeds,
+  })
+  const capacities = useMemo(() => capacitiesQuery.data ?? [], [capacitiesQuery.data])
+
+  // 8. Activité quotidienne (demandes, dons, missions) comptée sur les enregistrements réels
+  const [activityPeriod, setActivityPeriod] = useState<ActivityPeriod>(7)
+  const activityQuery = useActivitySeries(activityPeriod, now, { blood: seeBlood, fleet: seeFleet })
+  /** Série des 7 derniers jours pour une tuile, seulement si elle a été chargée. */
+  const activitySpark = (key: 'requests', label: string) => {
+    const data = activityQuery.data
+    if (!data || !data.available[key]) return undefined
+    return { values: data.days.slice(-7).map((d) => d[key]), label }
+  }
 
   // Temps réel : rechargements regroupés par fenêtre d'une seconde, et
   // positions GPS appliquées directement au cache (aucune requête).
   useRealtimeRefresh([
     { events: BLOOD_REQUEST_EVENTS, queryKeys: [QK.bloodRequests] },
-    { events: BED_EVENTS, queryKeys: [QK.bedsSummary] },
+    { events: BED_EVENTS, queryKeys: [QK.bedsSummary, QK.bedCapacities] },
     { events: MISSION_EVENTS, queryKeys: [QK.missionsActive, QK.ambulancesList] },
     { events: [RealtimeEvent.ambulanceStatus], queryKeys: [QK.ambulancesList] },
     { events: [RealtimeEvent.predictionUpdate], queryKeys: [QK.predictionsSummary] },
@@ -276,7 +301,6 @@ const NetworkDashboard: React.FC = () => {
   const availableAmbulances = ambulances.filter((a) => a.status === 'available').length
   const criticalPredictions = predictionSummary.reduce((acc, p) => acc + p.critical_count, 0)
   const criticalBlood = bloodRequests.filter((r) => r.urgency === 'critical')
-  const sortedRequests = [...bloodRequests].sort((a, b) => URGENCY_RANK[a.urgency] - URGENCY_RANK[b.urgency])
   const fleetSignal: Signal = ambulances.length === 0 ? 'neutral' : availableAmbulances <= 2 ? 'warning' : 'ok'
 
   const riskRows: StackRow[] = [...predictionSummary]
@@ -361,51 +385,28 @@ const NetworkDashboard: React.FC = () => {
 
   return (
     <div ref={rootRef} className={`space-y-6 ${crisisMode ? 'overflow-y-auto bg-canvas p-6' : ''}`}>
-      <PageHeader
-        eyebrow={
-          <>
-            <span>{user?.facility ? user.facility.city : 'Supervision nationale'}</span>
-            <span aria-hidden="true">·</span>
-            <span>{lastUpdate > 0 ? `Actualisé ${formatRelative(new Date(lastUpdate), now)}` : 'Chargement des données'}</span>
-          </>
-        }
+      <HeroBanner
+        name={greetingName}
         title={user?.facility ? user.facility.name : 'Situation du réseau'}
-        description="Lits, sang et SAMU en temps réel : l’urgent d’abord, la tendance ensuite."
-        actions={
-          FULL_FEATURES && (
-            <>
-              <Link
-                to="/rapport"
-                className="inline-flex h-10 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-fg transition-colors hover:bg-raised"
-              >
-                <FileText className="h-4 w-4 text-muted" aria-hidden="true" /> Rapport
-              </Link>
-              <button
-                type="button"
-                onClick={toggleCrisisMode}
-                aria-pressed={crisisMode}
-                className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full bg-brand px-4 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-strong"
-                title="Plein écran pour un écran mural de salle de crise"
-              >
-                {crisisMode ? (
-                  <Minimize2 className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Maximize2 className="h-4 w-4" aria-hidden="true" />
-                )}
-                {crisisMode ? 'Quitter' : 'Salle de crise'}
-              </button>
-            </>
-          )
+        status={
+          <span>
+            {user?.facility ? user.facility.city : 'Supervision nationale'} ·{' '}
+            {lastUpdate > 0 ? `actualisé ${formatRelative(new Date(lastUpdate), now)}` : 'chargement des données'}
+          </span>
         }
+        reportHref={FULL_FEATURES ? '/rapport' : undefined}
+        crisisMode={crisisMode}
+        onToggleCrisis={toggleCrisisMode}
       />
 
-      {/* Indicateurs : une tuile mise en avant, les autres blanches, chacune mène à son module. */}
-      <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${TILE_COLUMNS[visibleTiles] ?? 'xl:grid-cols-4'}`}>
+      {/* Indicateurs compacts, chacun mène à son module. */}
+      <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${TILE_COLUMNS[visibleTiles] ?? 'min-[1760px]:grid-cols-4'}`}>
         {seeBeds && (
           <MetricTile
             i={0}
-            variant="featured"
+            layout="row"
             icon={BedDouble}
+            accent="blue"
             to="/beds"
             label="Lits disponibles"
             loading={bedsQuery.isPending}
@@ -419,9 +420,12 @@ const NetworkDashboard: React.FC = () => {
         {seeBlood && (
           <MetricTile
             i={1}
+            layout="row"
             icon={Droplets}
+            accent="red"
             to="/blood"
             label="Demandes de sang"
+            spark={activitySpark('requests', 'Demandes de sang créées par jour, 7 derniers jours')}
             loading={bloodQuery.isPending}
             value={bloodRequests.length}
             unit="ouvertes"
@@ -437,17 +441,19 @@ const NetworkDashboard: React.FC = () => {
         {seeFleet && (
           <MetricTile
             i={2}
+            layout="row"
             icon={AmbulanceIcon}
+            accent="green"
             to="/ambulances"
             label="Ambulances disponibles"
             loading={fleetQuery.isPending}
             value={availableAmbulances}
             unit={`/ ${ambulances.length}`}
             meter={{
-              value: ambulances.length - availableAmbulances,
+              value: availableAmbulances,
               max: ambulances.length,
               signal: fleetSignal,
-              label: 'Ambulances engagées ou hors service',
+              label: 'Part des ambulances disponibles',
             }}
             status={{
               text: `${plural(activeMissions.length, 'mission')} en cours`,
@@ -459,7 +465,9 @@ const NetworkDashboard: React.FC = () => {
         {seeBlood && (
           <MetricTile
             i={3}
+            layout="row"
             icon={BrainCircuit}
+            accent="violet"
             to="/ml"
             label="Risques de pénurie"
             loading={predictionsQuery.isPending}
@@ -475,109 +483,49 @@ const NetworkDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Ce qui demande une action et le risque à venir, face à la capacité hospitalière. */}
-      <div className={`grid grid-cols-1 items-stretch gap-6 ${seeBeds ? 'xl:grid-cols-12' : ''}`}>
-        <div className={`flex min-w-0 flex-col gap-6 ${seeBeds ? 'xl:col-span-7' : ''}`}>
-          <Panel
-            i={2}
-            title={
-              <span className="flex items-center gap-2">
-                À traiter maintenant
-                {priorities.length > 0 && (
-                  <span className="num inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-critical/10 px-1.5 text-[0.6875rem] font-semibold text-critical">
-                    {priorities.length}
-                  </span>
-                )}
-              </span>
-            }
-            subtitle="Du plus grave au moins grave, tous modules confondus"
-            bodyClassName="pt-2"
-          >
-            <PriorityFeed items={priorities} />
-          </Panel>
-
-          {seeBlood && (
-            <Panel
+      {/* Tendance et territoire à gauche, ce qui demande une action à droite. */}
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">
+        <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] xl:col-span-9">
+          {(seeBlood || seeFleet) && (
+            <ActivityPanel
+              i={2}
+              period={activityPeriod}
+              onPeriodChange={setActivityPeriod}
+              data={activityQuery.data}
+              loading={activityQuery.isPending}
+            />
+          )}
+          <CoveragePanel i={3} facilities={facilities} loading={facilitiesQuery.isPending} />
+          <RecentActivityPanel
+            i={4}
+            requests={bloodRequests}
+            missions={activeMissions}
+            capacities={capacities}
+            now={now}
+            loading={bloodQuery.isLoading || missionsQuery.isLoading || capacitiesQuery.isLoading}
+          />
+          {seeBeds && (
+            <FacilitiesPanel
               i={5}
-              title="Risque de pénurie par région"
-              subtitle="Prévisions à 7 jours · par centre et groupe sanguin"
-              actions={
-                <Link to="/ml" className="inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-fg">
-                  Prévisions <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                </Link>
-              }
-              footer={
-                <Legend>
-                  <LegendItem className="bg-viz-crit">Critique</LegendItem>
-                  <LegendItem className="bg-viz-warn">Vigilance</LegendItem>
-                  <LegendItem className="bg-viz-base-soft">Nominal</LegendItem>
-                </Legend>
-              }
-              bodyClassName="px-5 pb-5 pt-4"
-            >
-              {predictionsQuery.isPending ? (
-                <div className="space-y-3" aria-label="Chargement">
-                  {[0, 1, 2, 3].map((k) => (
-                    <span key={k} className="skeleton block h-2.5 w-full" />
-                  ))}
-                </div>
-              ) : riskRows.length === 0 ? (
-                <EmptyNote title="Aucune prévision disponible" hint="Le modèle n’a pas encore produit de prévision pour le réseau." />
-              ) : (
-                <StackBars rows={riskRows} ariaLabel="Risque de pénurie par région" />
-              )}
-            </Panel>
+              capacities={capacities}
+              loading={capacitiesQuery.isPending}
+              canOpenFacilities={canOpen(roles, '/facilities')}
+            />
           )}
         </div>
-
-        {seeBeds && (
-          <Panel
-            i={3}
-            className="h-full xl:col-span-5"
-            title="Tension hospitalière"
-            subtitle="Lits déclarés du réseau · en direct"
-            actions={
-              <Badge tone={occupancy === 'critical' ? 'danger' : occupancy === 'warning' ? 'warning' : 'success'} size="sm">
-                {occupancy === 'critical' ? 'Tension forte' : occupancy === 'warning' ? 'Vigilance' : 'Équilibre'}
-              </Badge>
-            }
-            bodyClassName="px-5 pb-5 pt-4"
-          >
-            {totalBeds === 0 ? (
-              <EmptyNote title="Aucune capacité déclarée" hint="Les établissements n’ont pas encore publié leurs lits." />
-            ) : (
-              <>
-                <ArcGauge
-                  size={300}
-                  centerValue={formatPercent(globalOccupancy)}
-                  centerLabel="Taux d’occupation du réseau"
-                  segments={[
-                    {
-                      label: 'Occupés',
-                      value: totalOccupiedBeds,
-                      color: `var(--viz-${occupancy === 'critical' ? 'crit' : occupancy === 'warning' ? 'warn' : 'base'})`,
-                      unit: 'lits',
-                    },
-                    ...(totalReservedBeds > 0
-                      ? [{ label: 'Réservés', value: totalReservedBeds, color: 'var(--info)', unit: 'lits' }]
-                      : []),
-                    { label: 'Libres', value: totalAvailableBeds, rest: true, unit: 'lits' },
-                  ]}
-                />
-                {regionRows.length > 1 && (
-                  <div className="mt-6 rounded-2xl bg-raised p-4">
-                    <p className="mb-3 text-xs font-medium text-muted">Régions les plus tendues</p>
-                    <StackBars rows={regionRows} ariaLabel="Occupation des lits par région" />
-                  </div>
-                )}
-              </>
-            )}
-          </Panel>
-        )}
+        <div className="flex min-w-0 flex-col gap-6 xl:col-span-3">
+          <AlertsCard i={3} items={priorities} />
+          {FULL_FEATURES && seeBlood ? <DriveCard i={4} /> : <AssistantCard i={4} />}
+          {isAdmin && <SystemStatusCard i={5} />}
+        </div>
       </div>
 
+      {/* Détail opérationnel : positions en direct et capacité hospitalière. */}
+      <div className={`grid grid-cols-1 items-stretch gap-6 ${seeBeds ? 'xl:grid-cols-12' : ''}`}>
       <Panel
         i={4}
+        className={seeBeds ? 'xl:col-span-8' : ''}
+        eyebrow="Géographie"
         title="Carte opérationnelle"
         subtitle="Structures, véhicules SAMU et interventions · positions en direct"
         actions={
@@ -623,12 +571,60 @@ const NetworkDashboard: React.FC = () => {
         </div>
       </Panel>
 
+        {seeBeds && (
+          <Panel
+            i={3}
+            className="h-full xl:col-span-4"
+            eyebrow="Capacité"
+            title="Tension hospitalière"
+            subtitle="Lits déclarés du réseau · en direct"
+            actions={
+              <Badge tone={occupancy === 'critical' ? 'danger' : occupancy === 'warning' ? 'warning' : 'success'} size="sm">
+                {occupancy === 'critical' ? 'Tension forte' : occupancy === 'warning' ? 'Vigilance' : 'Équilibre'}
+              </Badge>
+            }
+            bodyClassName="px-5 pb-5 pt-4"
+          >
+            {totalBeds === 0 ? (
+              <EmptyNote title="Aucune capacité déclarée" hint="Les établissements n’ont pas encore publié leurs lits." />
+            ) : (
+              <>
+                <ArcGauge
+                  size={300}
+                  centerValue={formatPercent(globalOccupancy)}
+                  centerLabel="Taux d’occupation du réseau"
+                  segments={[
+                    {
+                      label: 'Occupés',
+                      value: totalOccupiedBeds,
+                      color: `var(--viz-${occupancy === 'critical' ? 'crit' : occupancy === 'warning' ? 'warn' : 'base'})`,
+                      unit: 'lits',
+                    },
+                    ...(totalReservedBeds > 0
+                      ? [{ label: 'Réservés', value: totalReservedBeds, color: 'var(--info)', unit: 'lits' }]
+                      : []),
+                    { label: 'Libres', value: totalAvailableBeds, rest: true, unit: 'lits' },
+                  ]}
+                />
+                {regionRows.length > 1 && (
+                  <div className="mt-6 rounded-2xl bg-raised p-4">
+                    <p className="mb-3 text-xs font-medium text-muted">Régions les plus tendues</p>
+                    <StackBars rows={regionRows} ariaLabel="Occupation des lits par région" />
+                  </div>
+                )}
+              </>
+            )}
+          </Panel>
+        )}
+      </div>
+
       {(seeBeds || seeBlood) && (
         <div className={`grid grid-cols-1 gap-6 ${seeBeds && seeBlood ? 'xl:grid-cols-12' : ''}`}>
           {seeBeds && (
             <Panel
               i={6}
               className={seeBlood ? 'xl:col-span-7' : ''}
+              eyebrow="Lits"
               title="Occupation par spécialité"
               subtitle={
                 bedChartMode === 'rate'
@@ -677,72 +673,35 @@ const NetworkDashboard: React.FC = () => {
 
           {seeBlood && (
             <Panel
-              i={7}
+              i={5}
               className={seeBeds ? 'xl:col-span-5' : ''}
-              title={
-                <>
-                  Demandes de sang ouvertes <span className="num ml-1 font-normal text-muted">{bloodRequests.length}</span>
-                </>
-              }
-              subtitle="Urgences vitales d’abord · poches collectées"
+              eyebrow="Prévisions"
+              title="Risque de pénurie par région"
+              subtitle="Prévisions à 7 jours · par centre et groupe sanguin"
               actions={
-                <Link to="/blood" className="inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-fg">
-                  Tout voir <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <Link to="/ml" className="inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-fg">
+                  Prévisions <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               }
-              bodyClassName="pt-2"
+              footer={
+                <Legend>
+                  <LegendItem className="bg-viz-crit">Critique</LegendItem>
+                  <LegendItem className="bg-viz-warn">Vigilance</LegendItem>
+                  <LegendItem className="bg-viz-base-soft">Nominal</LegendItem>
+                </Legend>
+              }
+              bodyClassName="px-5 pb-5 pt-4"
             >
-              {bloodQuery.isPending ? (
-                <div className="space-y-3 px-5 pb-5" aria-label="Chargement">
-                  {[0, 1, 2].map((k) => (
-                    <span key={k} className="skeleton block h-12 w-full" />
+              {predictionsQuery.isPending ? (
+                <div className="space-y-3" aria-label="Chargement">
+                  {[0, 1, 2, 3].map((k) => (
+                    <span key={k} className="skeleton block h-2.5 w-full" />
                   ))}
                 </div>
-              ) : bloodRequests.length === 0 ? (
-                <EmptyNote tone="calm" title="Aucune demande en attente" />
+              ) : riskRows.length === 0 ? (
+                <EmptyNote title="Aucune prévision disponible" hint="Le modèle n’a pas encore produit de prévision pour le réseau." />
               ) : (
-                <ul className="divide-y divide-line">
-                  {sortedRequests.slice(0, 6).map((req, index) => {
-                    const pct = req.units_needed > 0 ? (req.units_collected / req.units_needed) * 100 : 0
-                    return (
-                      <li
-                        key={req.id}
-                        className="reveal grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 px-5 py-3"
-                        style={{ '--i': index + 2 } as React.CSSProperties}
-                      >
-                        <span
-                          className={`num inline-flex h-10 w-11 items-center justify-center rounded-xl text-sm font-semibold ${
-                            req.urgency === 'critical' ? 'bg-critical/10 text-critical' : 'bg-sunken text-fg'
-                          }`}
-                        >
-                          {groupLabel(req.blood_group)}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-medium text-fg">{req.facility?.name || '—'}</span>
-                          <span className="mt-1 flex items-center gap-2">
-                            <span className="block h-1.5 w-20 overflow-hidden rounded-full bg-track" aria-hidden="true">
-                              <span className="bar-fill block h-full rounded-full bg-viz-base" style={{ width: `${pct}%` }} />
-                            </span>
-                            <span className="num truncate text-2xs text-muted">
-                              {req.units_collected} / {req.units_needed} poches · {formatRelative(req.created_at, now)}
-                            </span>
-                          </span>
-                        </span>
-                        <span className="flex flex-col items-end gap-1">
-                          <Badge
-                            tone={req.urgency === 'critical' ? 'danger' : req.urgency === 'urgent' ? 'warning' : 'info'}
-                            size="sm"
-                          >
-                            {req.urgency === 'critical' ? 'Vitale' : req.urgency_display}
-                          </Badge>
-                          <span className="num text-2xs text-muted">
-                            <span className="font-semibold text-fg">{req.units_remaining}</span> manquante{req.units_remaining > 1 ? 's' : ''}
-                          </span>
-                        </span>
-                      </li>
-                    )
-                  })}
-                </ul>
+                <StackBars rows={riskRows} ariaLabel="Risque de pénurie par région" />
               )}
             </Panel>
           )}

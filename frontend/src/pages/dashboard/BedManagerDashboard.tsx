@@ -213,6 +213,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
           i={0}
           variant="featured"
           icon={BedDouble}
+          accent="blue"
           to="/beds"
           label="Lits libres"
           loading={isPending}
@@ -230,6 +231,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         <MetricTile
           i={1}
           icon={Gauge}
+          accent="violet"
           label="Taux d’occupation"
           loading={isPending}
           value={myRate}
@@ -245,6 +247,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         <MetricTile
           i={2}
           icon={TriangleAlert}
+          accent="amber"
           label="Services en tension"
           loading={isPending}
           value={tension.length}
@@ -263,6 +266,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         <MetricTile
           i={3}
           icon={AmbulanceIcon}
+          accent="green"
           label="Patients en approche"
           value={incoming.length}
           unit={incoming.length > 1 ? 'ambulances' : 'ambulance'}
@@ -279,6 +283,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
           <Panel
             i={2}
             className="xl:col-span-7"
+            eyebrow="Occupation"
             title="Occupation par service"
             subtitle={
               chartMode === 'rate'
@@ -325,6 +330,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
           <Panel
             i={3}
             className="xl:col-span-5"
+            eyebrow="Capacité"
             title="Équilibre capacitaire"
             subtitle="Lits de l’établissement · en direct"
             actions={
@@ -357,6 +363,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         <Panel
           i={4}
           className="xl:col-span-7"
+          eyebrow="Services"
           title="Mes services"
           subtitle="Admettre un patient (+) ou enregistrer sa sortie (−)"
           actions={
@@ -492,6 +499,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
         <div className="flex min-w-0 flex-col gap-6 xl:col-span-5">
           <Panel
             i={5}
+            eyebrow="Admissions"
             title={
               <>
                 Patients en approche <span className="num ml-1 font-normal text-muted">{incoming.length}</span>
@@ -550,6 +558,7 @@ export const BedManagerDashboard: React.FC<{ facility: FacilitySummary }> = ({ f
 
       <Panel
         i={7}
+        eyebrow="Géographie"
         title={`Autour de ${facility.name}`}
         subtitle="Votre établissement et les ambulances en route vers vous"
         actions={
@@ -633,6 +642,7 @@ const TransferPanel: React.FC<{
   return (
     <Panel
       i={6}
+      eyebrow="Transferts"
       title="Solutions de transfert"
       subtitle="Lits libres à moins de 50 km, dans le service choisi"
       bodyClassName="pt-2"

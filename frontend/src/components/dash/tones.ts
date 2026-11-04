@@ -48,3 +48,30 @@ export function occupancySignal(rate: number | null | undefined): Signal {
   if (rate == null) return 'neutral'
   return rate > OCCUPANCY_CRITICAL ? 'critical' : rate > OCCUPANCY_WARNING ? 'warning' : 'ok'
 }
+
+/**
+ * Teinte d'un pictogramme d'indicateur. Convention : rouge = sang, bleu =
+ * lits, vert = SAMU, violet = prévisions, ambre = attente et délais. Elle
+ * situe le sujet, elle ne juge pas : l'état reste porté par Signal.
+ */
+export type Accent = 'red' | 'blue' | 'green' | 'violet' | 'amber' | 'neutral'
+
+/** Pastille de pictogramme : fond pâle et trait à la teinte choisie. */
+export const ACCENT_TILE: Record<Accent, string> = {
+  red: 'bg-tint-red-soft text-tint-red',
+  blue: 'bg-tint-blue-soft text-tint-blue',
+  green: 'bg-tint-green-soft text-tint-green',
+  violet: 'bg-tint-violet-soft text-tint-violet',
+  amber: 'bg-tint-amber-soft text-tint-amber',
+  neutral: 'bg-sunken text-muted',
+}
+
+/** Variable CSS de la teinte (fond de carte teinté, pictogramme plein, mini-courbe). */
+export const ACCENT_VAR: Record<Accent, string> = {
+  red: 'var(--tint-red)',
+  blue: 'var(--tint-blue)',
+  green: 'var(--tint-green)',
+  violet: 'var(--tint-violet)',
+  amber: 'var(--tint-amber)',
+  neutral: 'var(--fg-subtle)',
+}
