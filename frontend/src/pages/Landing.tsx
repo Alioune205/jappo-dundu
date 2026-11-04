@@ -31,6 +31,7 @@ import { BLOOD_NEEDS, DONOR_CONDITIONS, FAQ, MODULES, SCENARIO, SOURCE, type Mod
 import { useLandingMotion } from './landing/motion'
 import { DonorAlertPhone, MissionCard, PlatformStage } from './landing/Mockups'
 import { FULL_FEATURES } from '@/lib/features'
+import { SiteFooter } from './landing/SiteFooter'
 
 const NAV = [
   { href: '#accueil', label: 'Accueil' },
@@ -716,28 +717,7 @@ export const Landing: React.FC = () => {
         </section>
       </main>
 
-      {/* Pied de page */}
-      <footer className="bg-[#020e23] px-5 py-8 text-white lg:px-10">
-        <div className="mx-auto flex max-w-[84rem] flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <Brand small />
-          <nav aria-label="Pied de page" className="flex flex-wrap gap-x-6 gap-y-2">
-            {NAV.map((item) => (
-              <a key={item.href} href={item.href} className="text-sm font-semibold text-white/80 hover:text-white">
-                {item.label}
-              </a>
-            ))}
-          </nav>
-          <small className="text-xs text-[#b7c4d9]">© 2026 Jappo Dundu · Projet de fin d’études</small>
-        </div>
-        <p className="mx-auto mt-6 max-w-[84rem] border-t border-white/10 pt-5 text-xs leading-relaxed text-white/55">
-          <ShieldCheck className="mr-1.5 inline h-4 w-4 align-[-3px]" aria-hidden="true" />
-          Jappo Dundu n’est pas un service officiel du CNTS. Informations sur le don de sang issues de{' '}
-          <a href={SOURCE.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-white">
-            cnts.gouv.sn
-          </a>
-          {`, consulté le ${SOURCE.consulted}. Images d’illustration.`}
-        </p>
-      </footer>
+      <SiteFooter spaceLink={spaceLink} />
     </div>
   )
 }
