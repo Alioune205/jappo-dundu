@@ -16,6 +16,8 @@ interface MissionTableProps {
   onDispatch?: (mission: Mission) => void
   isAssigning: (missionId: number) => boolean
   isAdvancing: (missionId: number) => boolean
+  /** Supervision (administrateur général) : missions affichées sans aucune action. */
+  readOnly?: boolean
 }
 
 /** Missions : priorité, lieu, véhicule, statut et action suivante du cycle de vie. */
@@ -27,6 +29,7 @@ export const MissionTable: React.FC<MissionTableProps> = ({
   onDispatch,
   isAssigning,
   isAdvancing,
+  readOnly = false,
 }) => {
   if (isLoading) {
     return (
@@ -104,7 +107,7 @@ export const MissionTable: React.FC<MissionTableProps> = ({
                   <td className="num whitespace-nowrap text-xs text-muted">{formatDateTime(mission.created_at)}</td>
                   <td className="text-right">
                     <div className="flex justify-end gap-1">
-                      {mission.status === 'pending' ? (
+                      {readOnly ? null : mission.status === 'pending' ? (
                         <Button
                           variant="primary"
                           size="sm"
@@ -124,7 +127,7 @@ export const MissionTable: React.FC<MissionTableProps> = ({
                           {next.label}
                         </Button>
                       ) : null}
-                      {isActive && onDispatch && (
+                      {!readOnly && isActive && onDispatch && (
                         <Button variant="ghost" size="sm" onClick={() => onDispatch(mission)} aria-label={`Réguler la mission ${mission.id}`}>
                           Réguler
                         </Button>

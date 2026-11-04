@@ -64,6 +64,8 @@ export interface AssistantAnswer {
   sources: AnswerSource[]
   /** Données manquantes ou hors périmètre : dit clairement, sans estimation. */
   notice?: string
+  /** Modèle de langage qui a rédigé le texte (Gemini, Grok) ; absent : calcul local. */
+  model?: string
 }
 
 /** Minuscules sans accents : « Réanimation » et « reanimation » se valent. */

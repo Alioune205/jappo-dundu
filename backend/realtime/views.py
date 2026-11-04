@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.openapi import CriticalAlertSerializer
+from security.permissions import NotSupervisor
 from users.permissions import is_admin, user_facility
 
 from .escalation import acknowledge, payload
@@ -59,17 +60,22 @@ class CriticalAlertListView(APIView):
 
 
 class CriticalAlertAckView(APIView):
-    """Accusé de réception : POST /api/realtime/critical-alerts/<id>/ack/"""
+    """Accusé de réception : POST /api/realtime/critical-alerts/<id>/ack/
 
-    permission_classes = [IsAuthenticated]
+    Réservé à l'établissement qui doit agir. L'administrateur général voit et
+    reçoit toutes les alertes mais n'en accuse pas réception (403) : sinon
+    l'alerte paraîtrait prise en charge et sa relance par SMS s'arrêterait
+    alors que personne n'a affecté d'ambulance ni répondu.
+    """
+
+    permission_classes = [IsAuthenticated, NotSupervisor]
 
     @extend_schema(summary="Acquitter une alerte critique", request=None, responses=CriticalAlertSerializer)
     def post(self, request, pk):
         alert = CriticalAlert.objects.filter(pk=pk).first()
         own = user_facility(request.user)
         allowed = alert is not None and (
-            is_admin(request.user)
-            or (own is not None and (alert.facility_id == own.pk or (alert.facility_id is None and alert.region == own.region)))
+            own is not None and (alert.facility_id == own.pk or (alert.facility_id is None and alert.region == own.region))
         )
         if not allowed:
             raise NotFound("Alerte introuvable.")

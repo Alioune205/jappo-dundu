@@ -60,6 +60,9 @@ class CriticalAlertTests(AmbulanceFixturesMixin, TestCase):
         with mock.patch('identity.sms.send_sms') as sms:
             self.assertEqual(escalate(), 1)
             self.assertEqual(sms.call_args.args[0], '+221770000001')
+            # L'administrateur général supervise : il est orienté vers la régulation, pas invité à affecter.
+            self.assertIn("Contactez la régulation SAMU", sms.call_args.args[1])
+            self.assertNotIn("affecter", sms.call_args.args[1].lower())
         with mock.patch('identity.sms.send_sms') as sms:
             self.assertEqual(escalate(), 0)  # plus de relance au-delà de l'administrateur
 
@@ -72,6 +75,24 @@ class CriticalAlertTests(AmbulanceFixturesMixin, TestCase):
             f'/api/ambulances/missions/{mission.pk}/destination-response/', {'accepted': True}, format='json'
         )
         self.assertEqual(api_client(self.bed_manager).get('/api/realtime/critical-alerts/').data, [])
+
+    def test_supervisor_sees_alert_but_cannot_acknowledge_it(self):
+        self.create_critical()
+        alert = CriticalAlert.objects.get()
+        admin = api_client(self.admin)
+        # Il la voit toujours...
+        self.assertEqual([a['critical_alert_id'] for a in admin.get('/api/realtime/critical-alerts/').data], [alert.pk])
+        # ... mais ne peut pas la marquer prise en charge (lecture seule).
+        response = admin.post(f'/api/realtime/critical-alerts/{alert.pk}/ack/')
+        self.assertEqual(response.status_code, 403)
+        self.assertIn('Lecture seule', str(response.data['detail']))
+        alert.refresh_from_db()
+        self.assertIsNone(alert.acknowledged_at)
+        # La relance continue donc vers la ligne de garde.
+        CriticalAlert.objects.update(created_at=timezone.now() - timedelta(minutes=3))
+        with mock.patch('identity.sms.send_sms') as sms:
+            self.assertEqual(escalate(), 1)
+            self.assertEqual(sms.call_args.args[0], '+221338000000')
 
     def test_manual_acknowledgement(self):
         self.create_critical()

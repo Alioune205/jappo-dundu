@@ -15,6 +15,11 @@ Aucune autre source n'est reconnue. Attention : ``is_staff`` vaut rôle
 ``users.services.set_role(user, Role.ADMIN)`` (ou ``createsuperuser``), jamais
 pour un simple accès ponctuel à l'interface ``/admin/``.
 
+L'administrateur général SUPERVISE les domaines métier (sang, lits,
+ambulances) : il les consulte tous (``DOMAIN_VIEW_ROLES``, ``can_view``) mais
+n'y effectue aucune opération (``DOMAIN_ROLES``, ``manages``). Il garde
+l'administration de la plateforme : comptes, établissements, inscriptions.
+
 Auteur : El Hadji Massogui Diop
 """
 
@@ -67,12 +72,25 @@ class Domain(StrEnum):
     AMBULANCES = 'ambulances'
 
 
-# Rôles qui ADMINISTRENT chaque domaine (lecture et écriture, dans leur périmètre).
+# Rôles qui OPÈRENT chaque domaine (écriture : demandes, stocks, lits,
+# missions, flotte), dans leur périmètre. L'administrateur général n'y figure
+# pas : il supervise sans effectuer d'opérations métier.
 DOMAIN_ROLES = {
-    Domain.BEDS: frozenset({Role.ADMIN, Role.HOSPITAL_STAFF, Role.BED_MANAGER}),
-    Domain.BLOOD: frozenset({Role.ADMIN, Role.HOSPITAL_STAFF, Role.BLOOD_MANAGER}),
-    Domain.AMBULANCES: frozenset({Role.ADMIN, Role.HOSPITAL_STAFF, Role.AMBULANCE_MANAGER}),
+    Domain.BEDS: frozenset({Role.HOSPITAL_STAFF, Role.BED_MANAGER}),
+    Domain.BLOOD: frozenset({Role.HOSPITAL_STAFF, Role.BLOOD_MANAGER}),
+    Domain.AMBULANCES: frozenset({Role.HOSPITAL_STAFF, Role.AMBULANCE_MANAGER}),
 }
+
+# Rôles qui CONSULTENT chaque domaine : ceux qui l'opèrent, plus
+# l'administrateur général (supervision nationale, lecture seule). Sert aussi
+# à la remise des alertes temps réel.
+DOMAIN_VIEW_ROLES = {domain: roles | {Role.ADMIN} for domain, roles in DOMAIN_ROLES.items()}
+
+# Réponse 403 d'une opération métier tentée par l'administrateur général.
+SUPERVISION_MESSAGE = (
+    "Lecture seule : l'administrateur général supervise au niveau national "
+    "mais n'effectue pas d'opérations métier (sang, lits, ambulances)."
+)
 
 # Rôles rattachés à un établissement (obligatoire à la création du compte).
 FACILITY_ROLES = frozenset(
@@ -130,6 +148,19 @@ def primary_role(roles):
     return next((role for role in ROLE_PRIORITY if role in roles), None)
 
 
+def is_supervisor(user):
+    """Administrateur général : supervision nationale, lecture seule sur les domaines métier."""
+    return user_has_role(user, Role.ADMIN)
+
+
 def manages(user, domain):
-    """Indique si l'utilisateur administre ``domain`` (dans son périmètre)."""
-    return user_has_role(user, *DOMAIN_ROLES[Domain(domain)])
+    """Indique si l'utilisateur OPÈRE ``domain`` (écriture, dans son périmètre).
+
+    Toujours faux pour l'administrateur général, même s'il cumule un autre rôle.
+    """
+    return not is_supervisor(user) and user_has_role(user, *DOMAIN_ROLES[Domain(domain)])
+
+
+def can_view(user, domain):
+    """Indique si l'utilisateur CONSULTE ``domain`` (administrateur général compris)."""
+    return user_has_role(user, *DOMAIN_VIEW_ROLES[Domain(domain)])

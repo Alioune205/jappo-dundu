@@ -12,6 +12,8 @@ import { responseTone } from './bloodStats'
 import { QK } from '@/lib/queryKeys'
 import { StockSourcing } from './StockSourcing'
 import { FULL_FEATURES } from '@/lib/features'
+import { useAuth } from '@/context/AuthContext'
+import { canManage } from '@/lib/access'
 
 interface RequestDetailPanelProps {
   request: BloodRequest
@@ -21,11 +23,14 @@ interface RequestDetailPanelProps {
 
 /**
  * Détail d'une demande : donneurs compatibles à proximité, réponses reçues,
- * confirmation des dons et annulation (en deux temps).
+ * confirmation des dons et annulation (en deux temps). L'administrateur
+ * général (supervision) consulte sans aucun bouton d'action.
  */
 export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request, onCancelled }) => {
   const queryClient = useQueryClient()
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  const { roles } = useAuth()
+  const operates = canManage(roles, 'blood')
 
   const { data: matches = [], isLoading: isLoadingMatches } = useQuery<DonorMatch[]>({
     queryKey: [...QK.requestMatches, request.id],
@@ -87,7 +92,8 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
             {request.facility?.name} · {request.facility?.city}
           </p>
         </div>
-        {request.status === 'open' &&
+        {operates &&
+          request.status === 'open' &&
           (confirmingCancel ? (
             <div className="flex shrink-0 items-center gap-1">
               <Button variant="ghost" size="sm" onClick={() => setConfirmingCancel(false)}>
@@ -126,7 +132,7 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
 
       {request.notes && <p className="border-b border-line px-5 py-3 text-xs text-muted">{request.notes}</p>}
 
-      {FULL_FEATURES && request.status === 'open' && <StockSourcing request={request} />}
+      {FULL_FEATURES && operates && request.status === 'open' && <StockSourcing request={request} />}
 
       {request.status === 'open' && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5">
@@ -146,16 +152,18 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
               </span>
             )}
           </p>
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={<BellRing className="h-3.5 w-3.5" />}
-            onClick={() => relaunch.mutate()}
-            isLoading={relaunch.isPending}
-            title="Prévenir les donneurs compatibles suivants sans attendre la relance automatique"
-          >
-            Alerter d’autres donneurs
-          </Button>
+          {operates && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<BellRing className="h-3.5 w-3.5" />}
+              onClick={() => relaunch.mutate()}
+              isLoading={relaunch.isPending}
+              title="Prévenir les donneurs compatibles suivants sans attendre la relance automatique"
+            >
+              Alerter d’autres donneurs
+            </Button>
+          )}
         </div>
       )}
 
@@ -220,7 +228,7 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
                     <Badge tone={responseTone(resp.status)} size="sm">
                       {resp.status_display}
                     </Badge>
-                    {FULL_FEATURES && resp.status === 'accepted' && !resp.arrived_at && (
+                    {FULL_FEATURES && operates && resp.status === 'accepted' && !resp.arrived_at && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -231,7 +239,7 @@ export const RequestDetailPanel: React.FC<RequestDetailPanelProps> = ({ request,
                         Arrivé
                       </Button>
                     )}
-                    {resp.status === 'accepted' && (
+                    {operates && resp.status === 'accepted' && (
                       <Button
                         variant="primary"
                         size="sm"

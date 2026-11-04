@@ -58,8 +58,13 @@ class CanManageSIHKeys(BasePermission):
 
 
 def key_domains_for(user):
-    """Domaines (lits, sang) qu'un utilisateur peut déléguer à une clé API."""
+    """Domaines (lits, sang) qu'un utilisateur peut déléguer à une clé API.
+
+    L'administrateur général garde ce droit : la clé fait écrire le SIH de
+    l'établissement, pas l'administrateur lui-même (administration de la plateforme).
+    """
+    admin = user_has_role(user, Role.ADMIN)
     return {
-        'allow_beds': manages(user, Domain.BEDS),
-        'allow_blood': manages(user, Domain.BLOOD),
+        'allow_beds': admin or manages(user, Domain.BEDS),
+        'allow_blood': admin or manages(user, Domain.BLOOD),
     }

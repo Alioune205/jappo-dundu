@@ -75,13 +75,14 @@
   <nav class="toc" aria-label="Sommaire">
     <a href="#idee">1. L’idée</a>
     <a href="#perimetre">2. Ce qui est présenté</a>
-    <a href="#masque">3. Ce qui est masqué</a>
-    <a href="#installation">4. Installation</a>
-    <a href="#comptes">5. Comptes</a>
-    <a href="#tests">6. Ce que chacun teste</a>
-    <a href="#deroule">7. Déroulé de la présentation</a>
-    <a href="#jury">8. Questions du jury</a>
-    <a href="#veille">9. Check-list de la veille</a>
+    <a href="#pilote">3. Phase pilote Dakar</a>
+    <a href="#masque">4. Ce qui est masqué</a>
+    <a href="#installation">5. Installation</a>
+    <a href="#comptes">6. Comptes</a>
+    <a href="#tests">7. Ce que chacun teste</a>
+    <a href="#deroule">8. Déroulé de la présentation</a>
+    <a href="#jury">9. Questions du jury</a>
+    <a href="#veille">10. Check-list de la veille</a>
   </nav>
 </header>
 
@@ -123,8 +124,54 @@
   les demandes de sang et les ambulances, mis à jour en direct.</p>
 </section>
 
+<section id="pilote">
+  <h2>3. Phase pilote : la région de Dakar</h2>
+  <p>On ne déploie pas un système d’urgence dans tout le pays d’un coup. Jappo Dundu commence par un
+  <strong>pilote dans la région de Dakar</strong>, avec un petit nombre d’établissements, avant l’extension nationale.</p>
+  <div class="good"><strong>Phrase clé pour le jury :</strong> « l’architecture est nationale, le déploiement commence
+  par Dakar ». Les régions, les filtres et la supervision nationale existent déjà dans le code : étendre le pilote
+  consiste à inscrire de nouveaux établissements, sans modifier le code.</div>
+
+  <h3>Pourquoi Dakar</h3>
+  <ul>
+    <li>Le CNTS et le SAMU National y sont installés : les trois modules peuvent être testés ensemble.</li>
+    <li>C’est la région qui concentre le plus d’hôpitaux et d’urgences.</li>
+    <li>Un périmètre réduit permet de former les équipes, de mesurer et de corriger avant d’étendre.</li>
+  </ul>
+
+  <h3>Établissements du pilote (données de démonstration)</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Établissement</th><th>Commune</th><th>Rôle dans le pilote</th></tr></thead>
+    <tbody>
+      <tr><td>Hôpital Principal de Dakar</td><td>Dakar Plateau</td><td>Lits, ambulance, demandes de sang</td></tr>
+      <tr><td>Centre Hospitalier Universitaire de Fann</td><td>Fann</td><td>Lits, demandes de sang</td></tr>
+      <tr><td>Hôpital Général Idrissa Pouye</td><td>Grand Yoff</td><td>Lits (urgences, chirurgie)</td></tr>
+      <tr><td>Hôpital Dalal Jamm</td><td>Guédiawaye</td><td>Lits, ambulance</td></tr>
+      <tr><td>Centre Hospitalier National de Pikine</td><td>Pikine</td><td>Lits (urgences, maternité), ambulance</td></tr>
+      <tr><td>CNTS</td><td>Fann</td><td>Banque de sang de référence</td></tr>
+      <tr><td>SAMU National 15</td><td>Grand Yoff</td><td>Régulation et ambulances</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><strong>À valider :</strong> la liste des hôpitaux est une proposition, à confirmer avec l’encadrant.
+  Les nombres de lits et les positions GPS sont des données de démonstration, pas des chiffres officiels.</div>
+
+  <h3>Critères de réussite du pilote</h3>
+  <ul>
+    <li>Délai entre une demande de sang et la mobilisation des premiers donneurs.</li>
+    <li>Part des services qui mettent leurs lits à jour chaque jour.</li>
+    <li>Délai entre une alerte SOS et l’affectation d’une ambulance.</li>
+  </ul>
+
+  <h3>Étapes du déploiement</h3>
+  <div class="flow"><span>Pilote : région de Dakar</span><b>→</b><span>Extension : Thiès et Diourbel (Touba)</span><b>→</b><span>Niveau national</span></div>
+  <p>Pendant le pilote, l’administrateur général reste « national » : il ne voit que Dakar parce que seuls ces
+  établissements sont actifs. Il <strong>supervise en lecture seule</strong> : il consulte toutes les données mais
+  n’effectue pas d’opération métier (demande de sang, réservation de lit, mission). Il garde l’administration des
+  comptes et des établissements.</p>
+</section>
+
 <section id="masque">
-  <h2>3. Ce qui est masqué (mais pas supprimé)</h2>
+  <h2>4. Ce qui est masqué (mais pas supprimé)</h2>
   <p>Le projet complet contient beaucoup plus de fonctions. Pour une présentation claire, elles sont cachées
   derrière un interrupteur. <strong>Le code est toujours là et les tests les vérifient toujours.</strong></p>
   <div class="table-wrap"><table>
@@ -147,7 +194,7 @@
 </section>
 
 <section id="installation">
-  <h2>4. Installation pour tester</h2>
+  <h2>5. Installation pour tester</h2>
   <p><strong>Prérequis :</strong> Git, Python 3.11 ou plus, Node.js 20 ou plus. Pas besoin de PostgreSQL :
   en local on utilise SQLite. Les commandes sont pour Windows (PowerShell).</p>
 
@@ -208,12 +255,12 @@ cd mobile    →  npm test</code></pre>
 </section>
 
 <section id="comptes">
-  <h2>5. Comptes de démonstration</h2>
+  <h2>6. Comptes de démonstration</h2>
   <p>Mot de passe identique pour tous : <code>Password123!</code></p>
   <div class="table-wrap"><table>
     <thead><tr><th>Identifiant</th><th>Profil</th><th>Où</th><th>Ce qu’il fait</th></tr></thead>
     <tbody>
-      <tr><td><code>admin</code></td><td>Administrateur général</td><td>Web</td><td>Voit tout, gère les comptes et les établissements</td></tr>
+      <tr><td><code>admin</code></td><td>Administrateur général</td><td>Web</td><td>Supervision en lecture seule : voit tout, sans opération métier ; gère les comptes et les établissements</td></tr>
       <tr><td><code>dr.diop</code></td><td>Gestionnaire des lits — Hôpital Principal de Dakar</td><td>Web</td><td>Met à jour les lits, répond aux préalertes du SAMU</td></tr>
       <tr><td><code>cnts.dakar</code></td><td>Gestionnaire du sang — CNTS</td><td>Web</td><td>Crée les demandes de sang, confirme les dons</td></tr>
       <tr><td><code>samu.regulation</code></td><td>Régulation SAMU</td><td>Web</td><td>Crée les missions, affecte les ambulances, reçoit les SOS</td></tr>
@@ -226,7 +273,7 @@ cd mobile    →  npm test</code></pre>
 </section>
 
 <section id="tests">
-  <h2>6. Ce que chaque membre teste</h2>
+  <h2>7. Ce que chaque membre teste</h2>
   <p>Chacun refait son parcours au moins deux fois avant la soutenance et note ce qui bloque.</p>
   <div class="grid">
     <div class="card"><h3>Parcours sang</h3>
@@ -245,13 +292,13 @@ cd mobile    →  npm test</code></pre>
 </section>
 
 <section id="deroule">
-  <h2>7. Déroulé de la présentation (≈ 20 minutes)</h2>
+  <h2>8. Déroulé de la présentation (≈ 20 minutes)</h2>
   <p>Répartissez les étapes entre les membres : chacun présente le module qu’il connaît le mieux et répond aux questions dessus.</p>
   <ol class="steps">
     <li><span class="time">2 min</span><strong>Le problème.</strong> Une situation concrète : un accidenté arrive, il faut du sang O−, un lit
       en réanimation et une ambulance. Aujourd’hui : des appels téléphoniques, un à un. Donner un chiffre de contexte si vous en avez un sourcé.</li>
     <li><span class="time">2 min</span><strong>La solution et l’architecture.</strong> Une diapositive : backend, site web, mobile ; qui utilise quoi
-      (tableau des profils de la section 5).</li>
+      (tableau des profils de la section 6).</li>
     <li><span class="time">4 min</span><strong>Démo 1 — Sang.</strong> Connecté en <code>cnts.dakar</code>, créer une demande O+. Montrer le téléphone
       de <code>awa.ndiaye</code> qui reçoit l’alerte, accepter, puis confirmer le don sur le web.
       <em>Phrase clé : « le système ne prévient que les donneurs compatibles, proches et éligibles ».</em></li>
@@ -261,9 +308,9 @@ cd mobile    →  npm test</code></pre>
       la plus proche affectée automatiquement. Sur le compte <code>dr.diop</code>, accepter la préalerte. Sur le téléphone de
       <code>samu.driver</code>, faire avancer la mission.</li>
     <li><span class="time">2 min</span><strong>SOS citoyen.</strong> Depuis le mobile, envoyer un SOS ; il apparaît côté régulation.</li>
-    <li><span class="time">1 min</span><strong>Tableau de bord national.</strong> Vue d’ensemble pour le ministère / l’administrateur.</li>
+    <li><span class="time">1 min</span><strong>Tableau de bord national.</strong> Connecté en <code>admin</code> : vue d’ensemble en lecture seule (badge « Lecture seule — supervision nationale »). Rappeler le périmètre du pilote : la région de Dakar (section 3).</li>
     <li><span class="time">2 min</span><strong>Bilan et perspectives.</strong> Ce qui marche, ce qui reste à valider sur le terrain (avec le CNTS et
-      le SAMU), et les fonctions déjà prototypées (section 3) : stocks, tri médical, interopérabilité.</li>
+      le SAMU), et les fonctions déjà prototypées (section 4) : stocks, tri médical, interopérabilité.</li>
   </ol>
   <div class="note"><strong>Plan B :</strong> enregistrez une vidéo de chaque démo la veille. Si le Wi-Fi ou un serveur tombe,
   passez la vidéo sans perdre de temps. Préparez aussi des captures d’écran dans les diapositives.</div>
@@ -273,7 +320,7 @@ cd mobile    →  npm test</code></pre>
 </section>
 
 <section id="jury">
-  <h2>8. Questions probables du jury</h2>
+  <h2>9. Questions probables du jury</h2>
   <div class="table-wrap"><table>
     <thead><tr><th>Question</th><th>Piste de réponse</th></tr></thead>
     <tbody>
@@ -283,13 +330,15 @@ cd mobile    →  npm test</code></pre>
       <tr><td>Et la sécurité des données de santé ?</td><td>Chaque profil ne voit que son périmètre (son hôpital, sa région), authentification par jeton, données minimales dans les alertes.</td></tr>
       <tr><td>Que se passe-t-il si un hôpital ne met pas ses lits à jour ?</td><td>C’est la principale limite : la qualité dépend des saisies. Le projet complet prévoit des rappels automatiques et un indicateur de fraîcheur.</td></tr>
       <tr><td>Comment l’avez-vous testé ?</td><td>Tests automatisés sur le backend, le web et le mobile ; validation terrain encore à faire.</td></tr>
+      <tr><td>Pourquoi seulement Dakar ?</td><td>C’est une phase pilote : le CNTS et le SAMU National y sont, et un périmètre réduit permet de mesurer avant d’étendre. Le code gère déjà toutes les régions ; l’extension (Thiès, Diourbel, puis national) consiste à inscrire des établissements.</td></tr>
+      <tr><td>Pourquoi l’administrateur ne peut-il pas créer de demande ?</td><td>Séparation des rôles : le niveau national supervise, les établissements agissent. Une demande créée par l’admin n’aurait pas d’établissement demandeur. Le blocage est fait par le backend (réponse 403), pas seulement en cachant les boutons.</td></tr>
       <tr><td>Qui a fait quoi ?</td><td>Chaque membre présente sa partie (backend, web, mobile, données / IA).</td></tr>
     </tbody>
   </table></div>
 </section>
 
 <section id="veille">
-  <h2>9. Check-list de la veille</h2>
+  <h2>10. Check-list de la veille</h2>
   <ul class="check">
     <li>Tout le monde est sur la branche <code>version-presentation</code> à jour (<code>git pull</code>).</li>
     <li>La base est remise à zéro avec les données de démo : supprimer <code>backend\db.sqlite3</code>, puis <code>migrate</code> et <code>python seed_demo_data.py</code>.</li>

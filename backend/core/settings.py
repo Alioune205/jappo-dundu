@@ -79,6 +79,9 @@ INSTALLED_APPS = [
     # App mobile (Pape Alioune Sene)
     'push',
     'identity',
+
+    # Assistant IA de supervision (Gemini, Grok en secours)
+    'assistant',
 ]
 
 MIDDLEWARE = [
@@ -285,6 +288,8 @@ REST_FRAMEWORK = {
         # Progiciels SIH : un compteur par clé d'API (et non un compteur commun).
         'sih_burst': config('THROTTLE_SIH_BURST_RATE', default='20/second'),
         'sih_sustained': config('THROTTLE_SIH_SUSTAINED_RATE', default='20000/hour'),
+        # Questions à l'assistant IA : chaque appel est facturé par le fournisseur.
+        'assistant': config('THROTTLE_ASSISTANT_RATE', default='60/hour'),
     },
     # Nombre de reverse proxies de confiance devant l'application : sans
     # cette valeur, un X-Forwarded-For forgé contourne le throttling.
@@ -610,3 +615,17 @@ ROUTING_SPEED_KMH = config('ROUTING_SPEED_KMH', default=35, cast=float)
 
 # Adresse publique du site web (liens envoyés par SMS, ex. localisation de l'appelant).
 PUBLIC_WEB_URL = config('PUBLIC_WEB_URL', default='http://localhost:3000')
+
+
+# =============================================================
+# ASSISTANT IA DE SUPERVISION (assistant/providers.py)
+# =============================================================
+# Gemini répond d'abord ; en cas d'échec (clé absente, quota, délai), Grok prend
+# le relais. Sans aucune clé, le site web utilise son assistant local.
+GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
+GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-3.5-flash')
+# Réflexion du modèle avant réponse : « low » (rapide), « high », ou vide pour le défaut du modèle.
+GEMINI_THINKING_LEVEL = config('GEMINI_THINKING_LEVEL', default='low')
+GROK_API_KEY = config('GROK_API_KEY', default='')
+GROK_MODEL = config('GROK_MODEL', default='grok-3-mini')
+ASSISTANT_TIMEOUT_SECONDS = config('ASSISTANT_TIMEOUT_SECONDS', default=30, cast=float)

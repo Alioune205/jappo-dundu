@@ -8,7 +8,8 @@ Donneur (application mobile) :
 - GET  /api/sang/requests/nearby/               demandes compatibles proches
 - POST /api/sang/requests/<id>/respond/         accepter / décliner / se désister
 
-Établissement (personnel hospitalier, admin) :
+Établissement (personnel hospitalier ; l'administrateur général consulte
+en lecture seule, ses écritures sont refusées en 403) :
 - /api/sang/requests/                           demandes de son établissement
 - POST /api/sang/requests/<id>/cancel/
 - GET  /api/sang/requests/<id>/matches/         donneurs compatibles proches (anonymes)
@@ -41,7 +42,7 @@ from geo.distance import GeoPoint
 from ml.constants import BLOOD_GROUP_CODES, REGION_CODES
 from security import audit
 from security.permissions import ManagesBlood
-from security.roles import Domain, Role
+from security.roles import SUPERVISION_MESSAGE, Domain, Role
 from users.exceptions import Conflict
 from users.filters import choice_param, int_param
 from users.permissions import (
@@ -53,7 +54,8 @@ from users.permissions import (
     user_facility,
 )
 
-# Administrateurs du sang, limités à leur périmètre (CNTS : sa région).
+# Administrateurs du sang, limités à leur périmètre (CNTS : sa région) ;
+# l'administrateur général consulte sans écrire.
 CanManageBlood = facility_permission(Domain.BLOOD)
 from users.services import add_role
 from users.validators import normalize_phone_number
@@ -198,7 +200,8 @@ class DonorLookupView(APIView):
     GET /api/sang/donors/lookup/?card_code=JD-7KQ4-M9PX   (saisi ou scanné)
     GET /api/sang/donors/lookup/?phone_number=77 123 45 67
     Recherche exacte uniquement, au débit limité : l'annuaire des donneurs
-    n'est pas consultable.
+    n'est pas consultable. Réservée à qui enregistre le don : pas à
+    l'administrateur général (minimisation des données personnelles).
     """
 
     permission_classes = [ManagesBlood]
@@ -216,6 +219,8 @@ class DonorLookupView(APIView):
         responses=DonorLookupSerializer,
     )
     def get(self, request):
+        if is_admin(request.user):
+            raise PermissionDenied(SUPERVISION_MESSAGE)
         if 'card_code' in request.query_params:
             code = normalize_card_code(request.query_params['card_code'])
             if code is None:
@@ -302,7 +307,7 @@ class BloodRequestViewSet(
                                &region=dakar &facility=3 (admin)
     POST  /api/sang/requests/  {"blood_group", "units_needed", "urgency",
                                 "notes", "needed_by", "search_radius_km",
-                                "facility_id" (admin uniquement)}
+                                "facility_id" (CNTS : un établissement de sa région)}
     PATCH /api/sang/requests/<id>/  (demande ouverte : besoin, urgence, rayon...)
 
     Un administrateur du sang ne voit et ne gère que les demandes de son
@@ -715,7 +720,7 @@ class BloodSupplyOrderViewSet(
         order = self.get_object()
         facility = order.supplier if side == 'supplier' else order.requester
         own = user_facility(self.request.user)
-        if not (is_admin(self.request.user) or (own is not None and own.pk == facility.pk)):
+        if own is None or own.pk != facility.pk:
             raise PermissionDenied(
                 "Action réservée au centre fournisseur."
                 if side == 'supplier'
@@ -793,7 +798,7 @@ class BloodDriveViewSet(viewsets.ModelViewSet):
 class CampaignView(APIView):
     """Appel préventif aux donneurs : POST /api/sang/campaigns/ {"region", "blood_group", "message"}
 
-    Administrateur du sang (CNTS : sa région) ou administrateur général.
+    Administrateur du sang (CNTS : sa région) ; pas l'administrateur général.
     """
 
     permission_classes = [CanManageBlood]
@@ -820,10 +825,9 @@ class CampaignView(APIView):
         blood_group = choice_param(request.data, 'blood_group', BLOOD_GROUP_CODES)
         if not region or not blood_group:
             raise ValidationError({'region': ["Région et groupe obligatoires."]})
-        if not is_admin(request.user):
-            own = user_facility(request.user)
-            if own is None or own.region != region:
-                raise PermissionDenied("Vous ne lancez des campagnes que dans votre région.")
+        own = user_facility(request.user)
+        if own is None or own.region != region:
+            raise PermissionDenied("Vous ne lancez des campagnes que dans votre région.")
         message = str(request.data.get('message', ''))[:255]
         campaign, count = launch_campaign(
             region=region, blood_group=blood_group, created_by=request.user, message=message

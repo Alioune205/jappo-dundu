@@ -19,9 +19,18 @@ import { SupplyOrdersPanel } from './blood/SupplyOrdersPanel'
 import { DrivesPanel } from './blood/DrivesPanel'
 import { QK } from '@/lib/queryKeys'
 import { FULL_FEATURES } from '@/lib/features'
+import { useAuth } from '@/context/AuthContext'
+import { canManage } from '@/lib/access'
+import { SupervisionBadge } from '@/components/ui/SupervisionBadge'
 
-/** Page « Banque de sang » : liste des demandes, sélection, filtres. */
+/**
+ * Page « Banque de sang » : liste des demandes, sélection, filtres.
+ * L'administrateur général la consulte en lecture seule (aucune action).
+ */
 export const BloodManagement: React.FC = () => {
+  const { roles } = useAuth()
+  const operates = canManage(roles, 'blood')
+
   // Mises à jour poussées par le serveur (regroupées, voir useRealtimeRefresh).
   useRealtimeRefresh([
     { events: BLOOD_REQUEST_EVENTS, queryKeys: [QK.bloodRequests] },
@@ -68,7 +77,12 @@ export const BloodManagement: React.FC = () => {
       <PageHeader
         eyebrow="Jappo Sang · demandes, stocks et dons"
         title="Banque de sang"
-        description="Demandes, poches en stock à proximité, commandes entre établissements, donneurs et dons."
+        description={
+          <>
+            Demandes, poches en stock à proximité, commandes entre établissements, donneurs et dons.
+            <SupervisionBadge className="ml-2 align-middle" />
+          </>
+        }
         actions={
           <>
             <Button
@@ -80,14 +94,16 @@ export const BloodManagement: React.FC = () => {
             >
               Actualiser
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setIsCreateOpen(true)}
-              icon={<Plus className="h-3.5 w-3.5" />}
-            >
-              Nouvelle demande
-            </Button>
+            {operates && (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setIsCreateOpen(true)}
+                icon={<Plus className="h-3.5 w-3.5" />}
+              >
+                Nouvelle demande
+              </Button>
+            )}
           </>
         }
       />
@@ -113,7 +129,8 @@ export const BloodManagement: React.FC = () => {
               </p>
             </div>
           )}
-          <DonationLookupPanel />
+          {/* Recherche d'un donneur : réservée à qui enregistre le don (pas l'administrateur général). */}
+          {operates && <DonationLookupPanel />}
         </div>
       </div>
 
@@ -126,7 +143,7 @@ export const BloodManagement: React.FC = () => {
         </div>
       )}
 
-      <CreateRequestModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} />
+      {operates && <CreateRequestModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} />}
     </div>
   )
 }

@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
+import { LocateFixed } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -59,6 +60,11 @@ interface MapViewProps {
   className?: string
 }
 
+/** Le Sénégal, avec une marge : on ne peut pas dézoomer ni glisser au-delà. */
+const SENEGAL_BOUNDS = L.latLngBounds([11.8, -18.4], [17.2, -10.9])
+/** Zoom maximal d'un cadrage automatique : le quartier, pas la rue. */
+const FIT_MAX_ZOOM = 13
+
 function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap()
   useEffect(() => {
@@ -67,11 +73,38 @@ function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }
   return null
 }
 
+/**
+ * Cadre la carte sur les marqueurs affichés. Le cadrage n'est refait que si la
+ * liste des marqueurs change (pas à chaque position GPS), pour ne pas déplacer
+ * la carte sous les yeux de l'opérateur.
+ */
+function FitToPoints({ points, signature, recenter }: { points: [number, number][]; signature: string; recenter: number }) {
+  const map = useMap()
+  useEffect(() => {
+    if (points.length === 0) map.setView(DAKAR_CENTER, 12)
+    else if (points.length === 1) map.setView(points[0], FIT_MAX_ZOOM)
+    else map.fitBounds(L.latLngBounds(points), { padding: [36, 36], maxZoom: FIT_MAX_ZOOM })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recadrage sur changement de signature uniquement
+  }, [signature, recenter, map])
+  return null
+}
+
+/** Recalcule la taille de la carte quand son conteneur change (sinon : tuiles grises). */
+function AutoResize() {
+  const map = useMap()
+  useEffect(() => {
+    const observer = new ResizeObserver(() => map.invalidateSize())
+    observer.observe(map.getContainer())
+    return () => observer.disconnect()
+  }, [map])
+  return null
+}
+
 export const MapView: React.FC<MapViewProps> = ({
   facilities = [],
   ambulances = [],
   missions = [],
-  center = DAKAR_CENTER,
+  center,
   zoom = 12,
   height = '500px',
   selectedPoint,
@@ -79,14 +112,27 @@ export const MapView: React.FC<MapViewProps> = ({
 }) => {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
+  const [recenter, setRecenter] = useState(0)
 
-  const tileBase = isDark
-    ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
-    : 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+  // Fond Esri gris (clair ou sombre selon le thème) + couche des noms de lieux.
+  const esri = (layer: string) =>
+    `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${isDark ? 'Dark' : 'Light'}_Gray_${layer}/MapServer/tile/{z}/{y}/{x}`
 
-  const tileRef = isDark
-    ? 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
-    : 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
+  // Sans centre imposé, la carte se cadre sur ce qu'elle affiche.
+  const points: [number, number][] = [
+    ...facilities.filter((f) => f.latitude && f.longitude).map((f) => [f.latitude!, f.longitude!] as [number, number]),
+    ...ambulances.filter((a) => a.latitude && a.longitude).map((a) => [a.latitude!, a.longitude!] as [number, number]),
+    ...missions
+      .filter((m) => m.pickup_latitude && m.pickup_longitude)
+      .map((m) => [m.pickup_latitude!, m.pickup_longitude!] as [number, number]),
+    ...(selectedPoint ? [selectedPoint] : []),
+  ]
+  const signature = [
+    ...facilities.map((f) => `f${f.id}`),
+    ...ambulances.map((a) => `a${a.id}`),
+    ...missions.map((m) => `m${m.id}`),
+    selectedPoint ? 'sel' : '',
+  ].join(',')
 
   return (
     <div
@@ -94,27 +140,28 @@ export const MapView: React.FC<MapViewProps> = ({
       className={`relative z-0 w-full overflow-hidden rounded-md border border-line bg-canvas ${className}`}
     >
       <MapContainer
-        center={center}
+        center={center ?? DAKAR_CENTER}
         zoom={zoom}
+        minZoom={6}
+        maxBounds={SENEGAL_BOUNDS}
+        maxBoundsViscosity={0.8}
         scrollWheelZoom={false}
         style={{ height: '100%', width: '100%' }}
       >
-        <ChangeView center={center} zoom={zoom} />
+        {center ? (
+          <ChangeView center={center} zoom={zoom} />
+        ) : (
+          <FitToPoints points={points} signature={signature} recenter={recenter} />
+        )}
+        <AutoResize />
 
-        {/* Couche de base Esri adaptative (Clair ou Sombre selon le thème) */}
         <TileLayer
           key={`base-${theme}`}
           attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
-          url={tileBase}
+          url={esri('Base')}
           maxZoom={16}
         />
-        {/* Couche de référence pour les étiquettes de villes et axes routiers */}
-        <TileLayer
-          key={`ref-${theme}`}
-          attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
-          url={tileRef}
-          maxZoom={16}
-        />
+        <TileLayer key={`ref-${theme}`} url={esri('Reference')} maxZoom={16} />
 
         {/* Établissements de santé */}
         {facilities.map((facility) => {
@@ -159,7 +206,8 @@ export const MapView: React.FC<MapViewProps> = ({
             amb.status === 'available' ? 'bg-ok' : amb.status === 'on_mission' ? 'bg-warning' : 'bg-subtle'
 
           return (
-            <Marker key={`amb-${amb.id}`} position={[amb.latitude, amb.longitude]} icon={icon}>
+            // Au-dessus des établissements : une ambulance à sa base reste visible.
+            <Marker key={`amb-${amb.id}`} position={[amb.latitude, amb.longitude]} icon={icon} zIndexOffset={500}>
               <Popup>
                 <div className="min-w-[190px] space-y-1">
                   <div className="flex items-center justify-between gap-3">
@@ -192,6 +240,7 @@ export const MapView: React.FC<MapViewProps> = ({
               key={`mis-${mission.id}`}
               position={[mission.pickup_latitude, mission.pickup_longitude]}
               icon={missionIcon}
+              zIndexOffset={1000}
             >
               <Popup>
                 <div className="min-w-[210px] space-y-1">
@@ -223,6 +272,17 @@ export const MapView: React.FC<MapViewProps> = ({
           </Marker>
         )}
       </MapContainer>
+
+      {!center && points.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setRecenter((n) => n + 1)}
+          className="absolute right-3 top-3 z-[1000] inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 text-xs font-medium text-fg shadow-[var(--shadow-panel)] hover:bg-raised"
+          title="Recadrer la carte sur les éléments affichés"
+        >
+          <LocateFixed className="h-3.5 w-3.5" aria-hidden="true" /> Recentrer
+        </button>
+      )}
     </div>
   )
 }

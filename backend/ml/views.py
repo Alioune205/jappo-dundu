@@ -22,7 +22,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from core.openapi import json_object
-from security.permissions import ManagesBlood
+from security.permissions import ManagesBlood, ViewsBlood
 from security.roles import Domain, Role, user_has_role
 from users.models import HealthFacility
 from users.permissions import in_scope, is_admin, regional_scope, user_facility
@@ -183,9 +183,12 @@ class PredictOnDemandView(APIView):
     → 202 {"job_id", "status", "status_url", ...} ; le calcul (plusieurs
     secondes) ne bloque plus le serveur. Suivi : GET status_url, ou
     l'événement temps réel ``prediction_update``.
+
+    Calcul sans écriture de données métier : ouvert aussi à l'administrateur
+    général (supervision).
     """
 
-    permission_classes = [ManagesBlood]
+    permission_classes = [ViewsBlood]
     throttle_scope = 'ml_predict'
 
     def get_throttles(self):

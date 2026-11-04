@@ -185,7 +185,8 @@ class DomainRolesTests(TestCase):
         client = api_client(self.admin)
         self.assertEqual(ids(client.get(REQUESTS)), {self.req_a.pk, self.req_b.pk, self.req_c.pk})
         self.assertEqual(ids(client.get(VEHICLES)), {self.amb_samu.pk, self.amb_thies.pk})
-        self.assertEqual(client.post(f'{BEDS}{self.cap_b.pk}/admit/').status_code, 200)
+        # Supervision : il voit tout mais n'opère pas (détail : SupervisionTests).
+        self.assertEqual(client.post(f'{BEDS}{self.cap_b.pk}/admit/').status_code, 403)
 
     # --- Création des comptes -------------------------------------------
 
@@ -219,6 +220,135 @@ class DomainRolesTests(TestCase):
 
 
 @override_settings(CHANNEL_LAYERS={'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}})
+class SupervisionTests(TestCase):
+    """L'administrateur général supervise : 200 en lecture, 403 sur toute opération métier."""
+
+    @classmethod
+    def setUpTestData(cls):
+        Network.build(cls)
+        cls.cap_a = BedCapacity.objects.create(
+            facility=cls.hosp_a, category='emergency', total_beds=10, occupied_beds=2
+        )
+        cls.req_a = BloodRequest.objects.create(facility=cls.hosp_a, blood_group='O+', units_needed=2)
+        lat, lon = ORIGIN
+        cls.amb = Ambulance.objects.create(
+            plate_number='DK-1000-AA', facility=cls.samu, latitude=lat, longitude=lon
+        )
+        cls.mission = Mission.objects.create(region='dakar', pickup_latitude=lat, pickup_longitude=lon)
+
+    def setUp(self):
+        self.client = api_client(self.admin)
+
+    def assert_read_only(self, response, label):
+        self.assertEqual(response.status_code, 403, label)
+        self.assertIn('Lecture seule', str(response.data['detail']), label)
+
+    def test_admin_reads_every_domain(self):
+        for url in (
+            REQUESTS,
+            f'{REQUESTS}{self.req_a.pk}/',
+            '/api/sang/stocks/',
+            '/api/sang/orders/',
+            '/api/sang/donations/',
+            BEDS,
+            f'{BEDS}summary/',
+            f'{BEDS}tension/',
+            '/api/lits/reservations/',
+            VEHICLES,
+            f'{VEHICLES}nearest/?latitude={ORIGIN[0]}&longitude={ORIGIN[1]}',
+            MISSIONS,
+            f'{MISSIONS}{self.mission.pk}/',
+            f'{MISSIONS}stats/',
+            f'{MISSIONS}demand/',
+        ):
+            self.assertEqual(self.client.get(url).status_code, 200, url)
+
+    def test_admin_cannot_operate_blood(self):
+        req = f'{REQUESTS}{self.req_a.pk}/'
+        cases = [
+            ('post', REQUESTS, {'blood_group': 'O-', 'units_needed': 1, 'facility_id': self.hosp_a.pk}),
+            ('patch', req, {'units_needed': 5}),
+            ('post', f'{req}cancel/', {}),
+            ('post', f'{req}alert-next-wave/', {}),
+            ('post', '/api/sang/stocks/', {'blood_group': 'O-', 'component': 'red_cells', 'units_available': 3,
+                                           'facility_id': self.cnts.pk}),
+            ('post', '/api/sang/orders/', {'supplier_id': self.cnts.pk, 'blood_group': 'O-', 'units': 1,
+                                           'requester_id': self.hosp_a.pk}),
+            ('post', '/api/sang/campaigns/', {'region': 'dakar', 'blood_group': 'O-'}),
+            ('post', '/api/sang/drives/', {'title': 'Collecte'}),
+        ]
+        for method, url, payload in cases:
+            self.assert_read_only(getattr(self.client, method)(url, payload, format='json'), f'{method} {url}')
+        self.req_a.refresh_from_db()
+        self.assertEqual((self.req_a.status, self.req_a.units_needed), ('open', 2))
+        self.assertEqual(BloodRequest.objects.count(), 1)
+
+    def test_admin_cannot_look_up_a_donor(self):
+        # Minimisation des données personnelles : réservé à qui enregistre le don.
+        self.assert_read_only(self.client.get('/api/sang/donors/lookup/?phone_number=771234567'), 'lookup')
+
+    def test_admin_cannot_operate_beds(self):
+        cap = f'{BEDS}{self.cap_a.pk}/'
+        cases = [
+            ('post', BEDS, {'category': 'pediatrics', 'total_beds': 4, 'facility_id': self.hosp_a.pk}),
+            ('patch', cap, {'occupied_beds': 9}),
+            ('post', f'{cap}admit/', {}),
+            ('post', f'{cap}discharge/', {}),
+            ('post', f'{cap}confirm/', {}),
+            ('post', '/api/lits/reservations/', {'capacity_id': self.cap_a.pk}),
+        ]
+        for method, url, payload in cases:
+            self.assert_read_only(getattr(self.client, method)(url, payload, format='json'), f'{method} {url}')
+        self.cap_a.refresh_from_db()
+        self.assertEqual((self.cap_a.occupied_beds, self.cap_a.reserved_beds), (2, 0))
+
+    def test_admin_cannot_dispatch_nor_edit_the_fleet(self):
+        mission = f'{MISSIONS}{self.mission.pk}/'
+        vehicle = f'{VEHICLES}{self.amb.pk}/'
+        payload = {
+            'priority': 'urgent', 'description': 'Malaise', 'pickup_address': 'Plateau',
+            'pickup_latitude': ORIGIN[0], 'pickup_longitude': ORIGIN[1], 'region': 'dakar',
+        }
+        cases = [
+            ('post', MISSIONS, payload),
+            ('patch', mission, {'priority': 'critical'}),
+            ('post', f'{mission}assign/', {}),
+            ('post', f'{mission}status/', {'status': 'cancelled', 'cancellation_reason': 'test'}),
+            ('post', f'{MISSIONS}incident/', {**payload, 'victims': 2, 'ambulances': 1}),
+            ('post', f'{MISSIONS}transfer/', {'destination_id': self.hosp_b.pk, 'category': 'emergency'}),
+            ('post', f'{mission}location-link/', {'phone_number': '771234567'}),
+            ('post', f'{mission}bilan/', {'notes': 'stable'}),
+            ('post', VEHICLES, {'plate_number': 'DK-9999-ZZ', 'facility': self.samu.pk}),
+            ('patch', vehicle, {'plate_number': 'DK-0000-ZZ'}),
+            ('post', f'{vehicle}availability/', {'status': 'out_of_service'}),
+            ('post', f'{vehicle}position/', {'latitude': ORIGIN[0], 'longitude': ORIGIN[1]}),
+            ('post', f'{vehicle}check/', {'oxygen_ok': True}),
+        ]
+        for method, url, payload in cases:
+            self.assert_read_only(getattr(self.client, method)(url, payload, format='json'), f'{method} {url}')
+        # Liste des ambulanciers affectables : gestion de la flotte, pas de la supervision.
+        self.assert_read_only(self.client.get(f'{VEHICLES}drivers/'), 'drivers')
+        self.mission.refresh_from_db()
+        self.amb.refresh_from_db()
+        self.assertEqual((self.mission.status, self.mission.ambulance_id), ('pending', None))
+        self.assertEqual((self.amb.plate_number, self.amb.status), ('DK-1000-AA', 'available'))
+        self.assertEqual(Mission.objects.count(), 1)
+
+    def test_admin_keeps_platform_administration(self):
+        # Comptes, établissements (plateau technique) : droits inchangés.
+        self.assertEqual(self.client.get(USERS).status_code, 200)
+        response = self.client.patch(
+            f'/api/facilities/{self.hosp_a.pk}/technical/', {'on_call_phone': '+221338000001'}, format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_operators_keep_their_actions(self):
+        self.assertEqual(api_client(self.bed_a).post(f'{BEDS}{self.cap_a.pk}/admit/').status_code, 200)
+        self.assertEqual(api_client(self.blood_a).post(f'{REQUESTS}{self.req_a.pk}/cancel/').status_code, 200)
+        response = api_client(self.samu_user).post(f'{MISSIONS}{self.mission.pk}/assign/', {}, format='json')
+        self.assertEqual(response.status_code, 200)
+
+
 class DomainAlertsTests(TransactionTestCase):
     """Chaque administrateur ne reçoit que les alertes de son domaine."""
 
@@ -252,3 +382,11 @@ class DomainAlertsTests(TransactionTestCase):
         self.assertEqual(await self.received(samu), ['bed_alert', 'ambulance_alert'])
         for communicator in (bed, blood, samu):
             await communicator.disconnect()
+
+    async def test_supervisor_still_receives_every_alert(self):
+        # Lecture seule ne veut pas dire sourd : l'administrateur général reçoit tout.
+        admin = await self.open(self.admin)
+        for kind in ('bed', 'blood', 'ambulance'):
+            await sync_to_async(broadcast_alert)(kind, {'event': kind}, region='thies')
+        self.assertEqual(sorted(await self.received(admin)), ['ambulance_alert', 'bed_alert', 'blood_alert'])
+        await admin.disconnect()

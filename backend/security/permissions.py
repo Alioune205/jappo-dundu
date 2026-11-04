@@ -15,12 +15,22 @@ Pour une combinaison de rôles non prévue ci-dessous :
 
     permission_classes = [role_permission(Role.ADMIN, Role.AMBULANCE_DRIVER)]
 
+Domaines métier (sang, lits, ambulances) : l'administrateur général les
+consulte mais n'y écrit pas. Les permissions ``Manages*`` (et toute permission
+créée avec ``supervision_read_only=True``) lui ouvrent les requêtes de lecture
+(GET, HEAD, OPTIONS) et lui refusent les autres en 403 (``SUPERVISION_MESSAGE``).
+
 Auteur : El Hadji Massogui Diop
 """
 
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import SAFE_METHODS, BasePermission
 
-from .roles import DOMAIN_ROLES, Domain, Role, user_has_role
+from .roles import DOMAIN_VIEW_ROLES, SUPERVISION_MESSAGE, Domain, Role, is_supervisor, user_has_role
+
+
+def supervision_blocks(request):
+    """Opération métier (écriture) tentée par l'administrateur général ?"""
+    return request.method not in SAFE_METHODS and is_supervisor(request.user)
 
 
 class HasAnyRole(BasePermission):
@@ -28,16 +38,54 @@ class HasAnyRole(BasePermission):
 
     allowed_roles = frozenset()
     message = "Vous n'avez pas le rôle requis pour cette action."
+    # Domaine métier : l'administrateur général n'y a que la lecture.
+    supervision_read_only = False
 
     def has_permission(self, request, view):
+        if self.supervision_read_only and supervision_blocks(request):
+            self.message = SUPERVISION_MESSAGE
+            return False
         return user_has_role(request.user, *self.allowed_roles)
 
 
-def role_permission(*roles, message=None):
-    """Fabrique une classe de permission pour une combinaison de rôles."""
+class SupervisionReadOnly(BasePermission):
+    """Refuse en 403 les opérations métier de l'administrateur général (lecture permise).
+
+    À combiner avec la permission de rôle d'une vue métier ouverte en lecture
+    à l'administrateur général.
+    """
+
+    message = SUPERVISION_MESSAGE
+
+    def has_permission(self, request, view):
+        return not supervision_blocks(request)
+
+
+class NotSupervisor(BasePermission):
+    """Refuse en 403 à l'administrateur général, quelle que soit la méthode.
+
+    Gestes réservés aux opérateurs, même en lecture (ex. liste des ambulanciers
+    affectables, position GPS d'un équipage).
+    """
+
+    message = SUPERVISION_MESSAGE
+
+    def has_permission(self, request, view):
+        return not is_supervisor(request.user)
+
+
+def role_permission(*roles, message=None, supervision_read_only=False):
+    """Fabrique une classe de permission pour une combinaison de rôles.
+
+    ``supervision_read_only=True`` : l'administrateur général (s'il figure dans
+    ``roles``) n'obtient que la lecture.
+    """
     if not roles:
         raise ValueError("role_permission() exige au moins un rôle.")
-    attrs = {'allowed_roles': frozenset(Role(role) for role in roles)}
+    attrs = {
+        'allowed_roles': frozenset(Role(role) for role in roles),
+        'supervision_read_only': supervision_read_only,
+    }
     if message:
         attrs['message'] = message
     name = 'Has' + ''.join(Role(r).value.title().replace('_', '') for r in roles)
@@ -99,21 +147,31 @@ class IsOwnerOrAdmin(BasePermission):
 
 
 class ManagesBeds(HasAnyRole):
-    """Administrateurs du domaine des lits (général, lits, rôle historique)."""
+    """Domaine des lits : opéré par ses administrateurs, consulté par l'administrateur général."""
 
-    allowed_roles = DOMAIN_ROLES[Domain.BEDS]
+    allowed_roles = DOMAIN_VIEW_ROLES[Domain.BEDS]
+    supervision_read_only = True
     message = "Accès réservé aux administrateurs des lits."
 
 
 class ManagesBlood(HasAnyRole):
-    """Administrateurs du domaine du sang (général, sang, rôle historique)."""
+    """Domaine du sang : opéré par ses administrateurs, consulté par l'administrateur général."""
 
-    allowed_roles = DOMAIN_ROLES[Domain.BLOOD]
+    allowed_roles = DOMAIN_VIEW_ROLES[Domain.BLOOD]
+    supervision_read_only = True
+    message = "Accès réservé aux administrateurs du sang."
+
+
+class ViewsBlood(HasAnyRole):
+    """Consultation et calculs du domaine du sang (ex. prédiction à la demande, sans écriture)."""
+
+    allowed_roles = DOMAIN_VIEW_ROLES[Domain.BLOOD]
     message = "Accès réservé aux administrateurs du sang."
 
 
 class ManagesAmbulances(HasAnyRole):
-    """Administrateurs du domaine des ambulances (général, régulation, rôle historique)."""
+    """Domaine des ambulances : opéré par la régulation, consulté par l'administrateur général."""
 
-    allowed_roles = DOMAIN_ROLES[Domain.AMBULANCES]
+    allowed_roles = DOMAIN_VIEW_ROLES[Domain.AMBULANCES]
+    supervision_read_only = True
     message = "Accès réservé à la régulation des ambulances."

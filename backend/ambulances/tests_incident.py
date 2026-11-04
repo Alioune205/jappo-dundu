@@ -26,7 +26,7 @@ class IncidentTests(AmbulanceFixturesMixin, TestCase):
         }
 
     def test_one_mission_per_ambulance_assigned_while_available(self):
-        response = api_client(self.admin).post(f'{MISSIONS}incident/', self.body(), format='json')
+        response = api_client(self.dispatcher).post(f'{MISSIONS}incident/', self.body(), format='json')
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(len(response.data), 3)
         # 2 ambulances disponibles à moins de 50 km (une 3e est à 120 km, une 4e hors service).
@@ -35,7 +35,7 @@ class IncidentTests(AmbulanceFixturesMixin, TestCase):
         self.assertEqual((summary['victims'], summary['missions'], summary['assigned']), (5, 3, 2))
 
     def test_missing_ambulances_leave_missions_pending(self):
-        response = api_client(self.admin).post(
+        response = api_client(self.dispatcher).post(
             f'{MISSIONS}incident/', self.body(victims=8, ambulances=6), format='json'
         )
         statuses = [m['status'] for m in response.data]
@@ -44,8 +44,10 @@ class IncidentTests(AmbulanceFixturesMixin, TestCase):
         self.assertEqual(Mission.objects.filter(incident__isnull=False).count(), 6)
 
     def test_validation_and_access(self):
-        self.assertEqual(api_client(self.admin).post(f'{MISSIONS}incident/', self.body(victims=1), format='json').status_code, 400)
+        self.assertEqual(api_client(self.dispatcher).post(f'{MISSIONS}incident/', self.body(victims=1), format='json').status_code, 400)
         self.assertEqual(api_client(self.driver).post(f'{MISSIONS}incident/', self.body(), format='json').status_code, 403)
+        # Supervision : l'administrateur général ne déclenche pas d'incident.
+        self.assertEqual(api_client(self.admin).post(f'{MISSIONS}incident/', self.body(), format='json').status_code, 403)
 
 
 class DemandTests(AmbulanceFixturesMixin, TestCase):

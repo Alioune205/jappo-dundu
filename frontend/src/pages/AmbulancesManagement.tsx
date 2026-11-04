@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { canEditFleet } from '@/lib/access'
+import { canEditFleet, canManage } from '@/lib/access'
 import { api } from '@/lib/api'
 import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
 import { MISSION_EVENTS, RealtimeEvent } from '@/lib/realtimeEvents'
@@ -10,6 +10,7 @@ import { useAmbulancePositions } from '@/lib/useAmbulancePositions'
 import { Button } from '@/components/ui/Button'
 import { MapView } from '@/components/map/MapView'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SupervisionBadge } from '@/components/ui/SupervisionBadge'
 import { Alert } from '@/components/ui/Alert'
 import { Tabs } from '@/components/ui/Tabs'
 import type { Ambulance, Mission, MissionStats, MissionStatus } from '@/types/api'
@@ -24,11 +25,15 @@ import { DispatchModal } from './ambulances/DispatchModal'
 import { SosAlerts } from './ambulances/SosAlerts'
 import { QK } from '@/lib/queryKeys'
 
-/** Page « Flotte SAMU » : missions, affectation, cycle de vie, carte et administration de la flotte. */
+/**
+ * Page « Flotte SAMU » : missions, affectation, cycle de vie, carte et administration de la flotte.
+ * L'administrateur général la consulte en lecture seule : ni mission, ni affectation, ni flotte.
+ */
 export const AmbulancesManagement: React.FC = () => {
   const queryClient = useQueryClient()
   const { user, roles, isAdmin } = useAuth()
   const editsFleet = canEditFleet(roles)
+  const dispatches = canManage(roles, 'ambulances')
   // Administrateur des ambulances : véhicules rattachés d'office à son service.
   const service = isAdmin ? null : (user?.facility ?? null)
 
@@ -44,7 +49,7 @@ export const AmbulancesManagement: React.FC = () => {
   const [isNewMissionOpen, setIsNewMissionOpen] = useState(false)
   // « N » : nouvelle mission, sans quitter le clavier pendant l'appel.
   const openNewMission = useCallback(() => setIsNewMissionOpen(true), [])
-  useHotkey('n', openNewMission, !isNewMissionOpen)
+  useHotkey('n', openNewMission, dispatches && !isNewMissionOpen)
   const [editingVehicle, setEditingVehicle] = useState<Ambulance | 'new' | null>(null)
   const [dispatching, setDispatching] = useState<Mission | null>(null)
 
@@ -104,7 +109,12 @@ export const AmbulancesManagement: React.FC = () => {
       <PageHeader
         eyebrow="Jappo Ambulances · régulation SAMU"
         title="Flotte SAMU"
-        description="Missions d'urgence, affectation de l'ambulance la plus proche et suivi de la flotte."
+        description={
+          <>
+            Missions d'urgence, affectation de l'ambulance la plus proche et suivi de la flotte.
+            <SupervisionBadge className="ml-2 align-middle" />
+          </>
+        }
         actions={
           <>
             <Button
@@ -129,9 +139,11 @@ export const AmbulancesManagement: React.FC = () => {
                 Véhicule
               </Button>
             )}
-            <Button variant="primary" size="sm" onClick={() => setIsNewMissionOpen(true)} icon={<Plus className="h-3.5 w-3.5" />} title="Raccourci : N">
-              Nouvelle mission
-            </Button>
+            {dispatches && (
+              <Button variant="primary" size="sm" onClick={() => setIsNewMissionOpen(true)} icon={<Plus className="h-3.5 w-3.5" />} title="Raccourci : N">
+                Nouvelle mission
+              </Button>
+            )}
           </>
         }
       />
@@ -142,7 +154,7 @@ export const AmbulancesManagement: React.FC = () => {
         </Alert>
       )}
 
-      <SosAlerts missions={missions} onDispatch={setDispatching} />
+      <SosAlerts missions={missions} onDispatch={dispatches ? setDispatching : undefined} />
 
       <FleetStatsGrid ambulances={ambulances} missions={missions} stats={stats} />
 
@@ -188,6 +200,7 @@ export const AmbulancesManagement: React.FC = () => {
             onDispatch={setDispatching}
             isAssigning={(id) => assignNearest.isPending && assignNearest.variables === id}
             isAdvancing={(id) => advanceStatus.isPending && advanceStatus.variables?.id === id}
+            readOnly={!dispatches}
           />
         ) : (
           <FleetTable
@@ -201,15 +214,17 @@ export const AmbulancesManagement: React.FC = () => {
         )}
       </div>
 
-      <DispatchModal mission={dispatching} onClose={() => setDispatching(null)} />
+      {dispatches && <DispatchModal mission={dispatching} onClose={() => setDispatching(null)} />}
 
-      <VehicleModal vehicle={editingVehicle} service={service} onClose={() => setEditingVehicle(null)} />
+      {editsFleet && <VehicleModal vehicle={editingVehicle} service={service} onClose={() => setEditingVehicle(null)} />}
 
-      <NewMissionModal
-        isOpen={isNewMissionOpen}
-        onClose={() => setIsNewMissionOpen(false)}
-        onCreated={(mission) => assignNearest.mutate(mission.id)}
-      />
+      {dispatches && (
+        <NewMissionModal
+          isOpen={isNewMissionOpen}
+          onClose={() => setIsNewMissionOpen(false)}
+          onCreated={(mission) => assignNearest.mutate(mission.id)}
+        />
+      )}
     </div>
   )
 }

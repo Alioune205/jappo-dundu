@@ -3,7 +3,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Activity, Ambulance, ArrowRight, ArrowUp, ArrowUpRight, BedDouble, Check, Droplets, RotateCcw, SquarePen, X } from 'lucide-react'
 import { Link } from 'react-router'
 import { useAuth } from '@/context/AuthContext'
-import { canManage, canView } from '@/lib/access'
+import { canView, isSupervisor } from '@/lib/access'
+import { api, type QueryParams } from '@/lib/api'
+import { QK } from '@/lib/queryKeys'
 import { formatNumber, formatPercent, formatRelative } from '@/lib/format'
 import { useOnlineStatus } from '@/lib/useOnlineStatus'
 import { CountUp } from '@/components/dash/CountUp'
@@ -17,6 +19,8 @@ import {
   type AssistantAnswer,
   type SourceKey,
 } from './assistantEngine'
+import { answerNetworkQuestion, type AssistantResponseBlock, type NetworkContext } from './networkAnswers'
+import type { Ambulance as AmbulanceT, BedCapacity, BloodRequest, FacilitySummary } from '@/types/api'
 
 interface JappoAIAssistantProps {
   isOpen: boolean
@@ -36,6 +40,8 @@ interface Thinking {
 const INTRO_KEY = 'jappo-dundu.ai-intro-seen'
 /** Durée minimale de la trace de consultation (lisible, jamais bloquante). */
 const MIN_THINKING_MS = 520
+/** Derniers échanges envoyés au modèle de langage, pour les questions de suivi. */
+const HISTORY_TURNS = 6
 /** Durée de l'animation de fermeture. */
 const CLOSE_MS = 200
 
@@ -56,6 +62,32 @@ function introAlreadySeen(): boolean {
     return sessionStorage.getItem(INTRO_KEY) === '1'
   } catch {
     return false
+  }
+}
+
+/** Gras des réponses du modèle de langage (« **texte** ») ; le reste reste du texte brut. */
+const withBold = (text: string) =>
+  text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 === 1 ? <strong key={i} className="font-semibold">{part}</strong> : part))
+
+/** Réponse du modèle de langage (Gemini, Grok en secours) ; null : sans clé ou injoignable. */
+async function askModel(question: string, history: { role: string; content: string }[]) {
+  try {
+    return await api.post<{ answer: string; provider: 'gemini' | 'grok' }>('/api/assistant/ask/', { question, history })
+  } catch {
+    return null
+  }
+}
+
+/** Réponse précise du réseau au format du panneau, avec les sources de la consultation. */
+function fromNetwork(block: AssistantResponseBlock, base: AssistantAnswer): AssistantAnswer {
+  return {
+    summary: block.summary,
+    table: block.tableHeaders && block.tableRows?.length
+      ? { headers: block.tableHeaders, rows: block.tableRows.map((r) => [r.col1, r.col2, r.badge?.text ?? r.col3]) }
+      : undefined,
+    bullets: block.recommendations?.length ? block.recommendations : undefined,
+    action: block.actionLink,
+    sources: base.sources,
   }
 }
 
@@ -117,7 +149,9 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
 
   const seeBlood = canView(roles, 'blood')
   const seeBeds = canView(roles, 'beds')
-  const seeFleet = canManage(roles, 'ambulances')
+  const seeFleet = canView(roles, 'ambulances')
+  // Administrateur général : questions libres au modèle de langage du backend.
+  const supervisor = isSupervisor(roles)
   const access = { beds: seeBeds, blood: seeBlood, fleet: seeFleet }
   const domainsCount = [seeBeds, seeBlood, seeFleet].filter(Boolean).length
 
@@ -190,6 +224,20 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
       : []),
   ]
 
+  /** Question précise sur le réseau (un établissement, un service, un groupe sanguin, un classement). */
+  const networkAnswer = async (question: string) => {
+    const cached = <T,>(key: readonly unknown[]) => queryClient.getQueryData<T>(key)
+    const list = async <T,>(key: readonly unknown[], path: string, params?: QueryParams) =>
+      cached<T[]>(key) ?? (await api.get<{ results: T[] }>(path, params).then((r) => r?.results ?? []).catch(() => []))
+    const ctx: NetworkContext = {
+      facilities: await list<FacilitySummary>(QK.facilitiesMap, '/api/facilities/'),
+      capacities: seeBeds ? await list<BedCapacity>([...QK.bedCapacities, 'network'], '/api/lits/capacities/', { page_size: 200 }) : [],
+      bloodRequests: seeBlood ? await list<BloodRequest>([...QK.bloodRequests, 'open'], '/api/sang/requests/', { status: 'open' }) : [],
+      ambulances: seeFleet ? await list<AmbulanceT>(QK.ambulancesList, '/api/ambulances/vehicles/') : [],
+    }
+    return answerNetworkQuestion(question, ctx)
+  }
+
   const submitQuery = async (queryText: string) => {
     const trimmed = queryText.trim()
     if (!trimmed || thinking) return
@@ -201,14 +249,24 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
     setInput('')
     setThinking({ keys, done: [] })
 
-    const { answer, answeredAt } = await consult(
-      intent,
-      keys,
-      queryClient,
-      user?.facility,
-      (key) => setThinking((t) => (t ? { ...t, done: [...t.done, key] } : t)),
-      MIN_THINKING_MS
+    const history = messages.slice(-HISTORY_TURNS).map((m) =>
+      m.sender === 'user' ? { role: 'user', content: m.prompt } : { role: 'assistant', content: m.answer.summary }
     )
+    const [consulted, remote, precise] = await Promise.all([
+      consult(
+        intent,
+        keys,
+        queryClient,
+        user?.facility,
+        (key) => setThinking((t) => (t ? { ...t, done: [...t.done, key] } : t)),
+        MIN_THINKING_MS
+      ),
+      supervisor ? askModel(trimmed, history) : Promise.resolve(null),
+      user?.facility ? Promise.resolve(undefined) : networkAnswer(trimmed),
+    ])
+    let answer: AssistantAnswer = precise ? fromNetwork(precise, consulted.answer) : consulted.answer
+    if (remote) answer = { ...answer, summary: remote.answer, bullets: undefined, model: remote.provider === 'grok' ? 'Grok' : 'Gemini' }
+    const { answeredAt } = consulted
 
     msgSeqRef.current += 1
     setNow(answeredAt)
@@ -488,7 +546,7 @@ const AnswerView: React.FC<{
       <JappoEmblem className="h-4 w-4 text-on-ink" pulseClassName="text-critical-on-ink" />
     </span>
     <div className="min-w-0 flex-1 space-y-3 text-sm leading-relaxed text-fg">
-      <p>{answer.summary}</p>
+      <p className="whitespace-pre-line">{withBold(answer.summary)}</p>
 
       {answer.figures && answer.figures.length > 0 && (
         <dl className="grid grid-cols-3 gap-2">
@@ -575,7 +633,7 @@ const AnswerView: React.FC<{
 
       {answer.sources.length > 0 && (
         <div className="border-t border-line pt-2.5">
-          <p className="kicker mb-1.5 text-[0.625rem]">Sources</p>
+          <p className="kicker mb-1.5 text-[0.625rem]">Sources{answer.model && ` · texte rédigé par ${answer.model}`}</p>
           <ul className="flex flex-wrap gap-1.5">
             {answer.sources.map((s) => {
               const stale = s.updatedAt !== null && now - s.updatedAt > 15 * 60_000

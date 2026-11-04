@@ -232,7 +232,23 @@ class ListingTests(MLAPITestCase):
         for query in ('days=abc', 'days=0', 'days=366'):
             self.assertEqual(self.client.get(f'/api/ml/stocks/?{query}').status_code, 400)
 
+    def as_cnts_operator(self):
+        """Saisie des stocks par l'administrateur du sang du CNTS : l'administrateur
+        général (supervision) ne modifie pas les stocks."""
+        from security.roles import Role
+        from users.tests.factories import make_facility, make_user
+
+        cnts = make_facility('Centre National de Transfusion Sanguine (CNTS)', facility_type='blood_bank')
+        self.client.force_authenticate(make_user('sang_cnts', Role.BLOOD_MANAGER, facility=cnts))
+
+    def test_general_admin_cannot_write_stocks(self):
+        payload = {'center_name': 'Centre National de Transfusion Sanguine (CNTS)', 'region': 'dakar',
+                   'blood_group': 'O-', 'units_available': 42}
+        for url in ('/api/ml/stocks/', '/api/ml/stocks/batch/', '/api/ml/stocks/adjust/'):
+            self.assertEqual(self.client.post(url, payload, format='json').status_code, 403, url)
+
     def test_stock_create_and_update(self):
+        self.as_cnts_operator()
         payload = {
             'center_name': 'Centre National de Transfusion Sanguine (CNTS)',
             'region': 'dakar',
@@ -254,6 +270,7 @@ class ListingTests(MLAPITestCase):
         self.assertEqual(response2.data['units_available'], 50)
 
     def test_stock_batch_create(self):
+        self.as_cnts_operator()
         payload = {
             'center_name': 'Centre National de Transfusion Sanguine (CNTS)',
             'region': 'dakar',
@@ -270,6 +287,7 @@ class ListingTests(MLAPITestCase):
         self.assertEqual(len(response.data['records']), 4)
 
     def test_stock_adjustment(self):
+        self.as_cnts_operator()
         # 1. Ajustement direct (set)
         response = self.client.post(
             '/api/ml/stocks/adjust/',

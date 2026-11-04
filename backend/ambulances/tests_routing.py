@@ -68,7 +68,7 @@ class FastestAmbulanceTests(AmbulanceFixturesMixin, TestCase):
 
         mission = make_mission(priority='critical')
         with mock.patch('ambulances.services.travel_times_to', side_effect=fake):
-            response = api_client(self.admin).post(f'{MISSIONS}{mission.pk}/assign/', {}, format='json')
+            response = api_client(self.dispatcher).post(f'{MISSIONS}{mission.pk}/assign/', {}, format='json')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['ambulance']['id'], self.medical.pk)
 
@@ -84,7 +84,7 @@ class FastestAmbulanceTests(AmbulanceFixturesMixin, TestCase):
 class EtaTests(AmbulanceFixturesMixin, TestCase):
     def test_eta_follows_the_mission(self):
         mission = make_mission(priority='urgent')
-        response = api_client(self.admin).post(f'{MISSIONS}{mission.pk}/assign/', {}, format='json')
+        response = api_client(self.dispatcher).post(f'{MISSIONS}{mission.pk}/assign/', {}, format='json')
         self.assertIsNotNone(response.data['eta_at'])
         self.assertEqual(response.data['eta_source'], 'estimate')
         # Sur place : plus d'arrivée à estimer.

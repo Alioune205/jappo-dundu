@@ -82,9 +82,13 @@ class FleetTests(AmbulanceFixturesMixin, TestCase):
         self.assertEqual(client.get(VEHICLES, {'region': 'thies'}).data['count'], 0)
         self.assertEqual(client.get(VEHICLES, {'status': 'garage'}).status_code, 400)
 
-    def test_admin_registers_ambulance(self):
-        driver = make_user('nouveau', Role.AMBULANCE_DRIVER)
-        response = api_client(self.admin).post(
+    def fleet_manager(self):
+        """Administrateur des ambulances du service (l'administrateur général ne gère pas la flotte)."""
+        return make_user('chef', Role.AMBULANCE_MANAGER, facility=self.base)
+
+    def test_fleet_manager_registers_ambulance(self):
+        driver = make_user('nouveau', Role.AMBULANCE_DRIVER, facility=self.base)
+        response = api_client(self.fleet_manager()).post(
             VEHICLES,
             {
                 'plate_number': " dk-2026-ab ",
@@ -100,7 +104,7 @@ class FleetTests(AmbulanceFixturesMixin, TestCase):
         self.assertEqual(response.data['driver']['id'], driver.pk)
 
     def test_registration_validation(self):
-        client = api_client(self.admin)
+        client = api_client(self.fleet_manager())
         base = {'facility_id': self.base.pk}
         cases = [
             ({**base, 'plate_number': 'dk-0001-aa'}, 'plate_number'),
@@ -114,9 +118,14 @@ class FleetTests(AmbulanceFixturesMixin, TestCase):
                 self.assertEqual(response.status_code, 400)
                 self.assertIn(field, response.data)
 
-    def test_only_admin_manages_fleet(self):
+    def test_only_fleet_manager_manages_fleet(self):
         self.assertEqual(
             api_client(self.dispatcher).post(VEHICLES, {}, format='json').status_code, 403
+        )
+        # Supervision : l'administrateur général consulte la flotte sans la modifier.
+        self.assertEqual(api_client(self.admin).get(VEHICLES).status_code, 200)
+        self.assertEqual(
+            api_client(self.admin).post(VEHICLES, {'plate_number': 'DK-2026-AB'}, format='json').status_code, 403
         )
 
     def test_driver_updates_own_position(self):
@@ -450,8 +459,8 @@ class FleetAdministrationTests(AmbulanceFixturesMixin, TestCase):
         rows = api_client(self.manager).get(f'{VEHICLES}drivers/').data
         self.assertEqual([row['full_name'] for row in rows], [self.base_driver.get_full_name() or 'moussa'])
         self.assertEqual(rows[0]['ambulance'], {'id': self.broken.pk, 'plate_number': 'DK-0004-AA'})
-        # L'administrateur général voit tous les ambulanciers.
-        self.assertEqual(len(api_client(self.admin).get(f'{VEHICLES}drivers/').data), 4)
+        # L'administrateur général ne gère pas la flotte : pas de liste des ambulanciers affectables.
+        self.assertEqual(api_client(self.admin).get(f'{VEHICLES}drivers/').status_code, 403)
         self.assertEqual(api_client(self.driver).get(f'{VEHICLES}drivers/').status_code, 403)
 
     def test_manager_assigns_only_drivers_of_the_service(self):

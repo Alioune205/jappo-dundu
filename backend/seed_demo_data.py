@@ -3,6 +3,10 @@ Script d'initialisation des données de démonstration pour Jappo Dundu.
 Crée les rôles, les établissements de santé au Sénégal, les lits,
 les ambulances, les demandes de sang et les comptes d'accès avec différents rôles.
 
+Périmètre de la phase pilote : région de Dakar, avec 5 hôpitaux, le CNTS et le
+SAMU National. L'application reste nationale : l'extension à d'autres régions se
+fait en ajoutant des établissements, sans modifier le code.
+
 Tous les comptes reçoivent le mot de passe public « Password123! » (réinitialisé
 à chaque exécution) et ``admin`` est superutilisateur : le script refuse donc de
 tourner hors développement (DEBUG=False), sauf instance de démonstration
@@ -105,16 +109,29 @@ def seed():
                 'is_active': True,
             }
         )[0],
-        'thies': HealthFacility.objects.update_or_create(
-            name="Hôpital Régional de Thiès",
-            region="thies",
+        'idrissa_pouye': HealthFacility.objects.update_or_create(
+            name="Hôpital Général Idrissa Pouye",
+            region="dakar",
             defaults={
                 'facility_type': HealthFacility.FacilityType.HOSPITAL,
-                'city': "Thiès",
-                'address': "Quartier Dixième, Thiès",
-                'phone_number': "+221339511032",
-                'latitude': 14.7915,
-                'longitude': -16.9256,
+                'city': "Dakar",
+                'address': "530, Rue 134, Grand Yoff, Dakar",
+                'phone_number': "+221338694050",
+                'latitude': 14.7365,
+                'longitude': -17.4580,
+                'is_active': True,
+            }
+        )[0],
+        'pikine': HealthFacility.objects.update_or_create(
+            name="Centre Hospitalier National de Pikine",
+            region="dakar",
+            defaults={
+                'facility_type': HealthFacility.FacilityType.HOSPITAL,
+                'city': "Pikine",
+                'address': "Ex-camp militaire de Thiaroye, Pikine",
+                'phone_number': "+221338342566",
+                'latitude': 14.7530,
+                'longitude': -17.3940,
                 'is_active': True,
             }
         )[0],
@@ -133,8 +150,10 @@ def seed():
         (facilities['fann'], BedCapacity.Category.INTERNAL_MEDICINE, 70, 58),
         (facilities['dalal_jamm'], BedCapacity.Category.EMERGENCY, 25, 17),
         (facilities['dalal_jamm'], BedCapacity.Category.INTENSIVE_CARE, 12, 8),
-        (facilities['thies'], BedCapacity.Category.EMERGENCY, 20, 15),
-        (facilities['thies'], BedCapacity.Category.INTENSIVE_CARE, 10, 8),
+        (facilities['idrissa_pouye'], BedCapacity.Category.EMERGENCY, 24, 19),
+        (facilities['idrissa_pouye'], BedCapacity.Category.SURGERY, 30, 23),
+        (facilities['pikine'], BedCapacity.Category.EMERGENCY, 20, 15),
+        (facilities['pikine'], BedCapacity.Category.MATERNITY, 24, 17),
     ]
     for fac, cat, tot, occ in bed_configs:
         BedCapacity.objects.update_or_create(
@@ -149,7 +168,7 @@ def seed():
         ('DK-5120-BB', facilities['samu'], Ambulance.AmbulanceType.MEDICALIZED, Ambulance.Status.AVAILABLE, 14.7315, -17.4522),
         ('DK-3341-CC', facilities['samu'], Ambulance.AmbulanceType.BASIC, Ambulance.Status.AVAILABLE, 14.7120, -17.4480),
         ('DK-9901-DD', facilities['dalal_jamm'], Ambulance.AmbulanceType.BASIC, Ambulance.Status.AVAILABLE, 14.7812, -17.4201),
-        ('TH-2104-AB', facilities['thies'], Ambulance.AmbulanceType.BASIC, Ambulance.Status.AVAILABLE, 14.7915, -16.9256),
+        ('DK-4417-EE', facilities['pikine'], Ambulance.AmbulanceType.BASIC, Ambulance.Status.AVAILABLE, 14.7530, -17.3940),
     ]
     for plate, fac, atype, status, lat, lon in ambulances:
         Ambulance.objects.update_or_create(

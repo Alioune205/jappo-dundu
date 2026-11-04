@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { renderWithProviders } from '@/test/render'
 import { bloodRequest } from '@/test/fixtures'
+import type { Role } from '@/types/api'
 import { BloodManagement } from './BloodManagement'
 
 const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 vi.mock('@/lib/api', () => ({ api }))
 vi.mock('@/context/RealtimeContext', () => ({ useRealtime: () => ({ subscribe: () => () => {} }) }))
-vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: { facility: { id: 1 } } }) }))
+const auth = vi.hoisted(() => ({
+  current: { user: { facility: { id: 1 } } as unknown, roles: ['blood_manager'] as Role[], isAdmin: false },
+}))
+vi.mock('@/context/AuthContext', () => ({ useAuth: () => auth.current }))
 
 const REQUESTS = [
   bloodRequest({ id: 100, blood_group: 'O-', urgency: 'critical' }),
@@ -57,7 +61,10 @@ async function selectRequest(bloodGroup: string) {
 }
 
 describe('BloodManagement', () => {
-  beforeEach(mockApi)
+  beforeEach(() => {
+    auth.current = { user: { facility: { id: 1 } }, roles: ['blood_manager'], isAdmin: false }
+    mockApi()
+  })
 
   it('signale les demandes critiques et en compte les urgences vitales', async () => {
     renderWithProviders(<BloodManagement />)
@@ -123,5 +130,26 @@ describe('BloodManagement', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Annuler la demande' }))
     fireEvent.click(screen.getByRole('button', { name: "Confirmer l'annulation" }))
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/sang/requests/100/cancel/'))
+  })
+})
+
+describe('BloodManagement — administrateur général (supervision)', () => {
+  beforeEach(() => {
+    auth.current = { user: { id: 1, facility: null }, roles: ['admin'], isAdmin: true }
+    mockApi()
+  })
+
+  it('voit les demandes et leur détail, en lecture seule, sans aucun bouton d’action', async () => {
+    renderWithProviders(<BloodManagement />)
+    expect(screen.getByText('Lecture seule — supervision nationale')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Nouvelle demande/ })).not.toBeInTheDocument()
+
+    await selectRequest('O-')
+    const detail = await screen.findByRole('region', { name: 'Demande 100' })
+    expect(await within(detail).findByText('Ousmane Gueye')).toBeInTheDocument()
+    expect(within(detail).queryByRole('button', { name: 'Confirmer le don' })).not.toBeInTheDocument()
+    expect(within(detail).queryByRole('button', { name: 'Annuler la demande' })).not.toBeInTheDocument()
+    expect(within(detail).queryByRole('button', { name: /Alerter d’autres donneurs/ })).not.toBeInTheDocument()
+    expect(api.post).not.toHaveBeenCalled()
   })
 })

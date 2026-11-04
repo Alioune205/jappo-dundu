@@ -8,7 +8,8 @@ Alertes critiques : création, accusé de réception, relance par SMS.
 - ``escalate`` (commande ``escalate_critical_alerts``, chaque minute) :
   sans accusé après ``CRITICAL_ESCALATION_MINUTES`` (2), SMS à la ligne de
   garde de l'établissement ; après le double, SMS aux administrateurs
-  généraux qui ont un téléphone.
+  généraux qui ont un téléphone. L'administrateur général supervise sans
+  opérer : son SMS l'oriente vers le service qui agit (``SUPERVISOR_HINTS``).
 
 Les SMS ne contiennent ni nom de patient ni précision clinique.
 """
@@ -26,6 +27,15 @@ from .models import CriticalAlert
 logger = logging.getLogger('jappo_dundu.realtime')
 
 ACK_EVENT = 'critical_alert'
+
+
+# Consigne ajoutée au SMS de l'administrateur général : il n'affecte pas
+# d'ambulance et ne répond pas à la place de l'établissement, il alerte qui le fait.
+SUPERVISOR_HINTS = {
+    CriticalAlert.Kind.MISSION: " Contactez la régulation SAMU de la région.",
+    CriticalAlert.Kind.PREALERT: " Contactez l'hôpital de destination.",
+    CriticalAlert.Kind.BLOOD_ORDER: " Contactez le centre fournisseur.",
+}
 
 
 def _minutes():
@@ -115,8 +125,9 @@ def escalate(now=None):
                 send_sms(phone, text)
             alert.escalation_level = 1
         elif alert.escalation_level == 1 and age >= 2 * step:
+            supervisor_text = text + SUPERVISOR_HINTS.get(alert.kind, '')
             for phone in _admin_phones():
-                send_sms(phone, text)
+                send_sms(phone, supervisor_text)
             alert.escalation_level = 2
         else:
             continue

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Boxes } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
+import { canManage } from '@/lib/access'
 import { Select } from '@/components/ui/Input'
 import { BLOOD_GROUPS, COMPONENTS } from '@/lib/constants'
 import { QK } from '@/lib/queryKeys'
@@ -13,8 +14,9 @@ import type { BloodComponent, BloodGroup, BloodStock } from '@/types/api'
  * groupe, pour un produit. Une case modifiée s'enregistre en quittant le champ.
  */
 export const StockInventoryPanel: React.FC = () => {
-  const { user } = useAuth()
+  const { user, roles } = useAuth()
   const facilityId = user?.facility?.id
+  const operates = canManage(roles, 'blood')
   const [component, setComponent] = useState<BloodComponent>('red_cells')
   const { data: lines = [] } = useQuery<BloodStock[]>({
     queryKey: [...QK.bloodInventory, facilityId, component],
@@ -24,8 +26,9 @@ export const StockInventoryPanel: React.FC = () => {
     enabled: facilityId !== undefined,
   })
 
-  // Sans établissement (administrateur général), l'inventaire se gère depuis l'établissement concerné.
-  if (facilityId === undefined) return null
+  // Saisie de l'inventaire : administrateur du sang de l'établissement. Jamais
+  // l'administrateur général (supervision, lecture seule).
+  if (facilityId === undefined || !operates) return null
   const byGroup = new Map(lines.map((line) => [line.blood_group, line]))
   const total = lines.reduce((sum, line) => sum + line.units_available, 0)
   const expiring = lines.reduce((sum, line) => sum + line.units_expiring_soon, 0)

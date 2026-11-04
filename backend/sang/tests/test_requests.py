@@ -68,23 +68,23 @@ class BloodRequestCreationTests(SangFixturesMixin, TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_admin_must_choose_facility(self):
+    def test_general_admin_supervises_without_creating(self):
+        # Supervision : l'administrateur général voit toutes les demandes mais n'en crée pas.
         client = api_client(self.admin)
-        response = client.post(URL, {'blood_group': 'O-', 'units_needed': 1}, format='json')
-        self.assertEqual(response.status_code, 400)
-        self.assertIn('facility_id', response.data)
+        self.assertEqual(client.get(URL).status_code, 200)
         response = client.post(
             URL,
             {'blood_group': 'O-', 'units_needed': 1, 'facility_id': self.other_hospital.pk},
             format='json',
         )
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 403)
+        self.assertIn('Lecture seule', str(response.data['detail']))
+        self.assertFalse(BloodRequest.objects.filter(facility=self.other_hospital).exists())
 
     def test_inactive_facility(self):
         closed = make_facility("Fermé", is_active=False)
-        response = api_client(self.admin).post(
-            URL, {'blood_group': 'O-', 'units_needed': 1, 'facility_id': closed.pk}, format='json'
-        )
+        staff = make_user('ferme', Role.HOSPITAL_STAFF, facility=closed)
+        response = api_client(staff).post(URL, {'blood_group': 'O-', 'units_needed': 1}, format='json')
         self.assertEqual(response.status_code, 409)
 
     def test_validation(self):

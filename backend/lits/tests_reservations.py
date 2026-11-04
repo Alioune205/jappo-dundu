@@ -139,12 +139,14 @@ class ReservationAccessTests(ReservationFixtures, TestCase):
     def test_listing_is_scoped(self):
         self.reserve(self.bed_a)
         thies = BedCapacity.objects.create(facility=self.hosp_thies, category='emergency', total_beds=5)
-        self.reserve(self.admin, capacity_id=thies.pk)
+        self.reserve(self.samu_thies_user, capacity_id=thies.pk)
 
         def facilities(user):
             return {row['facility']['id'] for row in api_client(user).get(RESERVATIONS).data['results']}
 
+        # Supervision : l'administrateur général voit toutes les réservations, sans en faire.
         self.assertEqual(facilities(self.admin), {self.hosp_a.pk, self.hosp_thies.pk})
+        self.assertEqual(self.reserve(self.admin, capacity_id=thies.pk).status_code, 403)
         self.assertEqual(facilities(self.bed_a), {self.hosp_a.pk})
         self.assertEqual(facilities(self.bed_b), set())
         self.assertEqual(facilities(self.samu_user), {self.hosp_a.pk})
@@ -194,7 +196,7 @@ class MissionReservationTests(ReservationFixtures, TestCase):
 
     def test_closed_mission_cannot_reserve(self):
         mission = self.mission(status=Mission.Status.COMPLETED)
-        self.assertEqual(self.reserve(self.admin, mission_id=mission.pk).status_code, 409)
+        self.assertEqual(self.reserve(self.samu_user, mission_id=mission.pk).status_code, 409)
 
 
 class SIHReservationTests(ReservationFixtures, TestCase):

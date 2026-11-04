@@ -6,6 +6,7 @@ Routes sécurité/JWT/ML : El Hadji Massogui Diop
 Routes métier (users, sang, lits, ambulances) : Ibrahima Khalilou Diallo
 """
 
+from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerSplitView
@@ -48,4 +49,7 @@ urlpatterns = [
 
     # === Interopérabilité SIH (Pape Alioune Sene) ===
     path('api/sih/', include('sih.urls')),
+
+    # === Assistant IA de supervision ===
+    path('api/assistant/', include('assistant.urls')),
 ]

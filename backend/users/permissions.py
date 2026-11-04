@@ -3,7 +3,7 @@ Permissions liées à l'établissement de rattachement, par domaine.
 
 Chaque administrateur spécialisé (lits, sang, ambulances) n'agit que dans
 son domaine et sur les ressources de son établissement ; l'administrateur
-général agit partout. Exception : l'administrateur du sang d'un centre de
+général consulte tout, partout, mais n'agit pas (supervision : lecture seule). Exception : l'administrateur du sang d'un centre de
 transfusion (CNTS) gère les demandes de toute sa région, car le CNTS
 approvisionne les hôpitaux de la région.
 
@@ -17,10 +17,11 @@ Auteur : Ibrahima Khalilou Diallo
 """
 
 from django.db.models import Q
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission
 
-from security.roles import Domain, Role, manages, user_has_role
+from security.permissions import supervision_blocks
+from security.roles import SUPERVISION_MESSAGE, Domain, Role, can_view, manages, user_has_role
 
 from .models import HealthFacility
 from .services import user_facility_id
@@ -67,7 +68,11 @@ def emergency_facility_ids(user, domain):
 
 
 def in_scope(user, domain, facility_obj):
-    """L'établissement ``facility_obj`` est-il dans le périmètre de l'utilisateur ?"""
+    """L'établissement ``facility_obj`` est-il dans le périmètre de l'utilisateur ?
+
+    Administrateur général : toujours (consultation) ; ses écritures sont
+    refusées en amont par les permissions.
+    """
     if is_admin(user):
         return True
     if not manages(user, domain):
@@ -86,14 +91,12 @@ def in_scope(user, domain, facility_obj):
 def facility_for_write(user, requested=None, *, domain, field='facility_id'):
     """Établissement au nom duquel l'utilisateur crée une ressource du domaine.
 
-    - administrateur général : ``requested`` est obligatoire ;
+    - administrateur général : refusé (supervision, lecture seule) ;
     - administrateur spécialisé : son établissement par défaut ; un autre
       établissement seulement s'il est dans son périmètre (CNTS : sa région).
     """
     if is_admin(user):
-        if requested is None:
-            raise ValidationError({field: ["Obligatoire pour un administrateur."]})
-        return requested
+        raise PermissionDenied(SUPERVISION_MESSAGE)
     if not manages(user, domain):
         raise PermissionDenied("Ce domaine ne relève pas de votre rôle.")
     own = user_facility(user)
@@ -126,6 +129,7 @@ def scope_to_facility(queryset, user, domain, field='facility'):
 class _FacilityDomainPermission(BasePermission):
     """Administrateur du domaine, limité aux objets de son périmètre.
 
+    L'administrateur général consulte (GET) mais n'écrit pas (403).
     L'objet doit exposer ``facility`` (établissement concerné).
     """
 
@@ -133,7 +137,10 @@ class _FacilityDomainPermission(BasePermission):
     message = "Action réservée aux administrateurs de ce domaine pour l'établissement concerné."
 
     def has_permission(self, request, view):
-        return manages(request.user, self.domain)
+        if supervision_blocks(request):
+            self.message = SUPERVISION_MESSAGE
+            return False
+        return can_view(request.user, self.domain)
 
     def has_object_permission(self, request, view, obj):
         return in_scope(request.user, self.domain, obj.facility)

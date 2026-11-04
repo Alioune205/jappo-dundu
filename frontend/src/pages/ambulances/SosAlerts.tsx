@@ -8,8 +8,12 @@ import { pendingSos } from './missionUtils'
 
 interface SosAlertsProps {
   missions: Mission[]
-  /** Ouvre la régulation de l'alerte (qualifier, affecter, fausse alerte). */
-  onDispatch: (mission: Mission) => void
+  /**
+   * Ouvre la régulation de l'alerte (qualifier, affecter, fausse alerte).
+   * Absent pour l'administrateur général (supervision) : il ne régule pas,
+   * il est invité à contacter la régulation SAMU.
+   */
+  onDispatch?: (mission: Mission) => void
 }
 
 /**
@@ -59,9 +63,13 @@ export const SosAlerts: React.FC<SosAlertsProps> = ({ missions, onDispatch }) =>
                 )}
               </p>
             </div>
-            <Button variant="danger" size="sm" onClick={() => onDispatch(m)} aria-label={`Traiter l'alerte SOS ${m.id}`}>
-              Traiter
-            </Button>
+            {onDispatch ? (
+              <Button variant="danger" size="sm" onClick={() => onDispatch(m)} aria-label={`Traiter l'alerte SOS ${m.id}`}>
+                Traiter
+              </Button>
+            ) : (
+              <span className="text-xs font-semibold text-critical">Contactez la régulation SAMU</span>
+            )}
           </li>
         ))}
       </ul>

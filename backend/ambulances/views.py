@@ -3,18 +3,22 @@ API REST de l'application Ambulances.
 
 Flotte (/api/ambulances/vehicles/) :
 - GET   /                    liste (régulation : son service ; ambulancier : son véhicule)
-- POST  /  ; PATCH /<id>/    administration de la flotte (admin, administrateur des ambulances)
+- POST  /  ; PATCH /<id>/    administration de la flotte (administrateur des ambulances)
 - GET   /nearest/            ambulances disponibles les plus proches (régulation)
 - GET   /mine/               ambulance du conducteur connecté
 - GET   /drivers/            ambulanciers affectables (administration de la flotte)
-- POST  /<id>/position/      position GPS (conducteur de l'ambulance ou admin)
+- POST  /<id>/position/      position GPS (conducteur de l'ambulance)
 - POST  /<id>/availability/  en service / hors service (conducteur, administrateur
-                             des ambulances de son service, admin)
+                             des ambulances de son service)
 
 Missions (/api/ambulances/missions/) :
-- GET   /  ; POST /  ; PATCH /<id>/   régulation (admin : national ; administrateur
-                                       des ambulances et personnel hospitalier : leur région) ;
+- GET   /  ; POST /  ; PATCH /<id>/   régulation (administrateur des ambulances et
+                                       personnel hospitalier : leur région) ;
                                        un conducteur voit les missions de son ambulance
+
+L'administrateur général SUPERVISE : il consulte flotte, missions et
+indicateurs au niveau national (GET), mais toute opération (créer, affecter,
+modifier une mission, gérer la flotte) lui est refusée en 403.
 - POST  /<id>/assign/        affecter une ambulance (la plus proche par défaut)
 - POST  /<id>/status/        on_site, transporting, completed (conducteur de
                              l'ambulance affectée ou régulation), cancelled (régulation)
@@ -52,8 +56,8 @@ from lits.models import BedCapacity
 from lits.serializers import NearbyBedFacilitySerializer
 from lits.services import find_facilities_with_beds
 from ml.constants import REGION_CODES
-from security.permissions import ManagesAmbulances, role_permission
-from security.roles import DOMAIN_ROLES, Domain, Role, manages, user_has_role
+from security.permissions import ManagesAmbulances, NotSupervisor, role_permission
+from security.roles import DOMAIN_VIEW_ROLES, Domain, Role, manages, user_has_role
 from users.models import HealthFacility
 from users.permissions import user_facility
 from users.services import user_facility_id
@@ -81,21 +85,26 @@ from .serializers import (
     SosInputSerializer,
 )
 
+# Lecture : régulation, ambulanciers et administrateur général (supervision,
+# sans écriture : ses POST/PATCH sont refusés en 403).
 CanViewFleet = role_permission(
-    *DOMAIN_ROLES[Domain.AMBULANCES],
+    *DOMAIN_VIEW_ROLES[Domain.AMBULANCES],
     Role.AMBULANCE_DRIVER,
     message="Accès réservé à la régulation et aux ambulanciers.",
+    supervision_read_only=True,
 )
 # Missions : en plus, l'administrateur des lits consulte celles dirigées vers
 # son établissement (préparer l'accueil du patient).
 CanViewMissions = role_permission(
-    *DOMAIN_ROLES[Domain.AMBULANCES],
+    *DOMAIN_VIEW_ROLES[Domain.AMBULANCES],
     Role.AMBULANCE_DRIVER,
     Role.BED_MANAGER,
     message="Accès réservé à la régulation, aux ambulanciers et aux hôpitaux de destination.",
+    supervision_read_only=True,
 )
+# Flotte (véhicules, ambulanciers affectables) : administrateur des ambulances
+# seulement. L'administrateur général consulte la flotte sans la modifier.
 CanEditFleet = role_permission(
-    Role.ADMIN,
     Role.AMBULANCE_MANAGER,
     message="Gestion de la flotte réservée à l'administrateur des ambulances.",
 )
@@ -121,7 +130,7 @@ SCOPED_DISPATCHER_ROLES = (Role.AMBULANCE_MANAGER, Role.HOSPITAL_STAFF)
 
 
 def national_dispatcher(user):
-    """Régulation nationale : administrateur général uniquement."""
+    """Périmètre national, en lecture : administrateur général uniquement (supervision)."""
     return user_has_role(user, Role.ADMIN)
 
 
@@ -144,29 +153,29 @@ def service_of(user):
     return facility
 
 
-class IsAmbulanceDriverOrAdmin(BasePermission):
-    """Admin, ou conducteur affecté à l'ambulance."""
+class IsVehicleDriver(BasePermission):
+    """Conducteur affecté à l'ambulance (geste d'équipage : pas l'administrateur général)."""
 
     message = "Action réservée au conducteur de cette ambulance."
 
     def has_permission(self, request, view):
-        return user_has_role(request.user, Role.ADMIN, Role.AMBULANCE_DRIVER)
+        return user_has_role(request.user, Role.AMBULANCE_DRIVER)
 
     def has_object_permission(self, request, view, obj):
-        return user_has_role(request.user, Role.ADMIN) or obj.driver_id == request.user.pk
+        return obj.driver_id == request.user.pk
 
 
 class CanSetAvailability(BasePermission):
-    """Conducteur de l'ambulance, administrateur des ambulances de son service, ou admin."""
+    """Conducteur de l'ambulance, ou administrateur des ambulances de son service."""
 
     message = "Seuls le conducteur et la régulation du service de cette ambulance changent sa disponibilité."
 
     def has_permission(self, request, view):
-        return user_has_role(request.user, Role.ADMIN, Role.AMBULANCE_DRIVER, Role.AMBULANCE_MANAGER)
+        return user_has_role(request.user, Role.AMBULANCE_DRIVER, Role.AMBULANCE_MANAGER)
 
     def has_object_permission(self, request, view, obj):
         user = request.user
-        if user_has_role(user, Role.ADMIN) or obj.driver_id == user.pk:
+        if obj.driver_id == user.pk:
             return True
         return user_has_role(user, Role.AMBULANCE_MANAGER) and user_facility_id(user) == obj.facility_id
 
@@ -190,14 +199,16 @@ class AmbulanceViewSet(
     default_radius_km = 50.0
 
     def get_permissions(self):
+        # Gestion de la flotte et gestes d'équipage : jamais l'administrateur
+        # général (supervision) ; NotSupervisor d'abord, pour un 403 explicite.
         if self.action in ('create', 'partial_update', 'drivers'):
-            return [CanEditFleet()]
+            return [NotSupervisor(), CanEditFleet()]
         if self.action == 'nearest':
             return [ManagesAmbulances()]
         if self.action == 'availability':
-            return [CanSetAvailability()]
+            return [NotSupervisor(), CanSetAvailability()]
         if self.action in ('position', 'mine'):
-            return [IsAmbulanceDriverOrAdmin()]
+            return [NotSupervisor(), IsVehicleDriver()]
         return [CanViewFleet()]
 
     def get_queryset(self):
@@ -492,23 +503,18 @@ class MissionViewSet(
         """Transfert vers un autre établissement, demandé par l'hôpital de départ.
 
         POST /api/ambulances/missions/transfer/ {"destination_id", "category",
-             "priority", "description", "origin_id" (admin)}
+             "priority", "description"}
         Crée la mission (lieu : l'établissement de départ) et réserve un lit à
         l'arrivée ; la régulation affecte ensuite l'ambulance.
         """
         serializer = TransferSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = dict(serializer.validated_data)
-        requested_origin = data.pop('origin', None)
-        if user_has_role(request.user, Role.ADMIN):
-            if requested_origin is None:
-                raise ValidationError({'origin_id': ["Obligatoire pour un administrateur."]})
-            origin = requested_origin
-        else:
-            origin = user_facility(request.user)
-            if origin is None or not user_has_role(request.user, Role.BED_MANAGER, Role.HOSPITAL_STAFF):
-                raise PermissionDenied("Seul le personnel d'un établissement demande un transfert.")
-            origin = HealthFacility.objects.get(pk=origin.pk)
+        data.pop('origin', None)
+        origin = user_facility(request.user)
+        if origin is None or not user_has_role(request.user, Role.BED_MANAGER, Role.HOSPITAL_STAFF):
+            raise PermissionDenied("Seul le personnel d'un établissement demande un transfert.")
+        origin = HealthFacility.objects.get(pk=origin.pk)
         mission = services.create_transfer(origin=origin, created_by=request.user, **data)
         return Response(self.get_serializer(self._reloaded(mission)).data, status=status.HTTP_201_CREATED)
 
@@ -537,7 +543,7 @@ class MissionViewSet(
 
         POST /api/ambulances/missions/<id>/destination-response/
         {"accepted": true} | {"accepted": false, "note": "scanner en panne"}
-        Réservé au personnel (lits) de l'établissement de destination et à l'admin.
+        Réservé au personnel (lits) de l'établissement de destination.
         """
         mission = self.get_object()
         facility = user_facility(request.user)
@@ -546,7 +552,7 @@ class MissionViewSet(
             and facility.pk == mission.destination_id
             and user_has_role(request.user, Role.BED_MANAGER, Role.HOSPITAL_STAFF)
         )
-        if not (user_has_role(request.user, Role.ADMIN) or receives):
+        if not receives:
             raise PermissionDenied("Seul l'hôpital de destination répond à la pré-alerte.")
         serializer = DestinationAnswerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Truck } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
+import { canManage } from '@/lib/access'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { SUPPLY_ORDER_STATUSES, toneOf } from '@/lib/constants'
@@ -63,7 +64,9 @@ export const SupplyOrdersPanel: React.FC = () => {
 
 const OrderRow: React.FC<{ order: SupplyOrder; side: Side; now: number }> = ({ order, side, now }) => {
   const queryClient = useQueryClient()
-  const { isAdmin } = useAuth()
+  const { roles } = useAuth()
+  // Administrateur général : suivi des commandes, sans aucune action (supervision).
+  const operates = canManage(roles, 'blood')
   const [refusing, setRefusing] = useState(false)
   const [note, setNote] = useState('')
   const act = useMutation({
@@ -77,7 +80,7 @@ const OrderRow: React.FC<{ order: SupplyOrder; side: Side; now: number }> = ({ o
   })
   const busy = act.isPending
   const other = side === 'received' ? order.requester : order.supplier
-  const supplierSide = side === 'received' || isAdmin
+  const supplierSide = side === 'received'
 
   return (
     <li className="space-y-2 px-4 py-3">
@@ -108,7 +111,7 @@ const OrderRow: React.FC<{ order: SupplyOrder; side: Side; now: number }> = ({ o
           {act.error instanceof Error ? act.error.message : 'Action impossible.'}
         </p>
       )}
-      {refusing ? (
+      {!operates ? null : refusing ? (
         <form
           className="flex gap-1.5"
           onSubmit={(e) => {

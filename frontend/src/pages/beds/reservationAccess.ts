@@ -2,6 +2,7 @@
  * Droits sur les réservations de lits — miroir de lits/views.py
  * (can_reserve_at, can_fulfill, can_cancel). Le backend reste la vraie
  * protection : ces règles ne servent qu'à afficher les bons boutons.
+ * L'administrateur général (supervision) consulte les réservations sans agir.
  */
 import { canManage } from '@/lib/access'
 import type { Account, BedReservation, FacilitySummary, Role } from '@/types/api'
@@ -16,8 +17,7 @@ const DISPATCH_ROLES: Role[] = ['ambulance_manager', 'hospital_staff']
 
 /** Réserver dans cet établissement : son hôpital (lits), ou sa région (régulation). */
 export function canReserveAt({ user, roles, isAdmin }: ReservationViewer, facility: FacilitySummary | null | undefined) {
-  if (!facility) return false
-  if (isAdmin) return true
+  if (!facility || isAdmin) return false
   const own = user?.facility
   if (canManage(roles, 'beds') && own?.id === facility.id) return true
   return roles.some((r) => DISPATCH_ROLES.includes(r)) && !!own && own.region === facility.region
@@ -25,10 +25,11 @@ export function canReserveAt({ user, roles, isAdmin }: ReservationViewer, facili
 
 /** Admettre le patient attendu : l'hôpital qui l'accueille. */
 export function canFulfill({ user, roles, isAdmin }: ReservationViewer, reservation: BedReservation) {
-  return isAdmin || (canManage(roles, 'beds') && user?.facility?.id === reservation.facility.id)
+  return !isAdmin && canManage(roles, 'beds') && user?.facility?.id === reservation.facility.id
 }
 
 export function canCancel(viewer: ReservationViewer, reservation: BedReservation) {
+  if (viewer.isAdmin) return false
   return (
     reservation.created_by?.id === viewer.user?.id ||
     canFulfill(viewer, reservation) ||

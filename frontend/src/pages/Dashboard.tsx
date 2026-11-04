@@ -4,10 +4,11 @@ import { Ambulance as AmbulanceIcon, ArrowRight, BedDouble, BrainCircuit, Drople
 import { Link } from 'react-router'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
-import { canManage, canView } from '@/lib/access'
+import { canView } from '@/lib/access'
 import { Badge } from '@/components/ui/Badge'
 import { MapView } from '@/components/map/MapView'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SupervisionBadge } from '@/components/ui/SupervisionBadge'
 import { MetricTile } from '@/components/dash/MetricTile'
 import { EmptyNote, Legend, LegendItem, Panel } from '@/components/dash/Panel'
 import { ArcGauge } from '@/components/dash/ArcGauge'
@@ -23,6 +24,7 @@ import { BED_EVENTS, BLOOD_REQUEST_EVENTS, MISSION_EVENTS, RealtimeEvent } from 
 import { formatNumber, formatPercent, formatRelative } from '@/lib/format'
 import type {
   BloodRequest,
+  BedCapacity,
   BedCategory,
   BedSummaryRow,
   Ambulance,
@@ -36,6 +38,8 @@ import { BedManagerDashboard } from './dashboard/BedManagerDashboard'
 import { BloodManagerDashboard } from './dashboard/BloodManagerDashboard'
 import { KpiPanel } from './dashboard/KpiPanel'
 import { VITAL_CATEGORIES, groupLabel, minutesSince, plural, shortCategory } from './dashboard/shared'
+import { FacilitiesOverview } from './dashboard/FacilitiesOverview'
+import { facilityRows } from './dashboard/facilityRows'
 import type { Role } from '@/types/api'
 import { FULL_FEATURES } from '@/lib/features'
 
@@ -96,10 +100,11 @@ const NetworkDashboard: React.FC = () => {
   const now = useNow(15_000)
 
   // Chaque administrateur ne charge que les domaines de son rôle : le serveur
-  // refuserait les autres (403).
+  // refuserait les autres (403). L'administrateur général les consulte tous,
+  // en lecture seule : le tableau de bord ne propose aucune action métier.
   const seeBlood = canView(roles, 'blood')
   const seeBeds = canView(roles, 'beds')
-  const seeFleet = canManage(roles, 'ambulances')
+  const seeFleet = canView(roles, 'ambulances')
 
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
     hospitals: true,
@@ -186,9 +191,30 @@ const NetworkDashboard: React.FC = () => {
 
   // Temps réel : rechargements regroupés par fenêtre d'une seconde, et
   // positions GPS appliquées directement au cache (aucune requête).
+  // Lits par service, pour la situation de chaque établissement (vue nationale).
+  const national = !user?.facility
+  const { data: capacities = [] } = useQuery<BedCapacity[]>({
+    queryKey: [...QK.bedCapacities, 'network'],
+    queryFn: async () => {
+      const res = await api.get<{ results: BedCapacity[] }>('/api/lits/capacities/', { page_size: 200 })
+      return res.results || []
+    },
+    enabled: seeBeds && national,
+  })
+  const rows = national ? facilityRows(facilities, capacities, bloodRequests, ambulances) : []
+
+  // Périmètre couvert, déduit des établissements actifs : « phase pilote » tant
+  // qu'une seule région est raccordée.
+  const regions = Array.from(new Set(facilities.map((f) => f.region_display).filter(Boolean)))
+  const hospitalCount = facilities.filter((f) => f.facility_type === 'hospital').length
+  const scope =
+    regions.length === 1
+      ? `Phase pilote · Région de ${regions[0]} · ${hospitalCount} ${hospitalCount > 1 ? 'hôpitaux' : 'hôpital'}`
+      : 'Supervision nationale'
+
   useRealtimeRefresh([
     { events: BLOOD_REQUEST_EVENTS, queryKeys: [QK.bloodRequests] },
-    { events: BED_EVENTS, queryKeys: [QK.bedsSummary] },
+    { events: BED_EVENTS, queryKeys: [QK.bedsSummary, QK.bedCapacities] },
     { events: MISSION_EVENTS, queryKeys: [QK.missionsActive, QK.ambulancesList] },
     { events: [RealtimeEvent.ambulanceStatus], queryKeys: [QK.ambulancesList] },
     { events: [RealtimeEvent.predictionUpdate], queryKeys: [QK.predictionsSummary] },
@@ -364,13 +390,18 @@ const NetworkDashboard: React.FC = () => {
       <PageHeader
         eyebrow={
           <>
-            <span>{user?.facility ? user.facility.city : 'Supervision nationale'}</span>
+            <span>{user?.facility ? user.facility.city : scope}</span>
             <span aria-hidden="true">·</span>
             <span>{lastUpdate > 0 ? `Actualisé ${formatRelative(new Date(lastUpdate), now)}` : 'Chargement des données'}</span>
           </>
         }
         title={user?.facility ? user.facility.name : 'Situation du réseau'}
-        description="Lits, sang et SAMU en temps réel : l’urgent d’abord, la tendance ensuite."
+        description={
+          <>
+            Lits, sang et SAMU en temps réel : l’urgent d’abord, la tendance ensuite.
+            <SupervisionBadge className="ml-2 align-middle" />
+          </>
+        }
         actions={
           FULL_FEATURES && (
             <>
@@ -575,6 +606,8 @@ const NetworkDashboard: React.FC = () => {
           </Panel>
         )}
       </div>
+
+      {national && <FacilitiesOverview rows={rows} />}
 
       <Panel
         i={4}

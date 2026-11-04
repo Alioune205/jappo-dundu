@@ -15,8 +15,9 @@ API REST de l'application Lits.
 - POST  /api/lits/reservations/<id>/fulfill/   patient arrivé : le lit réservé devient occupé
 - POST  /api/lits/reservations/<id>/cancel/    libérer le lit {reason?}
 
-Lecture : admin, personnel hospitalier et ambulanciers (orientation des
-patients). Écriture : admin, ou personnel de l'établissement concerné.
+Lecture : administrateur général (supervision), personnel hospitalier et
+ambulanciers (orientation des patients). Écriture : personnel de
+l'établissement concerné ; jamais l'administrateur général (403).
 
 Auteur : Ibrahima Khalilou Diallo
 """
@@ -34,7 +35,7 @@ from ambulances.views import MissionViewSet, is_dispatcher, service_of
 from geo.serializers import NearbyQuerySerializer, parse_nearby_query
 from ml.constants import REGION_CODES, REGION_LABELS
 from security.permissions import role_permission
-from security.roles import DOMAIN_ROLES, Domain, Role, manages
+from security.roles import DOMAIN_ROLES, DOMAIN_VIEW_ROLES, Domain, Role, manages
 from users.filters import boolean_param, capabilities_param, choice_param, int_param
 from users.serializers import HealthFacilitySummarySerializer
 from users.permissions import facility_for_write, facility_permission, in_scope, is_admin, scope_to_facility
@@ -51,10 +52,11 @@ from .serializers import (
 CATEGORY_CODES = tuple(BedCapacity.Category.values)
 CATEGORY_LABELS = dict(BedCapacity.Category.choices)
 
-# Lecture : administrateurs des lits, et régulation / ambulanciers qui orientent
-# les patients vers les lits libres. Écriture : administrateurs des lits seulement.
+# Lecture : administrateurs des lits, administrateur général (supervision), et
+# régulation / ambulanciers qui orientent les patients vers les lits libres.
+# Écriture : administrateurs des lits seulement.
 CanViewBeds = role_permission(
-    *DOMAIN_ROLES[Domain.BEDS],
+    *DOMAIN_VIEW_ROLES[Domain.BEDS],
     Role.AMBULANCE_MANAGER,
     Role.AMBULANCE_DRIVER,
     message="Accès réservé aux administrateurs des lits et à la régulation.",
@@ -238,11 +240,12 @@ class BedCapacityViewSet(
 # =============================================================
 
 # Réservent : les administrateurs des lits (leur établissement) et la régulation
-# (sa région) ; l'administrateur général partout.
+# (sa région). L'administrateur général consulte les réservations sans en faire.
 CanReserveBeds = role_permission(
-    *DOMAIN_ROLES[Domain.BEDS],
+    *DOMAIN_VIEW_ROLES[Domain.BEDS],
     *DOMAIN_ROLES[Domain.AMBULANCES],
     message="Réservation de lits réservée aux administrateurs des lits et à la régulation.",
+    supervision_read_only=True,
 )
 
 
@@ -255,8 +258,6 @@ def _dispatch_region(user):
 
 
 def can_reserve_at(user, facility):
-    if is_admin(user):
-        return True
     if manages(user, Domain.BEDS) and in_scope(user, Domain.BEDS, facility):
         return True
     region = _dispatch_region(user)
@@ -264,10 +265,8 @@ def can_reserve_at(user, facility):
 
 
 def can_fulfill(user, reservation):
-    """Admettre le patient : l'hôpital qui l'accueille (ou l'administrateur général)."""
-    return is_admin(user) or (
-        manages(user, Domain.BEDS) and in_scope(user, Domain.BEDS, reservation.capacity.facility)
-    )
+    """Admettre le patient : l'hôpital qui l'accueille."""
+    return manages(user, Domain.BEDS) and in_scope(user, Domain.BEDS, reservation.capacity.facility)
 
 
 def can_cancel(user, reservation):

@@ -45,7 +45,7 @@ class TransferTests(AmbulanceFixturesMixin, TestCase):
         self.assertEqual(Mission.objects.filter(source='transfer').count(), 0)  # rien de créé
         self.assertEqual(self.transfer(destination_id=self.clinic.pk).status_code, 409)
         self.assertEqual(self.transfer(user=self.driver).status_code, 403)
-        self.assertEqual(self.transfer(user=self.admin).status_code, 400)  # origine obligatoire
+        self.assertEqual(self.transfer(user=self.admin).status_code, 403)  # supervision : pas d'opération métier
 
 
 class TensionTests(AmbulanceFixturesMixin, TestCase):

@@ -6,6 +6,7 @@ import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh'
 import { BED_EVENTS } from '@/lib/realtimeEvents'
 import { Button } from '@/components/ui/Button'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SupervisionBadge } from '@/components/ui/SupervisionBadge'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Tabs } from '@/components/ui/Tabs'
 import type { BedCapacity, BedReservation, Role } from '@/types/api'
@@ -21,7 +22,10 @@ import { useBedActions } from './beds/useBedActions'
 
 type View = 'mine' | 'network'
 
-/** Rôles autorisés à réserver (mêmes que l'API : lits et régulation). */
+/**
+ * Rôles qui consultent les réservations (mêmes que l'API) ; l'administrateur
+ * général les voit sans pouvoir réserver ni libérer (supervision).
+ */
 const RESERVING_ROLES: Role[] = ['admin', 'hospital_staff', 'bed_manager', 'ambulance_manager']
 
 const DESCRIPTIONS: Record<View, string> = {
@@ -33,6 +37,7 @@ const DESCRIPTIONS: Record<View, string> = {
  * Page « Lits », un écran par métier :
  * - « Mes lits » (gestionnaire des lits) : son établissement et ses actions du quotidien ;
  * - « Trouver un lit » (régulation, orientation) : le réseau, en lecture, avec réservation.
+ * L'administrateur général ne voit que le réseau, en lecture seule.
  */
 export const BedsManagement: React.FC = () => {
   const { user, roles, isAdmin } = useAuth()
@@ -66,14 +71,18 @@ export const BedsManagement: React.FC = () => {
   })
 
   const canReserve = (cap: BedCapacity) => canReserveAt(viewer, cap.facility)
-  const mineLabel = isAdmin ? 'Gérer un établissement' : 'Mes lits'
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="Jappo Lits · capacités du réseau"
         title="Lits"
-        description={DESCRIPTIONS[view]}
+        description={
+          <>
+            {DESCRIPTIONS[view]}
+            <SupervisionBadge className="ml-2 align-middle" />
+          </>
+        }
         actions={
           <Button
             variant="ghost"
@@ -90,7 +99,7 @@ export const BedsManagement: React.FC = () => {
       {managesBeds && (
         <Tabs<View>
           tabs={[
-            { id: 'mine', label: mineLabel },
+            { id: 'mine', label: 'Mes lits' },
             { id: 'network', label: 'Trouver un lit' },
           ]}
           activeTab={view}

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState, useCallb
 import { api } from '@/lib/api'
 import { openRealtimeSocket, type RealtimeMessage } from '@/lib/realtimeSocket'
 import { useAuth } from './AuthContext'
-import { canManage, rolesOf } from '@/lib/access'
+import { canView, rolesOf } from '@/lib/access'
 import { notifyInBackground } from '@/lib/browserNotifications'
 
 export interface RealtimeAlert {
@@ -176,9 +176,10 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // profil (nouvel objet `user`) ne doit pas couper les connexions.
   const userId = user?.id
   const facilityId = user?.facility?.id
-  // Le flux tableau de bord est réservé aux administrateurs (général ou de domaine).
+  // Le flux tableau de bord est réservé aux administrateurs (général, en
+  // supervision, ou de domaine) : backend DOMAIN_VIEW_ROLES.
   const userRoles = rolesOf(user)
-  const canFollowDashboard = (['beds', 'blood', 'ambulances'] as const).some((d) => canManage(userRoles, d))
+  const canFollowDashboard = (['beds', 'blood', 'ambulances'] as const).some((d) => canView(userRoles, d))
 
   useEffect(() => {
     if (!isAuthenticated || userId === undefined) return

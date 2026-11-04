@@ -10,6 +10,7 @@ import { Select, Input } from '@/components/ui/Input'
 import { Alert } from '@/components/ui/Alert'
 import { StatCard } from '@/components/ui/StatCard'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SupervisionBadge } from '@/components/ui/SupervisionBadge'
 import { Skeleton, EmptyState } from '@/components/ui/Skeleton'
 import { BLOOD_GROUPS, REGIONS, RISK_LEVELS, toneOf } from '@/lib/constants'
 import { formatDate, formatNumber, formatPercent } from '@/lib/format'
@@ -125,7 +126,12 @@ export const MLPredictions: React.FC = () => {
       <PageHeader
         eyebrow="Pilotage · modèle quantile conformel"
         title="Prévisions de pénurie"
-        description="Projection des stocks de sang par banque et par groupe, avec intervalle P10–P90 et jours de réserve."
+        description={
+          <>
+            Projection des stocks de sang par banque et par groupe, avec intervalle P10–P90 et jours de réserve.
+            <SupervisionBadge className="ml-2 align-middle" />
+          </>
+        }
         actions={
           <Button
             variant="ghost"

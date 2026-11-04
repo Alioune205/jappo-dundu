@@ -45,5 +45,5 @@ class ShiftCheckTests(AmbulanceFixturesMixin, TestCase):
 
         mission = make_mission(priority='urgent')
         with mock.patch('ambulances.services.travel_times_to', side_effect=fake):
-            response = api_client(self.admin).post(f'{MISSIONS}{mission.pk}/assign/', {}, format='json')
+            response = api_client(self.dispatcher).post(f'{MISSIONS}{mission.pk}/assign/', {}, format='json')
         self.assertEqual(response.data['ambulance']['id'], self.medical.pk)

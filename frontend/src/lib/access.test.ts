@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canManage, canOpen, canUseWeb, canView, primaryRoleLabel, rolesOf } from './access'
+import { canEditFleet, canManage, canOpen, canUseWeb, canView, isSupervisor, primaryRoleLabel, rolesOf } from './access'
 import type { Role } from '@/types/api'
 
 const PAGES = ['/', '/beds', '/blood', '/ambulances', '/ml', '/facilities', '/profile']
@@ -9,6 +9,22 @@ const openable = (roles: Role[]) => PAGES.filter((page) => canOpen(roles, page))
 describe('droits par rôle (miroir de security/roles.py)', () => {
   it("l'administrateur général ouvre tout", () => {
     expect(openable(['admin'])).toEqual(PAGES)
+  })
+
+  it("l'administrateur général supervise : il consulte tous les domaines sans en opérer aucun", () => {
+    for (const domain of ['beds', 'blood', 'ambulances'] as const) {
+      expect(canView(['admin'], domain)).toBe(true)
+      expect(canManage(['admin'], domain)).toBe(false)
+    }
+    expect(canEditFleet(['admin'])).toBe(false)
+    expect(isSupervisor(['admin'])).toBe(true)
+    // Même cumulé avec un rôle métier, il reste en lecture seule (comme le backend).
+    expect(canManage(['admin', 'blood_manager'], 'blood')).toBe(false)
+  })
+
+  it("seul l'administrateur des ambulances gère la flotte", () => {
+    expect(canEditFleet(['ambulance_manager'])).toBe(true)
+    expect(canEditFleet(['hospital_staff'])).toBe(false)
   })
 
   it("l'administrateur des lits n'ouvre que les lits", () => {

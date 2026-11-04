@@ -6,6 +6,8 @@ import { api } from '@/lib/api'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { formatDate } from '@/lib/format'
+import { useAuth } from '@/context/AuthContext'
+import { canManage } from '@/lib/access'
 
 interface Recommendation {
   region: string
@@ -22,7 +24,8 @@ interface Recommendation {
 /**
  * Des prévisions aux actions : pour chaque risque des 14 prochains jours, la
  * raison et ce qu'on peut faire maintenant (prévenir les donneurs, organiser
- * une collecte, demander un transfert).
+ * une collecte, demander un transfert). L'administrateur général voit les
+ * risques et leurs raisons, sans les boutons d'action (supervision).
  */
 export const RecommendationsPanel: React.FC = () => {
   const { data: items = [] } = useQuery<Recommendation[]>({
@@ -51,6 +54,8 @@ export const RecommendationsPanel: React.FC = () => {
 
 const RecommendationRow: React.FC<{ item: Recommendation }> = ({ item }) => {
   const [sent, setSent] = useState<number | null>(null)
+  const { roles } = useAuth()
+  const operates = canManage(roles, 'blood')
   const campaign = useMutation({
     mutationFn: () =>
       api.post<{ notified_donors: number }>('/api/sang/campaigns/', {
@@ -73,6 +78,7 @@ const RecommendationRow: React.FC<{ item: Recommendation }> = ({ item }) => {
         </span>
       </div>
       <p className="text-xs text-muted">{item.reason}</p>
+      {operates && (
       <div className="flex flex-wrap gap-2">
         {item.actions.map((action) =>
           action.type === 'campaign' ? (
@@ -102,6 +108,7 @@ const RecommendationRow: React.FC<{ item: Recommendation }> = ({ item }) => {
           )
         )}
       </div>
+      )}
       {campaign.error && (
         <p role="alert" className="text-xs text-critical">
           {campaign.error instanceof Error ? campaign.error.message : 'Campagne impossible.'}

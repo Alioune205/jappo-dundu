@@ -187,11 +187,23 @@ describe('Lits — administrateur général', () => {
     serve()
   })
 
-  it('choisit l’établissement à gérer', async () => {
+  it('consulte tout le réseau en lecture seule : ni « Mes lits », ni réservation', async () => {
     renderWithProviders(<BedsManagement />)
-    fireEvent.click(screen.getByRole('tab', { name: 'Gérer un établissement' }))
-    const select = await screen.findByLabelText('Établissement à gérer')
-    fireEvent.change(select, { target: { value: '2' } })
-    expect(await card(/^Urgences : 6 libres sur 8/)).toBeInTheDocument()
+    expect(screen.getByText('Lecture seule — supervision nationale')).toBeInTheDocument()
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    const table = await screen.findByRole('table')
+    for (const name of ['Hôpital Principal de Dakar', 'CHU de Fann', 'Hôpital de Thiès']) {
+      expect(within(table).getAllByText(name).length).toBeGreaterThan(0)
+    }
+    expect(within(table).queryByRole('button', { name: /Réserver/ })).not.toBeInTheDocument()
+  })
+
+  it('voit les réservations en cours sans pouvoir les libérer ni admettre le patient', async () => {
+    serve([RESERVATION])
+    renderWithProviders(<BedsManagement />)
+    expect(await screen.findByRole('heading', { name: 'Réservations en cours' })).toBeInTheDocument()
+    expect(await screen.findByText(/Mission #12/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Libérer' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Patient arrivé/ })).not.toBeInTheDocument()
   })
 })

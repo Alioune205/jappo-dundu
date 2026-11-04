@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarDays, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
+import { canManage } from '@/lib/access'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { REGIONS } from '@/lib/constants'
@@ -28,8 +29,10 @@ const KEY = ['blood-drives'] as const
  * affiche (« Journées de don », liste des centres).
  */
 export const DrivesPanel: React.FC = () => {
-  const { user } = useAuth()
+  const { user, roles } = useAuth()
   const facility = user?.facility
+  // Administrateur général : liste des collectes, sans création (supervision).
+  const operates = canManage(roles, 'blood')
   const queryClient = useQueryClient()
   const { data: drives = [] } = useQuery<Drive[]>({
     queryKey: KEY,
@@ -100,6 +103,7 @@ export const DrivesPanel: React.FC = () => {
           ))}
         </ul>
       )}
+      {operates && (
       <form
         className="grid grid-cols-2 gap-2 p-4"
         onSubmit={(e) => {
@@ -155,6 +159,7 @@ export const DrivesPanel: React.FC = () => {
           </Button>
         </div>
       </form>
+      )}
     </section>
   )
 }

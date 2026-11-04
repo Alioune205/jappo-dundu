@@ -110,12 +110,19 @@ class CapacityWriteTests(BedFixturesMixin, TestCase):
         self.assertEqual(response.status_code, 409)
 
     def test_blood_bank_has_no_beds(self):
+        # Compte historique rattaché au CNTS : un centre de transfusion n'a pas de lits.
+        cnts_staff = make_user('staff_cnts', Role.HOSPITAL_STAFF, facility=self.blood_bank)
+        response = api_client(cnts_staff).post(URL, {'category': 'emergency', 'total_beds': 3}, format='json')
+        self.assertEqual(response.status_code, 409)
+
+    def test_general_admin_cannot_declare_a_service(self):
         response = api_client(self.admin).post(
             URL,
-            {'category': 'emergency', 'total_beds': 3, 'facility_id': self.blood_bank.pk},
+            {'category': 'emergency', 'total_beds': 3, 'facility_id': self.hospital.pk},
             format='json',
         )
-        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.status_code, 403)
+        self.assertIn('Lecture seule', str(response.data['detail']))
 
     def test_validation(self):
         client = api_client(self.staff)
