@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { renderWithProviders } from '@/test/render'
 import { capacity, facility, mission } from '@/test/fixtures'
 import { Dashboard } from '../Dashboard'
@@ -10,10 +10,10 @@ const home = vi.hoisted(() => ({ id: 7, name: 'Hôpital Principal', latitude: 14
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { facility: home }, roles: ['bed_manager'] }),
 }))
-vi.mock('@/components/map/MapView', () => ({ MapView: () => <div data-testid="map" /> }))
 vi.mock('@/context/RealtimeContext', () => ({ useRealtime: () => ({ subscribe: () => () => {} }) }))
 
 const mine = facility({ ...home })
+const missionsResponse = vi.hoisted(() => ({ results: [] as unknown[] }))
 const RESPONSES: Record<string, unknown> = {
   '/api/lits/capacities/': {
     results: [
@@ -22,13 +22,7 @@ const RESPONSES: Record<string, unknown> = {
     ],
   },
   '/api/lits/capacities/summary/': [],
-  '/api/ambulances/missions/': {
-    results: [
-      mission({ id: 1, status: 'transporting', description: 'Accident de la route', destination: mine }),
-      mission({ id: 2, description: 'Autre hôpital', destination: facility({ id: 99 }) }),
-    ],
-  },
-  '/api/lits/capacities/nearest/': [{ ...facility({ id: 3, name: 'CHU de Fann' }), distance_km: 4.9, available_beds: 2 }],
+  '/api/ambulances/missions/': missionsResponse,
 }
 
 describe('Tableau de bord de l’administrateur des lits', () => {
@@ -36,25 +30,42 @@ describe('Tableau de bord de l’administrateur des lits', () => {
     api.get.mockReset()
     api.post.mockReset()
     api.get.mockImplementation(async (path: string) => RESPONSES[path])
+    missionsResponse.results = [
+      mission({ id: 1, status: 'transporting', description: 'Accident de la route', destination: mine }),
+      mission({ id: 2, description: 'Autre hôpital', destination: facility({ id: 99 }) }),
+    ]
   })
 
-  it('montre son établissement, ses services vitaux d’abord, et les patients qui arrivent', async () => {
+  it('montre son établissement et signale en premier le service vital saturé', async () => {
     renderWithProviders(<Dashboard />)
     expect(await screen.findByRole('heading', { level: 1, name: 'Hôpital Principal' })).toBeInTheDocument()
-    expect(await screen.findByText('Service vital saturé')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith('/api/lits/capacities/', { facility: 7 })
-    // Seule la mission vers cet hôpital est listée.
-    expect(await screen.findByText('Accident de la route')).toBeInTheDocument()
+    const urgent = await screen.findByRole('region', { name: 'À traiter maintenant' })
+    expect(await within(urgent).findByText('Service vital saturé')).toBeInTheDocument()
+    expect(within(urgent).getByText('Réanimation')).toBeInTheDocument()
+    expect(within(urgent).getByRole('link', { name: /Trouver un lit ailleurs/ })).toHaveAttribute('href', '/beds')
+    // Un seul autre point derrière : le patient en route vers cet hôpital.
+    expect(within(urgent).getByText('1 autre point')).toBeInTheDocument()
+    // Seule la mission vers cet hôpital est comptée.
+    expect(screen.getByText('Patients en approche')).toBeInTheDocument()
     expect(screen.queryByText('Autre hôpital')).not.toBeInTheDocument()
-    // Transfert proposé pour le service vital saturé.
-    expect(await screen.findByText('CHU de Fann')).toBeInTheDocument()
   })
 
-  it('enregistre une admission en un clic, et bloque l’admission d’un service plein', async () => {
-    api.post.mockResolvedValue({})
+  it('met en avant un patient annoncé qui attend la réponse de l’hôpital', async () => {
+    missionsResponse.results = [
+      mission({ id: 1, status: 'transporting', description: 'Accident de la route', destination: mine, destination_status: 'pending' }),
+    ]
     renderWithProviders(<Dashboard />)
-    expect(await screen.findByRole('button', { name: 'Admettre un patient : Réanimation' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Admettre un patient : Chirurgie' }))
-    await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/lits/capacities/1/admit/'))
+    const urgent = await screen.findByRole('region', { name: 'À traiter maintenant' })
+    expect(await within(urgent).findByText('Patient annoncé · à confirmer')).toBeInTheDocument()
+    expect(within(urgent).getByText('Accident de la route')).toBeInTheDocument()
+    expect(within(urgent).getByText('Pouvez-vous accueillir ce patient ?')).toBeInTheDocument()
+  })
+
+  it('laisse les admissions au module Lits : aucun bouton d’admission sur l’accueil', async () => {
+    renderWithProviders(<Dashboard />)
+    await screen.findByRole('region', { name: 'Occupation par service' })
+    expect(screen.queryByRole('button', { name: /Admettre un patient/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Solutions de transfert')).not.toBeInTheDocument()
   })
 })

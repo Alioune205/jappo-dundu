@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router'
-import { Bell, LogOut, Sun, Moon, Search } from 'lucide-react'
+import { Bell, Sun, Moon } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { useAssistant } from '@/components/ai/useAssistant'
 import { primaryRoleLabel } from '@/lib/access'
 import { useRealtime } from '@/context/RealtimeContext'
 import { useTheme } from '@/context/ThemeContext'
@@ -41,17 +40,12 @@ const PAGE_LABELS: Record<string, string> = {
 const iconButton =
   'relative inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface hover:text-fg hover:shadow-[var(--shadow-panel)]'
 
-/** Raccourci affiché selon le système (⌘ sur Mac). */
-const SHORTCUT = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K'
-
 /**
- * En-tête de l'application, posé sur le fond : le champ de recherche (qui
- * ouvre Jappo IA), l'heure de Dakar sur grand écran, puis l'état de la
+ * En-tête de l'application, posé sur le fond : le titre de la page, l'heure de Dakar sur grand écran, puis l'état de la
  * liaison temps réel et les outils (thème, alertes, compte).
  */
 export const Header: React.FC = () => {
-  const { logout, user, roles } = useAuth()
-  const assistant = useAssistant()
+  const { user, roles } = useAuth()
   const displayName = user?.full_name || user?.username || ''
   const initials =
     displayName
@@ -93,24 +87,10 @@ export const Header: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-4 bg-canvas/80 px-4 backdrop-blur-md lg:h-[4.75rem] lg:px-8">
+      <header className="relative z-30 mx-4 mt-4 flex h-14 shrink-0 items-center justify-between gap-4 rounded-[1.25rem] border border-line bg-surface px-3 lg:ml-4 lg:mr-8 lg:h-[3.75rem] lg:px-5">
         <div className="flex min-w-0 flex-1 items-center gap-4">
-          {/* Champ de recherche : ouvre Jappo IA, qui répond sur les données du réseau. */}
-          <button
-            type="button"
-            onClick={assistant.open}
-            aria-haspopup="dialog"
-            aria-expanded={assistant.isOpen}
-            className="hidden h-11 w-full max-w-[28rem] cursor-pointer items-center gap-3 rounded-full bg-surface px-5 text-left text-sm text-muted shadow-[var(--shadow-panel)] transition-shadow hover:shadow-[var(--shadow-raised)] lg:flex"
-          >
-            <Search className="h-[1.125rem] w-[1.125rem] shrink-0 text-fg" aria-hidden="true" />
-            <span className="flex-1 truncate">Rechercher, demander à Jappo IA…</span>
-            <kbd className="rounded-md border border-line-strong px-1.5 py-0.5 font-sans text-[0.625rem] text-subtle">
-              {SHORTCUT}
-            </kbd>
-          </button>
-          {/* Petit écran : la page courante à la place du champ. */}
-          <p aria-current="page" className="truncate text-sm font-semibold text-fg lg:hidden">
+          {/* La page courante : le titre de l'en-tête. */}
+          <p aria-current="page" className="truncate text-base font-semibold text-fg lg:text-lg">
             {pageLabel}
           </p>
           <p className="hidden shrink-0 items-baseline gap-1.5 whitespace-nowrap text-xs text-muted 2xl:flex">
@@ -203,7 +183,7 @@ export const Header: React.FC = () => {
             className="flex items-center gap-3 rounded-full py-1 pl-1 pr-1 transition-colors hover:bg-surface sm:pr-3"
             title="Mon profil"
           >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#dce8fa] text-2xs font-bold text-[#16417b]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-2xs font-bold text-ink">
               {initials}
             </span>
             <span className="hidden text-left leading-tight xl:block">
@@ -213,16 +193,6 @@ export const Header: React.FC = () => {
               <span className="block text-2xs text-muted">{primaryRoleLabel(roles)}</span>
             </span>
           </Link>
-
-          <button
-            type="button"
-            onClick={logout}
-            className={`${iconButton} hover:text-critical`}
-            aria-label="Se déconnecter"
-            title="Se déconnecter"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
         </div>
       </header>
 

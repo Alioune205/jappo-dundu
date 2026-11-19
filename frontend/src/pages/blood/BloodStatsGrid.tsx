@@ -4,7 +4,7 @@ import { StatCard } from '@/components/ui/StatCard'
 import type { BloodStats } from './bloodStats'
 
 export const BloodStatsGrid: React.FC<{ stats: BloodStats }> = ({ stats }) => (
-  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <StatCard variant="hero" stagger={0} title="Demandes ouvertes" accent="blue" icon={<ClipboardList className="h-5 w-5" />} value={stats.totalOpen} description="Déclarées par les hôpitaux" />
     <StatCard stagger={1}
       title="Urgences vitales" accent="red" icon={<TriangleAlert className="h-5 w-5" />}

@@ -43,7 +43,7 @@ export const Panel: React.FC<PanelProps> = ({
       style={{ '--i': i } as React.CSSProperties}
       aria-labelledby={headingId}
     >
-      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-5 pb-1 pt-5 sm:flex-nowrap">
+      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-5 pb-1 pt-5">
         <div className="min-w-[min(100%,14rem)] flex-1">
           {eyebrow && <p className="kicker mb-1">{eyebrow}</p>}
           <h2 id={headingId} className="text-[0.9375rem] font-bold leading-6 tracking-[-0.01em] text-fg">

@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { JappoAIAssistant } from './JappoAIAssistant'
+import { AssistantLauncher } from './AssistantLauncher'
 import { AssistantContext } from './useAssistant'
 
 /**
- * Jappo IA accessible de partout : la carte de la barre latérale, le
+ * Jappo IA accessible de partout : la pastille en bas à droite, le
  * raccourci Ctrl K (⌘ K sur Mac), ou tout composant qui appelle `open()`.
  * Le panneau reste monté : la conversation survit à sa fermeture.
  */
@@ -28,6 +29,7 @@ export const AssistantProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   return (
     <AssistantContext.Provider value={value}>
       {children}
+      <AssistantLauncher />
       <JappoAIAssistant isOpen={isOpen} onClose={close} />
     </AssistantContext.Provider>
   )

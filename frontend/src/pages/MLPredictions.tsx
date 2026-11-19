@@ -151,7 +151,7 @@ export const MLPredictions: React.FC = () => {
 
       {model && (
         <section aria-label="Modèle actif">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard variant="hero" stagger={0}
               title="Couverture P10–P90" accent="blue" icon={<Target className="h-5 w-5" />}
               value={formatPercent(coverage, 1)}

@@ -12,6 +12,8 @@ export interface CapsuleDatum {
   signal: Signal
   /** Valeur lisible sous le libellé. */
   valueText: string
+  /** Version courte affichée sous la capsule quand la place manque (le texte complet reste lu et dans l'infobulle). */
+  shortText?: string
   /** Lignes de l'infobulle. */
   details?: string[]
   /** Repère de comparaison, entre 0 et 1 (ex. taux régional). */
@@ -37,6 +39,10 @@ interface CapsuleChartProps {
   /** Description du graphique pour les lecteurs d'écran. */
   ariaLabel: string
   className?: string
+  /** Piste rayée (ce qui reste à remplir) plutôt qu'unie. */
+  hatch?: boolean
+  /** Largeur maximale d'une capsule en pixels (48 par défaut, 22 si dense). */
+  capsuleWidth?: number
 }
 
 /**
@@ -54,6 +60,8 @@ export const CapsuleChart: React.FC<CapsuleChartProps> = ({
   onSelect,
   ariaLabel,
   className = '',
+  hatch = false,
+  capsuleWidth,
 }) => {
   const [hovered, setHovered] = useState<string | null>(null)
   const max = Math.max(1, ...data.map((d) => d.value ?? 0))
@@ -114,11 +122,17 @@ export const CapsuleChart: React.FC<CapsuleChartProps> = ({
               {/* Contenant : capacité (piste pâle) ou simple barre. */}
               <span
                 className={`capsule-fill relative block w-full overflow-hidden rounded-full ${
-                  d.value === null ? 'border border-dashed border-line-strong' : mode === 'fill' ? 'bg-track' : ''
+                  d.value === null
+                    ? 'border border-dashed border-line-strong'
+                    : mode === 'fill'
+                      ? hatch
+                        ? 'hatch-track'
+                        : 'bg-track'
+                      : ''
                 } ${selected ? 'ring-2 ring-fg ring-offset-2 ring-offset-surface' : ''}`}
                 style={{
                   height: `${(d.value === null ? 0.35 : mode === 'fill' ? containerRatio : Math.max(ratio, 0.04)) * 100}%`,
-                  maxWidth: dense ? 22 : 48,
+                  maxWidth: capsuleWidth ?? (dense ? 22 : 48),
                 }}
               >
                 {d.value !== null && (
@@ -168,14 +182,14 @@ export const CapsuleChart: React.FC<CapsuleChartProps> = ({
         {data.map((d) => (
           <div key={d.key} className="min-w-0 flex-1 text-center">
             <div
-              className={`truncate ${dense ? 'text-[0.6875rem]' : 'text-xs'} font-medium ${
+              className={`truncate ${dense || data.length > 6 ? 'text-[0.6875rem] tracking-[-0.01em]' : 'text-xs'} font-medium ${
                 selectedKey === d.key ? 'text-fg' : 'text-fg/80'
               }`}
               title={d.label}
             >
               {d.label}
             </div>
-            {!dense && <div className="num truncate text-2xs text-subtle">{d.valueText}</div>}
+            {!dense && <div className="num truncate text-2xs text-subtle">{d.shortText ?? d.valueText}</div>}
           </div>
         ))}
       </div>

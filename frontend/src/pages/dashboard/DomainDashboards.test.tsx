@@ -46,6 +46,8 @@ const RESPONSES: Record<string, (params?: Record<string, unknown>) => unknown> =
   '/api/ambulances/vehicles/': () => ({
     results: [ambulance({ id: 1 }), ambulance({ id: 2, plate_number: 'DK-9', status: 'on_mission', status_display: 'En mission' })],
   }),
+  '/api/lits/capacities/summary/': () => [],
+  '/api/ml/predictions/summary/': () => [],
   '/api/ambulances/missions/stats/': () => ({
     period_days: 30,
     missions: { total: 12, by_status: {} },
@@ -64,35 +66,47 @@ describe('Tableaux de bord par domaine', () => {
   it('administrateur du sang : demandes, stock par groupe et pénurie prévue', async () => {
     auth.roles = ['blood_manager']
     renderWithProviders(<Dashboard />)
-    expect(await screen.findByText('Pénurie prévue')).toBeInTheDocument()
+    // Pénurie prévue : portée par l'indicateur « Groupes en pénurie » (O− critique à 7 jours).
+    expect(await screen.findByText('Critique : O−')).toBeInTheDocument()
     // Stock régional : somme des centres pour un même groupe (6 + 4).
-    expect((await screen.findAllByText('10 poches')).length).toBeGreaterThan(0)
+    expect(await screen.findByLabelText(/^O− : 10 poches/)).toBeInTheDocument()
     // Aucun relevé pour B+ : jamais présenté comme un stock stable.
-    expect(screen.getByRole('button', { name: /^B\+ : Pas de relevé/ })).toBeInTheDocument()
+    expect(screen.getByLabelText(/^B\+ : Pas de relevé/)).toBeInTheDocument()
     expect(screen.getByText(/données simulées/)).toBeInTheDocument()
     // 3 + 2 poches manquantes, 2 donneurs en route.
-    const tile = screen.getByText('Poches manquantes').closest('div.panel') as HTMLElement
+    // La tuile « Poches manquantes » est la carte d'encre mise en avant.
+    const tile = screen.getByText('Poches manquantes').closest('.ink-card') as HTMLElement
     expect(within(tile).getByText('5')).toBeInTheDocument()
     expect(api.get).toHaveBeenCalledWith('/api/ml/stocks/', { region: 'dakar', days: 1 })
     expect(api.get).not.toHaveBeenCalledWith('/api/lits/capacities/summary/', expect.anything())
+    // La demande la plus urgente est à traiter en premier ; la liste complète vit dans le module Sang.
+    const urgent = screen.getByRole('region', { name: 'À traiter maintenant' })
+    expect(within(urgent).getByText('Demande vitale')).toBeInTheDocument()
+    expect(within(urgent).getByText('3 poches')).toBeInTheDocument()
+    expect(within(urgent).getByText('1 autre point')).toBeInTheDocument()
   })
 
   it('administrateur des ambulances : mission en attente signalée, flotte et délais', async () => {
     auth.roles = ['ambulance_manager']
     renderWithProviders(<Dashboard />)
-    expect(await screen.findByText('Mission en attente')).toBeInTheDocument()
-    // Dans la liste des missions et dans le chronomètre (plus ancienne mission en attente).
-    expect(screen.getAllByText('Accident sur la VDN')).toHaveLength(2)
+    // La plus ancienne mission sans ambulance est la carte « Attente sans ambulance ».
+    const urgent = await screen.findByRole('region', { name: 'Attente sans ambulance' })
+    expect(await within(urgent).findByText('Sans ambulance')).toBeInTheDocument()
+    expect(within(urgent).getByText('Accident sur la VDN')).toBeInTheDocument()
+    expect(within(urgent).getByRole('link', { name: /Affecter une ambulance/ })).toHaveAttribute('href', '/ambulances')
     // Créée il y a 12 minutes : le chronomètre l'affiche à la seconde.
     expect(screen.getByRole('timer')).toHaveTextContent(/^00:1[12]:\d\d$/)
-    expect(await screen.findByText('DK-9')).toBeInTheDocument()
+    // Flotte : 1 ambulance libre sur 2.
+    expect(await screen.findByText('1 / 2')).toBeInTheDocument()
     expect(await screen.findByText(/Médiane sur 30 jours · 12 missions/)).toBeInTheDocument()
   })
 
   it('un compte multi-domaines garde la vue réseau', async () => {
     auth.roles = ['blood_manager', 'bed_manager']
     renderWithProviders(<Dashboard />)
-    expect(await screen.findByText('Carte opérationnelle')).toBeInTheDocument()
-    expect(screen.queryByText('Stock de la région par groupe')).not.toBeInTheDocument()
+    // Rattaché à un établissement, il garde la vue réseau (et non la vue d'un seul domaine).
+    expect(await screen.findByRole('heading', { level: 1, name: 'CNTS' })).toBeInTheDocument()
+    expect(await screen.findByText(/sur tout le réseau/)).toBeInTheDocument()
+    expect(screen.queryByText(/poches dans la région/)).not.toBeInTheDocument()
   })
 })

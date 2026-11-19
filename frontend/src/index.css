@@ -27,33 +27,33 @@
 
 :root {
   /* Un seul plan : la navigation et les cartes reposent sur le même fond. */
-  --canvas: #eef2fa;
-  --sheet: #eef2fa;
+  --canvas: #f4f5f3;
+  --sheet: #f4f5f3;
   --surface: #ffffff;
-  --raised: #f7f9fc;
-  --sunken: #f1f4f8;
+  --raised: #f8f9f7;
+  --sunken: #f1f3f0;
   /* Piste des jauges : ce qui reste (lits libres, reliquat). */
-  --track: #edf1f7;
-  --line: #e9edf4;
-  --line-strong: #d9dde4;
+  --track: #eceee9;
+  --line: #e8ebe6;
+  --line-strong: #dcdfd9;
   --fg: #0b1a30;
   --fg-muted: #5f6b7e;
   --fg-subtle: #8f99aa;
-  --inverse-bg: #0f2547;
+  --inverse-bg: #05244a;
   --inverse-fg: #ffffff;
 
   /* Encre : bleu nuit du logo. Surfaces principales et actions. */
-  --ink: #0f2547;
-  --ink-strong: #0a1b36;
-  --ink-raised: #18345f;
+  --ink: #05244a;
+  --ink-strong: #031a36;
+  --ink-raised: #0b3566;
   --on-ink: #ffffff;
   --on-ink-muted: rgb(255 255 255 / 0.68);
   --on-ink-line: rgb(255 255 255 / 0.12);
 
   /* Action principale = encre (le rouge est réservé au critique). */
-  --brand: #0f2547;
-  --brand-strong: #0a1b36;
-  --brand-soft: #e9eef6;
+  --brand: #05244a;
+  --brand-strong: #031a36;
+  --brand-soft: #e8edf4;
   --brand-fg: #ffffff;
 
   /* Rouge du logo : nom, symbole, pouls. Jamais pour une action. */
@@ -72,14 +72,14 @@
   --accent-red: #d92d20;
 
   /* Barre latérale bleu nuit, dans les deux thèmes. */
-  --sidebar: #0b1d4a;
-  --sidebar-raised: #102b52;
-  --sidebar-active: #1d5ee0;
-  --sidebar-accent: #65a3ff;
-  --sidebar-line: #1d385b;
-  --sidebar-fg: #ffffff;
-  --sidebar-muted: #c3cfe4;
-  --sidebar-subtle: #8196b5;
+  --sidebar: #f4f5f3;
+  --sidebar-raised: #ffffff;
+  --sidebar-active: #05244a;
+  --sidebar-accent: #1d4f8f;
+  --sidebar-line: #e8ebe6;
+  --sidebar-fg: #0b1a30;
+  --sidebar-muted: #6b7177;
+  --sidebar-subtle: #a2a7ac;
 
   /*
    * Teintes des pictogrammes (indicateurs, file des priorités) : rouge =
@@ -101,8 +101,8 @@
    * Visualisation : l'état nominal est tracé dans un bleu d'encre adouci,
    * calme ; seules les exceptions (vigilance, critique) prennent une couleur.
    */
-  --viz-base: #36538a;
-  --viz-base-soft: #cdd7e6;
+  --viz-base: #0b3a73;
+  --viz-base-soft: #cfdbeb;
   --viz-warn: #d97706;
   --viz-crit: #e5484d;
   --on-critical: #ffffff;
@@ -114,9 +114,9 @@
 
 
   --focus: #175cd3;
-  --shadow-panel: 0 0 0 1px rgb(20 45 100 / 0.05), 0 10px 28px -14px rgb(20 45 100 / 0.18);
+  --shadow-panel: 0 0 0 1px var(--line), 0 12px 24px -20px rgb(5 36 74 / 0.18);
   --shadow-raised: 0 0 0 1px rgb(16 24 40 / 0.05), 0 18px 40px -18px rgb(16 24 40 / 0.2), 0 2px 6px rgb(16 24 40 / 0.04);
-  --shadow-ink: 0 22px 44px -22px rgb(15 37 71 / 0.6), 0 2px 6px rgb(15 37 71 / 0.12);
+  --shadow-ink: 0 22px 44px -22px rgb(5 36 74 / 0.65), 0 2px 6px rgb(5 36 74 / 0.12);
   color-scheme: light;
 }
 
@@ -354,7 +354,7 @@
 
   /* Panneau : surface blanche, filet fin, ombre à peine perceptible. */
   .panel {
-    border-radius: 1.125rem;
+    border-radius: 1.25rem;
     background-color: var(--surface);
     box-shadow: var(--shadow-panel);
   }
@@ -1272,15 +1272,89 @@
 
 /* Tuile d'indicateur : voile de la teinte du sujet dans l'angle, pictogramme plein. */
 .metric-tile {
-  background: linear-gradient(
-    120deg,
-    color-mix(in oklab, var(--tile) 12%, var(--surface)) 0%,
-    var(--surface) 62%
-  );
+  background: var(--surface);
 }
 .metric-icon {
   background: linear-gradient(145deg, color-mix(in oklab, var(--tile) 80%, white), var(--tile));
   box-shadow: 0 12px 22px -10px color-mix(in oklab, var(--tile) 70%, transparent);
+}
+
+/*
+ * Piste hachurée des capsules (langage des vidéos de référence) : ce qui reste
+ * à remplir est rayé, ce qui est rempli est plein. Les rayures suivent le thème.
+ */
+.hatch-track {
+  background-color: var(--track);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 5px,
+    color-mix(in oklab, var(--ink) 9%, transparent) 5px 7px
+  );
+}
+
+/* Cellules (une par poche) et calendrier des pénuries : apparition en cascade. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes cell-in {
+    from {
+      opacity: 0;
+      scale: 0.4;
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+  .cell-in {
+    animation: cell-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--k, 0) * 10ms + 120ms);
+  }
+  .cal-cell {
+    animation: cell-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--k, 0) * 40ms + 200ms);
+  }
+}
+
+/*
+ * Carte d'encre chronométrée (attente sans ambulance) : de fines courbes
+ * d'encre plus claire, comme les lignes de niveau d'une carte. Purement
+ * décoratives, très basses en contraste pour ne pas gêner la lecture.
+ */
+.ink-lines::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: repeating-radial-gradient(
+    circle at 115% 130%,
+    transparent 0 22px,
+    rgb(255 255 255 / 0.06) 22px 23px
+  );
+}
+
+/* Carte des régions : la teinte et le contour changent en douceur au survol. */
+.region-shape {
+  transition:
+    fill-opacity 200ms ease,
+    stroke-width 200ms ease;
+}
+
+/* Repère d'un point critique : une onde lente autour du point (rien si mouvement réduit). */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes map-ping {
+    0% {
+      r: 5;
+      opacity: 0.45;
+    }
+    80%,
+    100% {
+      r: 13;
+      opacity: 0;
+    }
+  }
+  .map-ping {
+    animation: map-ping 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  }
 }
 
 /* Bandeau d'accueil : encre opaque à gauche (texte), photo visible à droite. */
@@ -1302,16 +1376,14 @@
 /* Cartes d'encre de la colonne de droite (appel, assistant, statut). */
 .ink-card {
   background:
-    radial-gradient(120% 90% at 100% 100%, rgb(47 109 230 / 0.45), transparent 60%),
-    linear-gradient(150deg, #0d2257, #0a1a40);
-  box-shadow: 0 18px 36px -22px rgb(11 29 74 / 0.65);
+    repeating-radial-gradient(circle at 110% 140%, transparent 0 20px, rgb(255 255 255 / 0.06) 20px 21px),
+    linear-gradient(155deg, #0b3566 0%, #05244a 55%, #031a36 100%);
+  box-shadow: 0 20px 34px -22px rgb(5 36 74 / 0.8);
 }
 
 /* Barre latérale : bleu nuit profond, halo bleu vers le bas. */
 .sidebar-shell {
-  background:
-    radial-gradient(130% 40% at 0% 100%, rgb(37 99 235 / 0.35), transparent 70%),
-    linear-gradient(180deg, #0b1d4a 0%, #0a1838 60%, #0b1f52 100%);
+  background: transparent;
 }
 .dark .sidebar-shell {
   background:

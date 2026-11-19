@@ -1,164 +1,118 @@
-import React, { useContext } from 'react'
+import React from 'react'
 import { Link } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, BellRing, CircleCheck, TriangleAlert } from 'lucide-react'
-import { api } from '@/lib/api'
-import { formatTime } from '@/lib/format'
-import { AssistantContext } from '@/components/ai/useAssistant'
-import { JappoEmblem } from '@/components/ai/JappoEmblem'
+import { ArrowRight } from 'lucide-react'
+import { useNow } from '@/lib/useNow'
 import { PriorityFeed, type PriorityItem } from '@/components/dash/PriorityFeed'
+import type { Mission } from '@/types/api'
+import { ASSIGN_TARGET_MINUTES } from './status'
 
-/** Alertes prioritaires : bandeau rouge, puis la file « à traiter » (les plus graves d'abord). */
-export const AlertsCard: React.FC<{ items: PriorityItem[]; i?: number }> = ({ items, i = 0 }) => (
-  <section
-    className="panel reveal overflow-hidden"
-    style={{ '--i': i } as React.CSSProperties}
-    aria-labelledby="alerts-card-title"
-  >
-    <header className="flex items-center justify-between gap-3 bg-gradient-to-r from-[#e5484d] to-[#f0646b] px-5 py-3.5 text-white">
-      <h2 id="alerts-card-title" className="flex items-center gap-2 text-[0.9375rem] font-bold">
-        <BellRing className="h-[1.125rem] w-[1.125rem]" aria-hidden="true" />
-        Alertes prioritaires
-      </h2>
-      <span className="num flex h-6 min-w-6 items-center justify-center rounded-full bg-white px-1.5 text-xs font-bold text-[#d92d20]">
-        {items.length}
-        <span className="sr-only"> alerte{items.length > 1 ? 's' : ''}</span>
-      </span>
-    </header>
-    <div className="pt-4">
-      <PriorityFeed items={items} limit={4} />
-    </div>
-  </section>
-)
-
-/** Carte d'encre : fond bleu nuit, halo et symbole du logo en filigrane. */
-const InkCard: React.FC<{ children: React.ReactNode; i?: number; labelledBy?: string; decor?: boolean }> = ({
-  children,
-  i = 0,
-  labelledBy,
-  decor = true,
-}) => (
-  <section
-    className="ink-card reveal relative isolate overflow-hidden rounded-[1.125rem] p-5 text-white"
-    style={{ '--i': i } as React.CSSProperties}
-    aria-labelledby={labelledBy}
-  >
-    {decor && (
-      <img
-        src="/logo-mark-dark.png"
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-6 -right-6 -z-10 h-32 w-32 opacity-25"
-      />
-    )}
-    {children}
-  </section>
-)
-
-/** Appel à l'action : organiser une collecte (module des collectes de sang). */
-export const DriveCard: React.FC<{ i?: number }> = ({ i = 0 }) => (
-  <InkCard i={i} labelledBy="drive-card-title">
-    <h2 id="drive-card-title" className="max-w-[13rem] text-base font-bold leading-snug">
-      Donner son sang, c’est sauver des vies.
-    </h2>
-    <Link
-      to="/blood"
-      className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-semibold text-[#0b1d4a] transition-colors hover:bg-white/90"
-    >
-      Organiser une collecte <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-    </Link>
-  </InkCard>
-)
-
-/** Jappo IA : une question sur le réseau, réponse chiffrée à partir des données. */
-export const AssistantCard: React.FC<{ i?: number }> = ({ i = 0 }) => {
-  // Hors de la coque de l'application (tests isolés), la carte n'a rien à ouvrir.
-  const assistant = useContext(AssistantContext)
-  if (!assistant) return null
+/** File « à traiter maintenant » : les plus graves d'abord, chaque ligne mène à l'écran où agir. */
+export const AlertsCard: React.FC<{ items: PriorityItem[]; i?: number; limit?: number }> = ({ items, i = 0, limit = 5 }) => {
+  const critical = items.filter((item) => item.severity === 'critical').length
   return (
-    <InkCard i={i} labelledBy="assistant-card-title">
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 ring-1 ring-inset ring-white/15">
-        <JappoEmblem className="h-5 w-5 text-white" pulseClassName="text-critical-on-ink" />
-      </span>
-      <h2 id="assistant-card-title" className="mt-3 max-w-[14rem] text-base font-bold leading-snug">
-        Une question sur le réseau ?
-      </h2>
-      <p className="mt-1 max-w-[15rem] text-2xs leading-relaxed text-white/70">
-        Lits, sang, SAMU : Jappo IA répond à partir des données de la plateforme.
-      </p>
-      <button
-        type="button"
-        onClick={assistant.open}
-        aria-haspopup="dialog"
-        className="mt-4 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-white px-3 text-xs font-semibold text-[#0b1d4a] transition-colors hover:bg-white/90"
-      >
-        Demander à Jappo IA <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-      </button>
-    </InkCard>
+    <section className="panel reveal flex flex-col" style={{ '--i': i } as React.CSSProperties} aria-labelledby="alerts-card-title">
+      <header className="flex items-start justify-between gap-3 px-5 pb-2 pt-5">
+        <div>
+          <h2 id="alerts-card-title" className="text-[0.9375rem] font-bold leading-6 tracking-[-0.01em] text-fg">
+            À traiter maintenant
+          </h2>
+          <p className="mt-0.5 text-xs text-subtle">
+            {items.length === 0
+              ? 'Rien en attente sur votre périmètre'
+              : `${critical} critique${critical > 1 ? 's' : ''} · ${items.length - critical} en vigilance`}
+          </p>
+        </div>
+        <span
+          className={`num flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-bold ${
+            critical > 0 ? 'bg-critical text-on-critical' : items.length > 0 ? 'bg-warning/10 text-warning' : 'bg-sunken text-muted'
+          }`}
+        >
+          {items.length}
+          <span className="sr-only"> point{items.length > 1 ? 's' : ''} à traiter</span>
+        </span>
+      </header>
+      <PriorityFeed items={items} limit={limit} />
+    </section>
   )
 }
 
-interface StatusPayload {
-  status: 'healthy' | 'degraded'
-  checks: Record<string, { status: string }>
-}
-
-/** Ce qu'une panne change pour l'utilisateur (pas le détail technique). */
-const CHECK_IMPACT: Record<string, string> = {
-  database: 'Données momentanément inaccessibles.',
-  channel_layer: 'Mises à jour en direct interrompues.',
-  ml_model: 'Prévisions de pénurie indisponibles.',
-}
+const two = (n: number) => String(n).padStart(2, '0')
 
 /**
- * Statut système : sonde réelle de l'API (base, temps réel, modèle), relue
- * chaque minute. Une phrase seulement : ce qui marche, ou ce qui ne marche pas
- * pour l'utilisateur ; le détail technique reste dans /api/status/.
+ * Attente en cours : la plus ancienne mission SAMU encore sans ambulance,
+ * chronométrée en direct face au délai cible d'affectation. C'est le seul
+ * chiffre qui change à la seconde sur l'écran : il a sa carte d'encre.
  */
-export const SystemStatusCard: React.FC<{ i?: number }> = ({ i = 0 }) => {
-  const query = useQuery<StatusPayload>({
-    queryKey: ['system-status'],
-    queryFn: () => api.get<StatusPayload>('/api/status/'),
-    refetchInterval: 60_000,
-  })
-  const checks = Object.entries(query.data?.checks ?? {})
-  const failing = checks.filter(([, c]) => c.status !== 'up')
-  const healthy = query.data && failing.length === 0
+export const WaitCard: React.FC<{ missions: Mission[]; i?: number; loading?: boolean }> = ({ missions, i = 0, loading = false }) => {
+  const now = useNow(1000)
+  const pending = missions
+    .filter((m) => m.status === 'pending')
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const oldest = pending[0]
+  const waited = oldest ? Math.max(0, Math.floor((now - new Date(oldest.created_at).getTime()) / 1000)) : 0
+  const late = waited >= ASSIGN_TARGET_MINUTES * 60
+  const ratio = Math.min(1, waited / (ASSIGN_TARGET_MINUTES * 60))
+  const hours = Math.floor(waited / 3600)
+  const clock = `${hours > 0 ? `${two(hours)}:` : ''}${two(Math.floor((waited % 3600) / 60))}:${two(waited % 60)}`
 
   return (
-    <InkCard i={i} labelledBy="status-card-title" decor={false}>
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-            query.isError ? 'bg-white/15' : healthy ? 'bg-[#12b76a]' : 'bg-[#f79009]'
-          }`}
-        >
-          {healthy ? <CircleCheck className="h-5 w-5" /> : <TriangleAlert className="h-5 w-5" />}
-        </span>
-        <div className="min-w-0">
-          <h2 id="status-card-title" className="text-[0.9375rem] font-bold">
-            Statut système
-          </h2>
-          <p className="mt-0.5 text-2xs leading-relaxed text-white/75">
-            {query.isPending
-              ? 'Vérification en cours…'
-              : query.isError
-                ? 'État des services indisponible.'
-                : healthy
-                  ? 'Tous les services fonctionnent normalement.'
-                  : failing.map(([key]) => CHECK_IMPACT[key] ?? 'Un service est à surveiller.').join(' ')}
-          </p>
-        </div>
+    <section
+      className="ink-card ink-lines reveal relative isolate overflow-hidden rounded-[1.125rem] p-5 text-white"
+      style={{ '--i': i } as React.CSSProperties}
+      aria-labelledby="wait-card-title"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="wait-card-title" className="text-[0.9375rem] font-semibold">
+          Attente sans ambulance
+        </h2>
+        {pending.length > 1 && (
+          <span className="num rounded-full bg-white/10 px-2 py-0.5 text-2xs font-semibold ring-1 ring-inset ring-white/15">
+            {pending.length} en attente
+          </span>
+        )}
       </div>
 
-      {/* Le tracé de pouls reprend le motif du logo : purement décoratif. */}
-      <svg viewBox="0 0 120 24" aria-hidden="true" className="pointer-events-none mt-3 h-6 w-full text-ok-on-ink/70">
-        <path d="M0 14h46l5-9 6 17 5-12 4 4h54" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      {query.dataUpdatedAt > 0 && (
-        <p className="num text-2xs text-white/60">Dernière vérification : {formatTime(new Date(query.dataUpdatedAt))}</p>
+      {loading ? (
+        <span className="mt-4 block h-12 w-40 animate-pulse rounded-lg bg-white/10" aria-label="Chargement" />
+      ) : !oldest ? (
+        <>
+          <p className="num mt-3 text-[2.75rem] font-semibold leading-none tracking-[-0.03em] text-white/35" aria-hidden="true">
+            00:00
+          </p>
+          <p className="mt-3 text-xs text-on-ink-muted">Aucune mission en attente : toutes ont une ambulance.</p>
+        </>
+      ) : (
+        <>
+          <p
+            className={`num mt-3 text-[2.75rem] font-semibold leading-none tracking-[-0.03em] ${late ? 'text-critical-on-ink' : 'text-white'}`}
+            role="timer"
+            aria-label={`Attente de ${Math.floor(waited / 60)} minutes`}
+          >
+            {clock}
+          </p>
+          <p className="mt-2 truncate text-xs text-on-ink-muted">
+            {oldest.priority_display} · {oldest.pickup_address || oldest.region_display}
+          </p>
+          <div className="mt-4">
+            <div className="h-1.5 overflow-hidden rounded-full bg-white/12" aria-hidden="true">
+              <div
+                className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${late ? 'bg-critical-on-ink' : 'bg-white'}`}
+                style={{ width: `${ratio * 100}%` }}
+              />
+            </div>
+            <p className="mt-1.5 flex justify-between text-2xs text-on-ink-muted">
+              <span>{late ? 'Délai cible dépassé' : 'Délai cible d’affectation'}</span>
+              <span className="num">{ASSIGN_TARGET_MINUTES} min</span>
+            </p>
+          </div>
+          <Link
+            to="/ambulances"
+            className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-full bg-white px-4 text-xs font-semibold text-[#0b1d4a] transition-colors hover:bg-white/90"
+          >
+            Affecter une ambulance <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+        </>
       )}
-    </InkCard>
+    </section>
   )
 }

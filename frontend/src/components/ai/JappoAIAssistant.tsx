@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Activity, Ambulance, ArrowRight, ArrowUp, ArrowUpRight, BedDouble, Check, Droplets, RotateCcw, SquarePen, X } from 'lucide-react'
+import { Activity, Ambulance, ArrowRight, ArrowUp, BedDouble, Check, Droplets, RotateCcw, SquarePen, X } from 'lucide-react'
 import { Link } from 'react-router'
 import { useAuth } from '@/context/AuthContext'
 import { canManage, canView } from '@/lib/access'
@@ -62,11 +62,11 @@ function introAlreadySeen(): boolean {
 /**
  * Jappo IA : l'assistant des tableaux de bord.
  *
- * Première ouverture de la session : le panneau glisse, le réticule se
- * trace, l'emblème se dessine puis bat une fois, l'accueil et les
- * suggestions arrivent en cascade (moins d'une seconde, la saisie est
- * disponible tout de suite). Ouvertures suivantes : glissement court, la
- * conversation est conservée. Chaque réponse cite ses sources et leur âge.
+ * Petite fenêtre ancrée en bas à droite, ouverte par la pastille (voir
+ * AssistantLauncher) ou par Ctrl K. Ce n'est pas un modèle de langage : un
+ * moteur à règles lit les données déjà chargées du périmètre de l'utilisateur.
+ * Chaque réponse cite ses sources et leur âge ; la conversation est conservée
+ * à la fermeture.
  */
 export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onClose }) => {
   const { user, roles } = useAuth()
@@ -219,19 +219,19 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
   const state = closing ? 'closing' : 'open'
   const welcome = messages.length === 0 && !thinking
   const status = !online
-    ? { dot: 'bg-critical-on-ink', text: 'Hors ligne · données en cache uniquement' }
+    ? { dot: 'bg-critical', text: 'Hors ligne · données en cache' }
     : thinking
-      ? { dot: 'bg-warning-on-ink live-pulse', text: 'Consultation des données…' }
-      : { dot: 'bg-ok-on-ink', text: `Prêt · ${domainsCount} module${domainsCount > 1 ? 's' : ''} accessible${domainsCount > 1 ? 's' : ''}` }
+      ? { dot: 'bg-warning live-pulse', text: 'Consultation des données…' }
+      : { dot: 'bg-ok', text: `Prêt · ${domainsCount} module${domainsCount > 1 ? 's' : ''}` }
 
   const toolbar = (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5">
       {messages.length > 0 && (
         <button
           type="button"
           onClick={() => setMessages([])}
           disabled={thinking !== null}
-          className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-on-ink-muted transition-colors hover:bg-white/10 hover:text-on-ink disabled:opacity-40"
+          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-sunken hover:text-fg disabled:opacity-40"
           title="Nouvelle discussion"
           aria-label="Nouvelle discussion"
         >
@@ -241,7 +241,7 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
       <button
         type="button"
         onClick={onClose}
-        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-on-ink-muted transition-colors hover:bg-white/10 hover:text-on-ink"
+        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-sunken hover:text-fg"
         aria-label="Fermer l’assistant IA"
         title="Fermer (Échap)"
       >
@@ -251,227 +251,158 @@ export const JappoAIAssistant: React.FC<JappoAIAssistantProps> = ({ isOpen, onCl
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end sm:p-3" data-state={state}>
-      <div className="ai-scrim absolute inset-0" data-state={state} aria-hidden="true" onClick={onClose} />
+    /* Petite fenêtre ancrée en bas à droite, ouverte par la pastille : elle ne masque pas la page. */
+    <aside
+      role="dialog"
+      aria-label="Jappo IA — Assistant"
+      data-entrance={entrance}
+      data-state={state}
+      className="ai-panel fixed bottom-4 right-4 z-50 flex h-[min(33rem,calc(100dvh-2rem))] w-[min(22.5rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl text-fg"
+    >
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-line px-3.5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink ${thinking ? 'ai-thinking' : ''}`}
+          >
+            <JappoEmblem className="h-[1.125rem] w-[1.125rem] text-on-ink" pulseClassName="text-critical-on-ink" />
+          </span>
+          <div className="min-w-0 leading-tight">
+            <p className="text-sm font-bold text-fg">Jappo IA</p>
+            <p className="flex items-center gap-1.5 truncate text-2xs text-muted" role="status">
+              <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.dot}`} />
+              {status.text}
+            </p>
+          </div>
+        </div>
+        {toolbar}
+      </header>
 
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label="Jappo IA — Assistant"
-        data-entrance={entrance}
-        data-state={state}
-        className="ai-panel relative flex h-full w-full flex-col overflow-hidden text-fg sm:max-w-[480px] sm:rounded-[1.75rem]"
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {welcome ? (
-          /* Accueil : bandeau d'encre, radar et emblème. */
-          <div className="ai-hero shrink-0 px-5 pb-7 pt-4">
-            <div className="flex items-center justify-between">
-              <p className="flex items-center gap-2 text-xs font-semibold text-on-ink">
-                Jappo IA
-                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[0.625rem] font-medium text-on-ink-muted ring-1 ring-inset ring-white/15">
-                  Assistant
-                </span>
-              </p>
-              {toolbar}
-            </div>
-
-            <div className="relative mx-auto mt-1 h-44 w-full max-w-[22rem]" aria-hidden="true">
-              <span className="ai-stage-line-x" />
-              <span className="ai-stage-line-y" />
-              {[200, 148, 100].map((size) => (
-                <span
-                  key={size}
-                  className="ai-radar absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                  style={{ width: size, height: size }}
-                />
-              ))}
-              {[0, 1].map((k) => (
-                <span
-                  key={k}
-                  className="ai-radar ai-radar-wave absolute left-1/2 top-1/2 h-[200px] w-[200px] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0"
-                  style={{ '--k': k } as React.CSSProperties}
-                />
-              ))}
-              <span className="ai-medallion-ink absolute left-1/2 top-1/2 flex h-[4.5rem] w-[4.5rem] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full">
-                <JappoEmblem className="h-10 w-10 text-on-ink" pulseClassName="text-critical-on-ink" />
-              </span>
-            </div>
-
-            <h2
-              className="ai-step mt-2 text-[1.75rem] font-semibold leading-[1.1] tracking-[-0.025em] text-on-ink"
+          <div className="px-4 pb-4 pt-4">
+            <p
+              className="ai-step text-[0.9375rem] font-semibold leading-snug text-fg"
               style={{ '--step': 0 } as React.CSSProperties}
             >
               {hasPersonalName ? `Bonjour ${rawFirst},` : 'Bonjour,'}
-              <span className="block font-serif text-[1.875rem] font-normal italic tracking-[-0.01em] text-on-ink-muted">
-                que souhaitez-vous vérifier ?
-              </span>
-            </h2>
-            <p
-              className="ai-step mt-4 inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-2xs font-medium text-on-ink-muted ring-1 ring-inset ring-white/12"
-              style={{ '--step': 1 } as React.CSSProperties}
-              role="status"
-            >
-              <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
-              {online ? 'Connecté aux données du réseau · lecture seule' : status.text}
+              <span className="block font-normal text-muted">que souhaitez-vous vérifier ?</span>
+            </p>
+            <ul className="mt-4 flex flex-wrap gap-2" aria-label="Suggestions">
+              {quickPrompts.map((item, index) => {
+                const Icon = item.icon
+                return (
+                  <li key={item.id} className="ai-step" style={{ '--step': index + 1 } as React.CSSProperties}>
+                    <button
+                      type="button"
+                      onClick={() => submitQuery(item.query)}
+                      className="group inline-flex cursor-pointer items-center gap-2 rounded-full border border-line-strong bg-surface px-3 py-2 text-left text-xs font-semibold leading-snug text-fg transition-colors hover:border-ink hover:bg-ink hover:text-on-ink"
+                    >
+                      <Icon className="h-3.5 w-3.5 shrink-0 text-muted transition-colors group-hover:text-on-ink" aria-hidden="true" />
+                      {item.title}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+            <p className="ai-step mt-4 text-[0.6875rem] leading-relaxed text-subtle" style={{ '--step': 6 } as React.CSSProperties}>
+              Assistant à règles, sans IA générative : il lit les données de votre périmètre et cite ses sources. Il ne
+              s’entraîne pas et ne modifie rien.
             </p>
           </div>
         ) : (
-          /* Conversation : bandeau compact. */
-          <header className="ai-hero flex h-16 shrink-0 items-center justify-between gap-3 px-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <span
-                className={`ai-medallion-ink flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${thinking ? 'ai-thinking' : ''}`}
-              >
-                <JappoEmblem className="h-5 w-5 text-on-ink" pulseClassName="text-critical-on-ink" />
-              </span>
-              <div className="min-w-0 leading-tight">
-                <p className="text-sm font-semibold text-on-ink">Jappo IA</p>
-                <p className="flex items-center gap-1.5 truncate text-2xs text-on-ink-muted" role="status">
-                  <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${status.dot}`} />
-                  {status.text}
-                </p>
-              </div>
-            </div>
-            {toolbar}
-          </header>
-        )}
-
-        <div ref={scrollRef} className="flex-1 overflow-y-auto">
-          {welcome ? (
-            <div className="px-5 pb-5 pt-5">
-              <p className="ai-step kicker mb-3" style={{ '--step': 2 } as React.CSSProperties}>
-                Suggestions
-              </p>
-              <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" aria-label="Suggestions">
-                {quickPrompts.map((item, index) => {
-                  const Icon = item.icon
-                  return (
-                    <li key={item.id} className="ai-step" style={{ '--step': index + 3 } as React.CSSProperties}>
-                      <button
-                        type="button"
-                        onClick={() => submitQuery(item.query)}
-                        className="group flex h-full w-full cursor-pointer flex-col items-start gap-3 rounded-2xl border border-line bg-surface p-3.5 text-left transition-[border-color,box-shadow,translate] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-[var(--shadow-raised)]"
-                      >
-                        <span className="flex w-full items-center justify-between">
-                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-sunken text-fg transition-colors group-hover:bg-ink group-hover:text-on-ink">
-                            <Icon className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                          <ArrowUpRight
-                            className="h-4 w-4 text-subtle transition-[rotate,color] duration-300 group-hover:rotate-45 group-hover:text-fg"
-                            aria-hidden="true"
-                          />
-                        </span>
-                        <span className="text-sm font-semibold leading-snug text-fg">{item.title}</span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-              <p className="ai-step mt-5 text-xs leading-relaxed text-muted" style={{ '--step': 7 } as React.CSSProperties}>
-                Chaque chiffre de mes réponses vient des données de votre périmètre, avec sa source et sa date. Je ne
-                modifie jamais rien.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6 px-5 py-5" aria-live="polite">
-              {messages.map((msg) =>
-                msg.sender === 'user' ? (
-                  <div key={msg.id} className="ai-msg flex justify-end">
-                    <p className="max-w-[85%] rounded-2xl rounded-br-md bg-sunken px-4 py-2.5 text-sm leading-relaxed text-fg">
-                      {msg.prompt}
-                    </p>
-                  </div>
-                ) : (
-                  <AnswerView
-                    key={msg.id}
-                    answer={msg.answer}
-                    now={now}
-                    onNavigate={onClose}
-                    onRetry={() => submitQuery(msg.prompt)}
-                    busy={thinking !== null}
-                  />
-                )
-              )}
-
-              {thinking && (
-                <div role="status" className="ai-msg flex gap-3">
-                  <span className="ai-thinking flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink">
-                    <JappoEmblem className="h-4 w-4 text-on-ink" pulseClassName="text-critical-on-ink" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-fg">Consultation des données…</p>
-                    {thinking.keys.length > 0 && (
-                      <ul className="mt-2 space-y-1.5">
-                        {thinking.keys.map((key, i) => {
-                          const done = thinking.done.includes(key)
-                          return (
-                            <li
-                              key={key}
-                              className="ai-source-step flex items-center gap-2 text-xs text-muted"
-                              style={{ '--i': i } as React.CSSProperties}
-                            >
-                              <span
-                                className={`flex h-4 w-4 items-center justify-center rounded-full transition-colors ${
-                                  done ? 'bg-ok/15 text-ok' : 'border border-dashed border-line-strong'
-                                }`}
-                              >
-                                {done && <Check className="h-3 w-3" aria-hidden="true" />}
-                              </span>
-                              {SOURCE_LABEL[key]}
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    )}
-                  </div>
+          <div className="space-y-5 px-4 py-4" aria-live="polite">
+            {messages.map((msg) =>
+              msg.sender === 'user' ? (
+                <div key={msg.id} className="ai-msg flex justify-end">
+                  <p className="max-w-[85%] rounded-2xl rounded-br-md bg-ink px-3.5 py-2 text-sm leading-relaxed text-on-ink">
+                    {msg.prompt}
+                  </p>
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+              ) : (
+                <AnswerView
+                  key={msg.id}
+                  answer={msg.answer}
+                  now={now}
+                  onNavigate={onClose}
+                  onRetry={() => submitQuery(msg.prompt)}
+                  busy={thinking !== null}
+                />
+              )
+            )}
 
-        {/* Saisie */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            submitQuery(input)
-          }}
-          className="shrink-0 bg-surface px-4 pb-4 pt-2"
-        >
-          <div className="flex items-end gap-2 rounded-[1.25rem] border border-line-strong bg-surface py-2 pl-4 pr-2 shadow-[0_1px_2px_rgb(16_24_40/0.05)] transition-[border-color,box-shadow] focus-within:border-fg/40 focus-within:shadow-[0_0_0_4px_color-mix(in_oklab,var(--focus)_12%,transparent)]">
-            <textarea
-              ref={inputRef}
-              rows={1}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  submitQuery(input)
-                }
-              }}
-              placeholder="Une question sur les lits, le sang, le SAMU…"
-              aria-label="Question pour l’assistant IA"
-              className="max-h-28 min-h-9 flex-1 resize-none bg-transparent py-2 text-sm leading-5 text-fg placeholder:text-subtle focus:outline-none"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || thinking !== null}
-              aria-label="Envoyer la question"
-              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-brand text-on-brand transition-[opacity,scale] duration-150 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:scale-100"
-            >
-              <ArrowUp className="h-4 w-4" />
-            </button>
+            {thinking && (
+              <div role="status" className="ai-msg flex gap-2.5">
+                <span className="ai-thinking flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink">
+                  <JappoEmblem className="h-4 w-4 text-on-ink" pulseClassName="text-critical-on-ink" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-fg">Consultation des données…</p>
+                  {thinking.keys.length > 0 && (
+                    <ul className="mt-2 space-y-1.5">
+                      {thinking.keys.map((key, i) => {
+                        const done = thinking.done.includes(key)
+                        return (
+                          <li
+                            key={key}
+                            className="ai-source-step flex items-center gap-2 text-xs text-muted"
+                            style={{ '--i': i } as React.CSSProperties}
+                          >
+                            <span
+                              className={`flex h-4 w-4 items-center justify-center rounded-full transition-colors ${
+                                done ? 'bg-ok/15 text-ok' : 'border border-dashed border-line-strong'
+                              }`}
+                            >
+                              {done && <Check className="h-3 w-3" aria-hidden="true" />}
+                            </span>
+                            {SOURCE_LABEL[key]}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-          <p className="mt-2 flex items-center justify-between gap-3 px-1 text-[0.6875rem] text-subtle">
-            <span>Lecture seule · chiffres sourcés et datés</span>
-            <span>
-              <kbd className="font-sans">Entrée</kbd> envoyer · <kbd className="font-sans">Échap</kbd> fermer
-            </span>
-          </p>
-        </form>
-      </aside>
-    </div>
+        )}
+      </div>
+
+      {/* Saisie */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          submitQuery(input)
+        }}
+        className="shrink-0 bg-surface px-3 pb-3 pt-1"
+      >
+        <div className="flex items-end gap-2 rounded-2xl border border-line-strong bg-surface py-1.5 pl-3.5 pr-1.5 transition-[border-color,box-shadow] focus-within:border-fg/40 focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--focus)_12%,transparent)]">
+          <textarea
+            ref={inputRef}
+            rows={1}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                submitQuery(input)
+              }
+            }}
+            placeholder="Une question sur les lits, le sang, le SAMU…"
+            aria-label="Question pour l’assistant IA"
+            className="max-h-24 min-h-8 flex-1 resize-none bg-transparent py-1.5 text-sm leading-5 text-fg placeholder:text-subtle focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={!input.trim() || thinking !== null}
+            aria-label="Envoyer la question"
+            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-brand text-on-brand transition-[opacity,scale] duration-150 hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:scale-100"
+          >
+            <ArrowUp className="h-4 w-4" />
+          </button>
+        </div>
+        <p className="mt-1.5 px-1 text-[0.6875rem] text-subtle">Lecture seule · chiffres sourcés et datés</p>
+      </form>
+    </aside>
   )
 }
 
@@ -483,7 +414,7 @@ const AnswerView: React.FC<{
   onRetry: () => void
   busy: boolean
 }> = ({ answer, now, onNavigate, onRetry, busy }) => (
-  <div className="ai-msg flex gap-3">
+  <div className="ai-msg flex gap-2.5">
     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink">
       <JappoEmblem className="h-4 w-4 text-on-ink" pulseClassName="text-critical-on-ink" />
     </span>
@@ -503,7 +434,7 @@ const AnswerView: React.FC<{
                 <CountUp
                   value={f.value}
                   format={f.format === 'percent' ? (v) => formatPercent(v) : formatNumber}
-                  className={`text-lg font-semibold leading-none ${f.alert ? 'text-critical' : 'text-fg'}`}
+                  className={`text-base font-semibold leading-none ${f.alert ? 'text-critical' : 'text-fg'}`}
                 />
                 {f.unit && <span className="num truncate text-2xs text-muted">{f.unit}</span>}
               </dd>

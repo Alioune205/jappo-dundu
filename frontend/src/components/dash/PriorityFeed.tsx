@@ -25,9 +25,9 @@ export interface PriorityItem {
 
 /**
  * File « à traiter maintenant » : tout ce qui demande une intervention, du
- * plus grave au moins grave, chaque ligne menant à l'écran où agir. Chaque
- * ligne est une carte d'alerte : fond et pictogramme teintés selon la
- * gravité, pictogramme selon le domaine.
+ * plus grave au moins grave, chaque ligne menant à l'écran où agir. Un filet
+ * de gravité à gauche, le domaine en petit, le titre en entier (jamais
+ * tronqué : c'est lui qu'on doit lire).
  */
 export const PriorityFeed: React.FC<{ items: PriorityItem[]; limit?: number }> = ({ items, limit = 6 }) => {
   if (items.length === 0) {
@@ -42,36 +42,28 @@ export const PriorityFeed: React.FC<{ items: PriorityItem[]; limit?: number }> =
   const shown = items.slice(0, limit)
   return (
     <>
-      <ul className="space-y-2 px-5 pb-5">
+      <ul className="px-3 pb-2">
         {shown.map((item, index) => {
           const critical = item.severity === 'critical'
           const Icon = domainIcon(item.domain)
           return (
-            <li key={item.id} className="reveal" style={{ '--i': index + 2 } as React.CSSProperties}>
+            <li key={item.id} className="reveal border-t border-line first:border-t-0" style={{ '--i': index + 2 } as React.CSSProperties}>
               <Link
                 to={item.to}
-                className={`group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[0.625rem] border px-3 py-2.5 transition-colors ${
-                  critical
-                    ? 'border-critical/15 bg-critical/[0.035] hover:bg-critical/[0.07]'
-                    : 'border-warning/15 bg-warning/[0.035] hover:bg-warning/[0.07]'
-                }`}
+                className="group grid grid-cols-[3px_minmax(0,1fr)_auto] items-stretch gap-3 rounded-xl px-2 py-3 transition-colors hover:bg-raised"
               >
-                <span
-                  aria-hidden="true"
-                  className={`flex h-9 w-9 items-center justify-center rounded-lg ${critical ? 'bg-critical/10 text-critical' : 'bg-warning/10 text-warning'}`}
-                >
-                  <Icon className="h-[1.125rem] w-[1.125rem]" strokeWidth={1.9} />
-                </span>
+                <span aria-hidden="true" className={`rounded-full ${critical ? 'bg-critical' : 'bg-viz-warn'}`} />
                 <span className="min-w-0">
-                  <span className={`block text-2xs font-medium ${critical ? 'text-critical' : 'text-warning'}`}>
+                  <span className={`flex items-center gap-1.5 text-2xs font-semibold ${critical ? 'text-critical' : 'text-warning'}`}>
+                    <Icon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
                     {item.domain}
                     <span className="sr-only">{critical ? ' (critique)' : ' (vigilance)'}</span>
                   </span>
-                  <span className="block truncate text-sm font-semibold text-fg">{item.title}</span>
-                  <span className="block truncate text-xs text-muted">{item.meta}</span>
+                  <span className="mt-0.5 block text-sm font-semibold leading-snug text-fg">{item.title}</span>
+                  <span className="mt-0.5 block text-xs leading-snug text-muted">{item.meta}</span>
                 </span>
                 <ChevronRight
-                  className="h-4 w-4 text-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg"
+                  className="h-4 w-4 self-center text-subtle transition-transform group-hover:translate-x-0.5 group-hover:text-fg"
                   aria-hidden="true"
                 />
               </Link>

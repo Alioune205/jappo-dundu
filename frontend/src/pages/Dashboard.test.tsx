@@ -34,6 +34,8 @@ const RESPONSES: Record<string, unknown> = {
   '/api/ambulances/missions/': { results: [mission()] },
   '/api/ml/predictions/summary/': [{ region: 'dakar', critical_count: 2, warning_count: 1, normal_count: 3 }],
   '/api/facilities/': { results: [] },
+  '/api/ml/stocks/': { results: [] },
+  '/api/ml/predictions/': { results: [] },
 }
 
 describe('Dashboard', () => {
@@ -52,7 +54,7 @@ describe('Dashboard', () => {
   it('calcule les indicateurs à partir des données réelles', async () => {
     renderWithProviders(<Dashboard />)
     // 1 + 5 = 6 lits libres sur 20 : 70 % d'occupation.
-    expect(await screen.findByText('/ 20')).toBeInTheDocument()
+    expect(await screen.findByText('sur 20')).toBeInTheDocument()
     const beds = screen.getByRole('link', { name: /Lits disponibles/ })
     expect(within(beds).getByText('6')).toBeInTheDocument()
     // Formatage français : espace insécable fine avant « % ».
@@ -60,19 +62,26 @@ describe('Dashboard', () => {
     // 2 demandes de sang ouvertes dont 1 vitale.
     expect(await screen.findByText('1 vitale')).toBeInTheDocument()
     // 2 ambulances disponibles sur 3.
-    expect(screen.getByText('/ 3')).toBeInTheDocument()
+    expect(screen.getByText('sur 3')).toBeInTheDocument()
     // 2 risques critiques de pénurie.
-    expect(screen.getByText('Action requise')).toBeInTheDocument()
-    // File « à traiter maintenant » : urgence vitale et pénurie prévue, liens vers les modules.
-    expect(screen.getByText(/^O− · 3 poches manquantes$/)).toBeInTheDocument()
-    expect(screen.getByText(/^Pénurie prévue · dakar$/i)).toBeInTheDocument()
-    expect(await screen.findByTestId('map')).toHaveTextContent('3 ambulances, 1 missions')
+    expect(screen.getByText('sous 7 jours')).toBeInTheDocument()
+    // Une seule rangée : le point le plus pressant (la demande vitale), le stock et l'occupation des lits.
+    const urgent = screen.getByRole('region', { name: 'À traiter maintenant' })
+    expect(within(urgent).getByText('Demande vitale')).toBeInTheDocument()
+    expect(within(urgent).getByText('3 poches')).toBeInTheDocument()
+    expect(within(urgent).getByText(/de sang O− à trouver/)).toBeInTheDocument()
+    expect(within(urgent).getByRole('link', { name: /Voir la demande/ })).toHaveAttribute('href', '/blood')
+    expect(screen.getByRole('region', { name: 'Stock de sang par groupe' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Occupation des lits' })).toBeInTheDocument()
+    // Plus de carte, de bandeau photo ni de listes de travail sur l'accueil.
+    expect(screen.queryByTestId('map')).not.toBeInTheDocument()
+    expect(screen.queryByText('Carte opérationnelle')).not.toBeInTheDocument()
   })
 
   it('un administrateur des lits ne charge ni le sang, ni la flotte, ni les prévisions', async () => {
     auth.roles = ['bed_manager']
     renderWithProviders(<Dashboard />)
-    expect(await screen.findByText('/ 20')).toBeInTheDocument()
+    expect(await screen.findByText('sur 20')).toBeInTheDocument()
     expect(screen.queryByText('Demandes de sang')).not.toBeInTheDocument()
     expect(screen.queryByText('Ambulances disponibles')).not.toBeInTheDocument()
     expect(screen.queryByText('Risques de pénurie')).not.toBeInTheDocument()
@@ -85,11 +94,11 @@ describe('Dashboard', () => {
 
   it('n’écoute que des événements ciblés, jamais le joker « * »', async () => {
     renderWithProviders(<Dashboard />)
-    await screen.findByText('/ 20')
+    await screen.findByText('sur 20')
     const events = subscribe.mock.calls.map((call) => (call as unknown as [string])[0])
     expect(events).not.toContain('*')
     expect(events).toEqual(
-      expect.arrayContaining(['blood_request_created', 'bed_capacity_updated', 'mission_created', 'ambulance_position'])
+      expect.arrayContaining(['blood_request_created', 'bed_capacity_updated', 'mission_created'])
     )
   })
 })

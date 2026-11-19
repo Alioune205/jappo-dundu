@@ -44,6 +44,24 @@ export interface MetricTileProps {
   /** Rang dans la cascade d'apparition. */
   i?: number
   className?: string
+  /** Contenu libre sous le chiffre (ex. une cellule par poche). */
+  children?: React.ReactNode
+}
+
+/** Étiquettes d'état sur la carte d'encre : fond translucide, couleurs « on ink ». */
+const DARK_SOFT: Record<Signal, string> = {
+  critical: 'bg-white/10 text-critical-on-ink',
+  warning: 'bg-white/10 text-warning-on-ink',
+  ok: 'bg-white/10 text-ok-on-ink',
+  info: 'bg-white/10 text-white/90',
+  neutral: 'bg-white/10 text-white/80',
+}
+const DARK_DOT: Record<Signal, string> = {
+  critical: 'bg-critical-on-ink',
+  warning: 'bg-warning-on-ink',
+  ok: 'bg-ok-on-ink',
+  info: 'bg-white/60',
+  neutral: 'bg-white/50',
 }
 
 /** Couleur d'un remplissage selon le sens (anneau de la carte compacte). */
@@ -78,6 +96,7 @@ export const MetricTile: React.FC<MetricTileProps> = ({
   loading = false,
   format = formatNumber,
   unit,
+  variant = 'plain',
   to,
   badge,
   meter,
@@ -87,7 +106,10 @@ export const MetricTile: React.FC<MetricTileProps> = ({
   layout = 'stack',
   i = 0,
   className = '',
+  children,
 }) => {
+  // Carte mise en avant : l'encre de la maquette, un seul aplat par rangée.
+  const dark = variant === 'featured' && layout === 'stack'
   const gradientId = useId().replace(/:/g, '')
   const pct = meter && meter.max > 0 ? Math.min(100, Math.max(0, (meter.value / meter.max) * 100)) : 0
   const showSpark = spark && spark.values.length >= 2 && spark.values.some((v) => v > 0)
@@ -176,47 +198,73 @@ export const MetricTile: React.FC<MetricTileProps> = ({
 
   const body = (
     <>
-      <div className="flex items-start gap-4">
-        {Icon && (
-          <span aria-hidden="true" className="metric-icon flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-white">
-            <Icon className="h-6 w-6" strokeWidth={2} />
-          </span>
-        )}
+      {dark && (
+        // Le pouls du logotype, en filigrane : la carte d'encre n'est pas un simple aplat.
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 256 64"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="pointer-events-none absolute -bottom-1 right-0 h-16 w-64 text-white/10"
+        >
+          <path d="M0 40h70l8-14 8 26 10-44 10 40 8-8h30l8-10 8 10h90" />
+        </svg>
+      )}
+      <div className="relative flex items-start">
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <span className="pt-0.5 text-sm font-semibold leading-snug text-fg">{label}</span>
+            <span className={`pt-0.5 text-sm font-semibold leading-snug ${dark ? 'text-white/85' : 'text-fg'}`}>{label}</span>
             <span className="flex shrink-0 items-center gap-1.5">
               {badge && !loading && (
-                <span className={`inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-2xs font-semibold ${SIGNAL_SOFT[badge.signal]}`}>
-                  <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${SIGNAL_DOT[badge.signal]}`} />
+                <span
+                  className={`inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-2xs font-semibold ${dark ? DARK_SOFT[badge.signal] : SIGNAL_SOFT[badge.signal]}`}
+                >
+                  <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dark ? DARK_DOT[badge.signal] : SIGNAL_DOT[badge.signal]}`} />
                   {badge.label}
                 </span>
               )}
               {to && (
-                <ArrowUpRight
+                <span
                   aria-hidden="true"
-                  className="lift-arrow h-4 w-4 shrink-0 text-subtle transition-colors group-hover:text-fg"
-                />
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-all duration-300 ${
+                    dark
+                      ? 'border-white bg-white text-ink group-hover:rotate-45'
+                      : 'border-line-strong text-fg group-hover:rotate-45 group-hover:border-ink group-hover:bg-ink group-hover:text-on-ink'
+                  }`}
+                >
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </span>
               )}
             </span>
           </div>
 
-          <div className="mt-1.5 flex min-h-9 flex-wrap items-baseline gap-x-1.5 gap-y-1">
+          <div className="mt-3.5 flex min-h-10 flex-wrap items-baseline gap-x-1.5 gap-y-1">
             {loading ? (
               <span className="skeleton block h-8 w-20" aria-label="Chargement" />
             ) : value === null ? (
-              <span className="text-[1.875rem] font-extrabold leading-none text-subtle">—</span>
+              <span className={`text-[1.875rem] font-extrabold leading-none ${dark ? 'text-white/50' : 'text-subtle'}`}>—</span>
             ) : (
               <CountUp
                 value={value}
                 format={format}
-                className="text-[1.875rem] font-extrabold leading-none tracking-[-0.03em] text-fg"
+                className={
+                  dark
+                    ? 'text-[2.5rem] font-bold leading-none tracking-[-0.04em] text-white'
+                    : 'text-[2.5rem] font-bold leading-none tracking-[-0.04em] text-fg'
+                }
               />
             )}
-            {unit && !loading && <span className="text-sm font-semibold text-muted">{unit}</span>}
+            {unit && !loading && (
+              <span className={`text-sm font-semibold ${dark ? 'text-white/70' : 'text-muted'}`}>{unit}</span>
+            )}
           </div>
         </div>
       </div>
+
+      {children && <div className="relative mt-4">{children}</div>}
 
       {paths && spark && (
         <figure className="mt-3">
@@ -237,7 +285,7 @@ export const MetricTile: React.FC<MetricTileProps> = ({
 
       {meter && (
         <div
-          className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-track"
+          className={`relative mt-4 h-1.5 w-full overflow-hidden rounded-full ${dark ? 'bg-white/15' : 'bg-track'}`}
           role="meter"
           aria-label={meter.label}
           aria-valuemin={0}
@@ -245,27 +293,39 @@ export const MetricTile: React.FC<MetricTileProps> = ({
           aria-valuenow={meter.value}
         >
           <div
-            className={`bar-fill bar-grow h-full rounded-full ${SIGNAL_FILL[meter.signal ?? 'ok']}`}
+            className={`bar-fill bar-grow h-full rounded-full ${
+              dark
+                ? meter.signal === 'critical'
+                  ? 'bg-critical-on-ink'
+                  : meter.signal === 'warning'
+                    ? 'bg-warning-on-ink'
+                    : 'bg-white'
+                : SIGNAL_FILL[meter.signal ?? 'ok']
+            }`}
             style={{ width: `${pct}%`, '--i': i } as React.CSSProperties}
           />
         </div>
       )}
 
       {(status || hint) && (
-        <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 pt-4 text-xs">
+        <div className="relative mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 pt-3.5 text-xs">
           {status && (
-            <span className={`inline-flex h-6 max-w-full items-center gap-1.5 rounded-full px-2.5 font-medium ${SIGNAL_SOFT[status.signal]}`}>
-              <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${SIGNAL_DOT[status.signal]}`} />
+            <span
+              className={`inline-flex h-6 max-w-full items-center gap-1.5 rounded-full px-2.5 font-medium ${dark ? DARK_SOFT[status.signal] : SIGNAL_SOFT[status.signal]}`}
+            >
+              <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${dark ? DARK_DOT[status.signal] : SIGNAL_DOT[status.signal]}`} />
               <span className="truncate">{status.text}</span>
             </span>
           )}
-          {hint && <span className="text-subtle">{hint}</span>}
+          {hint && <span className={dark ? 'text-white/55' : 'text-subtle'}>{hint}</span>}
         </div>
       )}
     </>
   )
 
-  const shell = `metric-tile panel reveal flex h-full min-h-[10.5rem] flex-col p-5 ${className}`
+  const shell = dark
+    ? `ink-card reveal relative flex h-full flex-col overflow-hidden rounded-[1.25rem] px-[18px] pb-4 pt-[18px] text-white ${className}`
+    : `metric-tile panel reveal flex h-full flex-col rounded-[1.25rem] px-[18px] pb-4 pt-[18px] ${className}`
   const style = { '--i': i, '--tile': ACCENT_VAR[accent] } as React.CSSProperties
 
   return to ? (
