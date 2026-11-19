@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router'
 import * as Haptics from 'expo-haptics'
 import Animated, { FadeIn } from 'react-native-reanimated'
 import { useQueryClient } from '@tanstack/react-query'
-import { ScreenHeader } from '@/components/ScreenHeader'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Icon } from '@/components/ui/Icon'
@@ -15,8 +15,10 @@ import { useAuth } from '@/context/AuthContext'
 import { EmptyState } from '@/features/alerts/AlertStates'
 import { PermissionCard, type PermissionState } from '@/features/donor/PermissionCard'
 import { DestinationSheet } from '@/features/mission/DestinationSheet'
-import { outcome, PRIORITY } from '@/features/mission/format'
-import { MissionPanel } from '@/features/mission/MissionPanel'
+import { CancelledNotice } from '@/features/mission/CancelledNotice'
+import { outcome, recentCancellation } from '@/features/mission/format'
+import { BilanCard } from '@/features/mission/BilanCard'
+import { MissionActions, MissionPanel } from '@/features/mission/MissionPanel'
 import { ShiftCheckCard } from '@/features/mission/ShiftCheckCard'
 import { formatDate, formatTime, timeAgo } from '@/lib/dates'
 import { openSettings, type LocationStatus } from '@/lib/location'
@@ -108,6 +110,10 @@ function DriverHome({ ambulance }: { ambulance: Ambulance }) {
     if (knownActive.current !== undefined && id !== null && id !== knownActive.current) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
     }
+    // Mission suivie puis disparue et annulée : vibration d'alerte (le bandeau explique pourquoi).
+    if (knownActive.current && id === null && missions.data.recent[0]?.status === 'cancelled') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error)
+    }
     knownActive.current = id
   }, [missions.data])
 
@@ -116,6 +122,8 @@ function DriverHome({ ambulance }: { ambulance: Ambulance }) {
   const advance = useAdvanceMission()
   const availability = useSetAvailability()
   const [choosing, setChoosing] = useState(false)
+  const [readCancel, setReadCancel] = useState<number | null>(null)
+  const cancelled = recentCancellation(missions.data?.recent ?? [], now)
 
   const send = (status: DriverStep, destinationId?: number) => {
     if (!active) return
@@ -132,16 +140,21 @@ function DriverHome({ ambulance }: { ambulance: Ambulance }) {
   }
 
   const refreshing = missions.isRefetching && !missions.isPending
+  const insets = useSafeAreaInsets()
   const freshness = live
     ? 'En direct'
     : missions.isError && missions.data
       ? `Hors ligne · ${timeAgo(missions.dataUpdatedAt, now)}`
       : 'Connexion…'
+  const chooseDestination = () => {
+    advance.reset()
+    setChoosing(true)
+  }
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.canvas }]}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + space.md }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -153,94 +166,54 @@ function DriverHome({ ambulance }: { ambulance: Ambulance }) {
           />
         }
       >
-        <ScreenHeader
-          title={active ? 'Mission en cours' : 'En service'}
-          meta={
-            <>
-              <StatusDot color={live ? 'ok' : 'subtle'} pulse={live} />
-              <Text variant="caption" tone="muted">
-                {freshness}
-              </Text>
-            </>
-          }
-          right={active ? null : <LogoutButton />}
-        />
-
         <View style={styles.body}>
-          <VehicleCard ambulance={ambulance} />
+          <Header ambulance={ambulance} freshness={freshness} live={live} showLogout={!active} />
 
-          {!active && ambulance.status !== 'on_mission' ? (
-            <View style={styles.block}>
-              <Segmented<'available' | 'out_of_service'>
-                label="Disponibilité"
-                value={ambulance.status === 'out_of_service' ? 'out_of_service' : 'available'}
-                options={[
-                  { value: 'available', label: 'En service' },
-                  { value: 'out_of_service', label: 'Hors service' },
-                ]}
-                onChange={(status) => {
-                  if (status !== ambulance.status) availability.mutate({ id: ambulance.id, status })
-                }}
-              />
-              {availability.error ? (
-                <Text variant="caption" tone="brand" accessibilityLiveRegion="polite">
-                  {availability.error.message}
-                </Text>
+          {missions.isPending ? (
+            <ActivityIndicator style={styles.loading} color={colors.muted} />
+          ) : active ? (
+            <>
+              <MissionPanel key={active.id} mission={active} now={now} onChooseDestination={chooseDestination} />
+              {tracking.status === 'granted' ? <SharedPosition at={tracking.lastSentAt} now={now} /> : null}
+              {FULL_FEATURES && (active.status === 'on_site' || active.status === 'transporting') ? <BilanCard mission={active} now={now} /> : null}
+            </>
+          ) : (
+            <>
+              {cancelled && readCancel !== cancelled.id ? (
+                <CancelledNotice mission={cancelled} now={now} onDismiss={() => setReadCancel(cancelled.id)} />
               ) : null}
-              {FULL_FEATURES && ambulance.status === 'available' ? <ShiftCheckCard ambulanceId={ambulance.id} now={now} /> : null}
-            </View>
-          ) : null}
+              <Standby
+              ambulance={ambulance}
+              availability={availability}
+              now={now}
+              sharedAt={tracking.status === 'granted' ? tracking.lastSentAt : undefined}
+            />
+            </>
+          )}
 
           <Readiness
             tracking={tracking.status}
-            trackingOn={!!active || ambulance.status === 'available'}
-            lastSentAt={tracking.lastSentAt}
-            now={now}
             onLocation={() => (tracking.status === 'undetermined' ? tracking.request() : openSettings())}
             push={push.status}
             pushBusy={push.busy}
             onPush={() => (push.status === 'denied' ? openSettings() : push.enable())}
           />
 
-          {missions.isPending ? (
-            <ActivityIndicator style={styles.loading} color={colors.muted} />
-          ) : active ? (
-            <MissionPanel
-              key={active.id}
-              mission={active}
-              now={now}
-              busy={advance.isPending && !choosing}
-              error={choosing ? null : (advance.error?.message ?? null)}
-              onAdvance={(status) => send(status)}
-              onChooseDestination={() => {
-                advance.reset()
-                setChoosing(true)
-              }}
-            />
-          ) : ambulance.status === 'out_of_service' ? (
-            <EmptyState
-              icon="ambulance"
-              title="Ambulance hors service"
-              body="Aucune mission ne vous sera confiée. Passez « En service » dès que le véhicule est prêt."
-            />
-          ) : (
-            <Animated.View entering={FadeIn} style={styles.waiting}>
-              <View style={[styles.waitingIcon, { borderColor: colors.line, backgroundColor: colors.surface }]}>
-                <StatusDot color="ok" pulse size={12} />
-              </View>
-              <Text variant="heading" style={styles.message}>
-                En attente de mission
-              </Text>
-              <Text variant="body" tone="muted" style={styles.message}>
-                La régulation vous confie la prochaine intervention proche de vous. Vous êtes prévenu aussitôt, même
-                téléphone verrouillé.
-              </Text>
-            </Animated.View>
-          )}
-
-          {missions.data?.recent.length ? <Recent missions={missions.data.recent} /> : null}
+          {!active && missions.data?.recent.length ? <Recent missions={missions.data.recent.slice(0, 3)} /> : null}
         </View>
       </ScrollView>
+
+      {active ? (
+        <View style={[styles.footer, { backgroundColor: colors.canvas, borderTopColor: colors.line, paddingBottom: Math.max(insets.bottom, space.lg) }]}>
+          <MissionActions
+            mission={active}
+            busy={advance.isPending && !choosing}
+            error={choosing ? null : (advance.error?.message ?? null)}
+            onAdvance={(status) => send(status)}
+            onChooseDestination={chooseDestination}
+          />
+        </View>
+      ) : null}
 
       <DestinationSheet
         missionId={active?.id ?? null}
@@ -254,27 +227,94 @@ function DriverHome({ ambulance }: { ambulance: Ambulance }) {
   )
 }
 
-function VehicleCard({ ambulance }: { ambulance: Ambulance }) {
-  const { colors } = useTheme()
-  const tone = ambulance.status === 'available' ? 'ok' : ambulance.status === 'on_mission' ? 'warning' : 'subtle'
+/** En-tête discret : le véhicule à gauche, l'état de la connexion (et la sortie, hors mission) à droite. */
+function Header({ ambulance, freshness, live, showLogout }: { ambulance: Ambulance; freshness: string; live: boolean; showLogout: boolean }) {
   return (
-    <Card style={styles.vehicle}>
-      <View style={[styles.vehicleIcon, { backgroundColor: colors.raised }]}>
-        <Icon name="ambulance" size={24} />
-      </View>
+    <View style={styles.header}>
       <View style={styles.flex}>
-        <Text variant="mono">{ambulance.plate_number}</Text>
+        <Text variant="heading" style={styles.plate}>
+          {ambulance.plate_number}
+        </Text>
         <Text variant="caption" tone="muted" numberOfLines={1}>
           {ambulance.ambulance_type_display} · {ambulance.facility.name}
         </Text>
       </View>
-      <View style={styles.vehicleStatus}>
-        <StatusDot color={tone} />
-        <Text variant="label" tone={tone === 'subtle' ? 'muted' : tone}>
-          {ambulance.status_display}
+      <View style={styles.live}>
+        <StatusDot color={live ? 'ok' : 'subtle'} pulse={live} />
+        <Text variant="caption" tone="muted">
+          {freshness}
         </Text>
       </View>
-    </Card>
+      {showLogout ? <LogoutButton /> : null}
+    </View>
+  )
+}
+
+/** Preuve discrète que la régulation voit le véhicule : heure du dernier envoi de position. */
+function SharedPosition({ at, now }: { at: number | null; now: number }) {
+  return (
+    <View style={styles.shared}>
+      <Icon name="location" size={16} color="ok" />
+      <Text variant="caption" tone="muted">
+        {at ? `Position partagée avec la régulation · ${timeAgo(at, now)}` : 'Recherche de votre position…'}
+      </Text>
+    </View>
+  )
+}
+
+/** Hors mission : un grand état lisible d'un coup d'œil, et l'interrupteur de disponibilité. */
+function Standby({
+  ambulance,
+  availability,
+  now,
+  sharedAt,
+}: {
+  ambulance: Ambulance
+  availability: ReturnType<typeof useSetAvailability>
+  now: number
+  sharedAt?: number | null
+}) {
+  const { colors } = useTheme()
+  const out = ambulance.status === 'out_of_service'
+  return (
+    <View style={styles.standby}>
+      <Animated.View entering={FadeIn} style={styles.waiting}>
+        <View style={[styles.waitingIcon, { borderColor: colors.line, backgroundColor: colors.surface }]}>
+          {out ? <Icon name="ambulance" size={26} color="muted" /> : <StatusDot color="ok" pulse size={14} />}
+        </View>
+        <Text variant="title" style={styles.message}>
+          {out ? 'Hors service' : 'En attente de mission'}
+        </Text>
+        <Text variant="body" tone="muted" style={styles.message}>
+          {out
+            ? 'Aucune mission ne vous sera confiée. Passez « En service » dès que le véhicule est prêt.'
+            : 'La régulation vous confie la prochaine intervention proche de vous. Vous êtes prévenu aussitôt, même téléphone verrouillé.'}
+        </Text>
+        {!out && sharedAt !== undefined ? <SharedPosition at={sharedAt} now={now} /> : null}
+      </Animated.View>
+
+      {ambulance.status !== 'on_mission' ? (
+        <View style={styles.block}>
+          <Segmented<'available' | 'out_of_service'>
+            label="Disponibilité"
+            value={out ? 'out_of_service' : 'available'}
+            options={[
+              { value: 'available', label: 'En service' },
+              { value: 'out_of_service', label: 'Hors service' },
+            ]}
+            onChange={(status) => {
+              if (status !== ambulance.status) availability.mutate({ id: ambulance.id, status })
+            }}
+          />
+          {availability.error ? (
+            <Text variant="caption" tone="brand" accessibilityLiveRegion="polite">
+              {availability.error.message}
+            </Text>
+          ) : null}
+          {FULL_FEATURES && ambulance.status === 'available' ? <ShiftCheckCard ambulanceId={ambulance.id} now={now} /> : null}
+        </View>
+      ) : null}
+    </View>
   )
 }
 
@@ -286,30 +326,17 @@ const LOCATION_STATE: Record<LocationStatus, PermissionState> = {
   unavailable: 'blocked',
 }
 
-/** Autorisations indispensables en service : position (régulation) et notifications (missions). */
+/** Autorisations indispensables en service : position (régulation) et notifications (missions). N'apparaît que si l'une manque. */
 function Readiness(props: {
   tracking: LocationStatus
-  trackingOn: boolean
-  lastSentAt: number | null
-  now: number
   onLocation: () => void
   push: PushStatus | null
   pushBusy: boolean
   onPush: () => void
 }) {
-  const { tracking, trackingOn, lastSentAt, now, push } = props
+  const { tracking, push } = props
   const needsPush = push === 'undetermined' || push === 'denied'
-  if (tracking === 'granted' && !needsPush) {
-    if (!trackingOn) return null
-    return (
-      <View style={styles.shared}>
-        <Icon name="location" size={16} color="ok" />
-        <Text variant="caption" tone="muted">
-          {lastSentAt ? `Position partagée avec la régulation · ${timeAgo(lastSentAt, now)}` : 'Recherche de votre position…'}
-        </Text>
-      </View>
-    )
-  }
+  if (tracking === 'granted' && !needsPush) return null
   return (
     <View style={styles.block}>
       {tracking !== 'granted' && tracking !== 'checking' ? (
@@ -353,16 +380,16 @@ function Recent({ missions }: { missions: Mission[] }) {
               <Text variant="bodyStrong" numberOfLines={1}>
                 {mission.pickup_address || mission.description || `Mission n° ${mission.id}`}
               </Text>
-              <Text variant="caption" tone="muted" numberOfLines={1}>
+              <Text variant="caption" tone="muted">
                 {outcome(mission)}
               </Text>
             </View>
             <View style={styles.recentMeta}>
-              <Text variant="caption" tone={PRIORITY[mission.priority].tone}>
-                {PRIORITY[mission.priority].label}
+              <Text variant="caption" tone="subtle">
+                {formatDate(mission.created_at, { short: true })}
               </Text>
               <Text variant="caption" tone="subtle">
-                {formatDate(mission.created_at, { short: true })} · {formatTime(mission.created_at)}
+                {formatTime(mission.created_at)}
               </Text>
             </View>
           </View>
@@ -421,15 +448,17 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: space.xl, gap: space.sm },
   message: { textAlign: 'center' },
   retry: { marginTop: space.md, alignSelf: 'stretch' },
-  content: { paddingBottom: space.xxxl },
+  content: { paddingBottom: space.xxl },
   body: { paddingHorizontal: space.xl, gap: space.xl },
   block: { gap: space.sm },
   loading: { paddingVertical: space.xxl },
-  vehicle: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  vehicleIcon: { width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-  vehicleStatus: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
-  shared: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: -space.sm },
-  waiting: { alignItems: 'center', gap: space.sm, paddingTop: space.lg },
+  shared: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.sm },
+  waiting: { alignItems: 'center', gap: space.sm, paddingTop: space.xl },
+  standby: { gap: space.xl },
+  header: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 44 },
+  plate: { fontFamily: 'IBMPlexMono_500Medium', letterSpacing: 0.4 },
+  live: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  footer: { paddingHorizontal: space.xl, paddingTop: space.md, borderTopWidth: StyleSheet.hairlineWidth },
   waitingIcon: { width: 56, height: 56, borderRadius: radius.lg, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: space.sm },
   recent: { paddingVertical: 0 },
   recentRow: { flexDirection: 'row', gap: space.md, paddingVertical: space.md },

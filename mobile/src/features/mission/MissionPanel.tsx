@@ -7,120 +7,139 @@ import { Icon, type IconName } from '@/components/ui/Icon'
 import { StatusDot } from '@/components/ui/StatusDot'
 import { Text } from '@/components/ui/Text'
 import { callFacility, openDirections } from '@/features/alerts/format'
-import { formatTime, timeAgo } from '@/lib/dates'
+import { timeAgo } from '@/lib/dates'
 import type { DriverStep } from '@/lib/missions'
 import { motion, radius, space, useTheme } from '@/theme'
 import type { Mission } from '@/types/api'
-import { BilanCard } from './BilanCard'
 import { currentTarget, nextAction, PRIORITY, stepIndex, STEPS } from './format'
-import { FULL_FEATURES } from '@/lib/features'
 
 interface MissionPanelProps {
   mission: Mission
   now: number
-  busy: boolean
-  error: string | null
-  onAdvance: (status: DriverStep) => void
-  /** Transport demandé sans destination, ou changement d'hôpital : ouvre le choix. */
+  /** Changement d'hôpital (possible tant que le patient n'est pas en transport). */
   onChooseDestination: () => void
 }
 
 /**
- * Mission en cours : où aller, qui appeler, et un seul geste principal pour
- * passer à l'étape suivante. Les boutons sont grands et contrastés : ils se
- * touchent d'une main, dans un véhicule, en plein soleil.
+ * Mission en cours : où aller, comment s'y rendre, qui appeler. Rien d'autre.
+ * Le geste qui fait avancer la mission est à part (MissionActions), collé au
+ * bas de l'écran pour rester sous le pouce.
  */
-export function MissionPanel({ mission, now, busy, error, onAdvance, onChooseDestination }: MissionPanelProps) {
+export function MissionPanel({ mission, now, onChooseDestination }: MissionPanelProps) {
   const { colors } = useTheme()
-  const [confirmFinish, setConfirmFinish] = useState(false)
   const priority = PRIORITY[mission.priority]
-  const action = nextAction(mission)
   const target = currentTarget(mission)
   const current = stepIndex(mission.status)
+  const toHospital = target?.kind === 'destination'
+  const dot = mission.priority === 'critical' ? 'brand' : mission.priority === 'urgent' ? 'warning' : 'muted'
 
   return (
     <Animated.View entering={FadeInDown.duration(motion.slow).easing(motion.easeOut)} layout={LinearTransition.duration(motion.base)} style={styles.stack}>
-      <Card style={[styles.card, mission.priority === 'critical' && { borderColor: colors.brand }]}>
-        <View style={styles.headRow}>
-          <StatusDot color={mission.priority === 'critical' ? 'brand' : mission.priority === 'urgent' ? 'warning' : 'muted'} pulse size={10} />
-          <Text variant="eyebrow" tone={priority.tone}>
-            Mission {priority.label.toLowerCase()} · n° {mission.id}
+      <View style={styles.meta}>
+        <View style={[styles.chip, { backgroundColor: mission.priority === 'critical' ? colors.brandSoft : colors.raised }]}>
+          <StatusDot color={dot} size={8} pulse={mission.priority === 'critical'} />
+          <Text variant="label" tone={priority.tone}>
+            {priority.label}
           </Text>
         </View>
-        <Text variant="title">{mission.description || 'Intervention d’urgence'}</Text>
         <Text variant="caption" tone="muted">
-          Signalée {timeAgo(mission.created_at, now)} · {mission.region_display}
+          Mission n° {mission.id} · signalée {timeAgo(mission.created_at, now)}
         </Text>
+      </View>
 
-        <Steps mission={mission} current={current} />
+      <View style={styles.where}>
+        <Text variant="caption" tone="muted">
+          {toHospital ? 'Hôpital de destination' : 'Lieu d’intervention'}
+        </Text>
+        <Text variant="title" accessibilityRole="header">
+          {target?.name ?? mission.pickup_address}
+        </Text>
+        {mission.description ? (
+          <Text variant="body" tone="muted">
+            {mission.description}
+          </Text>
+        ) : null}
+      </View>
 
-        <View style={[styles.place, { backgroundColor: colors.raised }]}>
-          <Icon name={target?.kind === 'destination' ? 'hospital' : 'pin'} size={20} color={target?.kind === 'destination' ? 'fg' : 'brand'} />
-          <View style={styles.placeText}>
-            <Text variant="caption" tone="subtle">
-              {target?.kind === 'destination' ? 'Hôpital de destination' : 'Lieu d’intervention'}
-            </Text>
-            <Text variant="bodyStrong">{target?.name ?? mission.pickup_address}</Text>
-          </View>
+      <Progress current={current} />
+
+      {target ? (
+        <View style={styles.actions}>
+          <ActionButton icon="route" label="Itinéraire" onPress={() => openDirections(target)} />
+          {target.phone ? (
+            <ActionButton icon="phone" label="Appeler" onPress={() => callFacility(target.phone!)} />
+          ) : null}
         </View>
-
-        {mission.destination && mission.status !== 'transporting' ? (
-          <View style={styles.destination}>
-            <Icon name="hospital" size={18} color="muted" />
-            <Text variant="label" tone="muted" style={styles.destinationText} numberOfLines={1}>
-              Destination prévue : {mission.destination.name}
-            </Text>
-            {mission.status === 'on_site' ? (
-              <Pressable onPress={onChooseDestination} accessibilityRole="button" hitSlop={8}>
-                <Text variant="label" tone="brand">
-                  Changer
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-
-        {mission.destination_status === 'refused' ? (
-          <View style={[styles.destination, { backgroundColor: colors.brandSoft, borderRadius: 8, padding: 8 }]}>
-            <Icon name="alert" size={18} color="brand" />
-            <Text variant="label" tone="brand" style={styles.destinationText}>
-              Destination refusée{mission.destination_note ? ` : ${mission.destination_note}` : ''}. La régulation vous réoriente.
-            </Text>
-          </View>
-        ) : mission.destination_status === 'accepted' ? (
-          <View style={styles.destination}>
-            <Icon name="check" size={18} color="ok" />
-            <Text variant="label" tone="ok" style={styles.destinationText}>
-              L’hôpital attend le patient
-            </Text>
-          </View>
-        ) : null}
-
-        {target ? (
-          <View style={styles.actions}>
-            <ActionButton icon="route" label="Itinéraire" onPress={() => openDirections(target)} />
-            {target.phone ? (
-              <ActionButton
-                icon="phone"
-                label={target.kind === 'destination' ? 'Appeler l’hôpital' : 'Appelant'}
-                onPress={() => callFacility(target.phone!)}
-              />
-            ) : null}
-          </View>
-        ) : null}
-      </Card>
-
-      {action ? (
-        <Button
-          label={action.needsDestination ? 'Choisir l’hôpital et transporter' : action.label}
-          onPress={() => (action.needsDestination ? onChooseDestination() : onAdvance(action.status))}
-          loading={busy}
-          haptic
-        />
       ) : null}
 
-      {FULL_FEATURES && (mission.status === 'on_site' || mission.status === 'transporting') ? <BilanCard mission={mission} now={now} /> : null}
+      {mission.destination && !toHospital ? (
+        <Card style={styles.destination}>
+          <Icon name="hospital" size={20} color="muted" />
+          <View style={styles.destinationText}>
+            <Text variant="caption" tone="muted">
+              Hôpital prévu
+            </Text>
+            <Text variant="bodyStrong" numberOfLines={1}>
+              {mission.destination.name}
+            </Text>
+          </View>
+          {mission.status === 'on_site' ? (
+            <Pressable onPress={onChooseDestination} accessibilityRole="button" accessibilityLabel="Changer d’hôpital" hitSlop={12}>
+              <Text variant="label" tone="brand">
+                Changer
+              </Text>
+            </Pressable>
+          ) : null}
+        </Card>
+      ) : null}
 
+      {mission.destination_status === 'refused' ? (
+        <View style={[styles.note, { backgroundColor: colors.brandSoft }]}>
+          <Icon name="alert" size={18} color="brand" />
+          <Text variant="label" tone="brand" style={styles.noteText}>
+            Destination refusée{mission.destination_note ? ` : ${mission.destination_note}` : ''}. La régulation vous réoriente.
+          </Text>
+        </View>
+      ) : mission.destination_status === 'accepted' ? (
+        <View style={[styles.note, styles.noteQuiet]}>
+          <Icon name="check" size={18} color="ok" />
+          <Text variant="label" tone="ok" style={styles.noteText}>
+            L’hôpital attend le patient
+          </Text>
+        </View>
+      ) : null}
+    </Animated.View>
+  )
+}
+
+interface MissionActionsProps {
+  mission: Mission
+  busy: boolean
+  error: string | null
+  onAdvance: (status: DriverStep) => void
+  /** Transport demandé sans destination : ouvre le choix de l'hôpital. */
+  onChooseDestination: () => void
+}
+
+/** Le seul geste utile à cet instant, en grand ; terminer sans transport reste discret et se confirme. */
+export function MissionActions({ mission, busy, error, onAdvance, onChooseDestination }: MissionActionsProps) {
+  const [confirmFinish, setConfirmFinish] = useState(false)
+  const action = nextAction(mission)
+  if (!action) return null
+  return (
+    <View style={styles.footer}>
+      {error ? (
+        <Text variant="caption" tone="brand" accessibilityLiveRegion="polite" style={styles.center}>
+          {error}
+        </Text>
+      ) : null}
+      <Button
+        label={action.needsDestination ? 'Choisir l’hôpital et transporter' : action.label}
+        onPress={() => (action.needsDestination ? onChooseDestination() : onAdvance(action.status))}
+        loading={busy}
+        style={styles.primary}
+        haptic
+      />
       {mission.status === 'on_site' ? (
         <Pressable
           onPress={() => {
@@ -138,37 +157,24 @@ export function MissionPanel({ mission, now, busy, error, onAdvance, onChooseDes
           </Text>
         </Pressable>
       ) : null}
-
-      {error ? (
-        <Text variant="caption" tone="brand" accessibilityLiveRegion="polite" style={styles.center}>
-          {error}
-        </Text>
-      ) : null}
-    </Animated.View>
+    </View>
   )
 }
 
-/** Frise des étapes : faites (heure), en cours (point vivant), à venir. */
-function Steps({ mission, current }: { mission: Mission; current: number }) {
+/** Quatre segments et l'étape en toutes lettres : « Étape 2 sur 4 · Sur place ». */
+function Progress({ current }: { current: number }) {
   const { colors } = useTheme()
+  const step = STEPS[Math.max(current, 0)]
   return (
-    <View style={styles.steps} accessibilityLabel={`Étape : ${mission.status_display}`}>
-      {STEPS.map((step, index) => {
-        const done = index < current
-        const active = index === current
-        const at = mission[step.at]
-        return (
-          <View key={step.status} style={styles.step}>
-            <View style={[styles.bar, { backgroundColor: done || active ? colors.ok : colors.line }]} />
-            <Text variant="label" tone={active ? 'fg' : done ? 'muted' : 'subtle'}>
-              {step.label}
-            </Text>
-            <Text variant="caption" tone="subtle">
-              {at ? formatTime(at) : ' '}
-            </Text>
-          </View>
-        )
-      })}
+    <View style={styles.progress} accessibilityLabel={`Étape ${current + 1} sur ${STEPS.length} : ${step.label}`}>
+      <View style={styles.bars}>
+        {STEPS.map((item, index) => (
+          <View key={item.status} style={[styles.bar, { backgroundColor: index <= current ? colors.ok : colors.line }]} />
+        ))}
+      </View>
+      <Text variant="label" tone="muted">
+        Étape {current + 1} sur {STEPS.length} · <Text variant="label">{step.label}</Text>
+      </Text>
     </View>
   )
 }
@@ -191,16 +197,13 @@ function ActionButton({ icon, label, onPress }: { icon: IconName; label: string;
 }
 
 const styles = StyleSheet.create({
-  stack: { gap: space.md },
-  card: { gap: space.md },
-  headRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  steps: { flexDirection: 'row', gap: space.xs, marginTop: space.xs },
-  step: { flex: 1, gap: 4 },
-  bar: { height: 4, borderRadius: 2 },
-  place: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, borderRadius: radius.md },
-  placeText: { flex: 1, gap: 2 },
-  destination: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  destinationText: { flex: 1 },
+  stack: { gap: space.xl },
+  meta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.xs + 2, borderRadius: radius.pill },
+  where: { gap: space.xs },
+  progress: { gap: space.sm },
+  bars: { flexDirection: 'row', gap: space.xs },
+  bar: { flex: 1, height: 4, borderRadius: 2 },
   actions: { flexDirection: 'row', gap: space.md },
   action: {
     flex: 1,
@@ -213,6 +216,13 @@ const styles = StyleSheet.create({
     gap: space.sm,
     paddingHorizontal: space.sm,
   },
-  secondary: { alignSelf: 'center', paddingVertical: space.sm },
+  destination: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md },
+  destinationText: { flex: 1 },
+  note: { flexDirection: 'row', alignItems: 'center', gap: space.sm, padding: space.md, borderRadius: radius.md },
+  noteText: { flex: 1 },
+  noteQuiet: { paddingHorizontal: 0, paddingVertical: 0 },
+  footer: { gap: space.sm },
+  primary: { height: 64 },
+  secondary: { alignSelf: 'center', paddingVertical: space.xs },
   center: { textAlign: 'center' },
 })

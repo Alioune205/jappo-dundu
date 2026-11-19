@@ -82,3 +82,10 @@ export function outcome(mission: Mission) {
   }
   return mission.status_display
 }
+
+/** Annulation récente (moins d'une heure) de la dernière mission : à signaler à l'ambulancier tant qu'il ne l'a pas lue. */
+export function recentCancellation(recent: readonly Mission[], now: number): Mission | null {
+  const last = recent[0]
+  if (!last || last.status !== 'cancelled' || !last.cancelled_at) return null
+  return now - new Date(last.cancelled_at).getTime() < 60 * 60 * 1000 ? last : null
+}

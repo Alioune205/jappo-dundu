@@ -3,8 +3,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { DestinationSheet } from '@/features/mission/DestinationSheet'
-import { currentTarget, nextAction, outcome } from '@/features/mission/format'
-import { MissionPanel } from '@/features/mission/MissionPanel'
+import { CancelledNotice } from '@/features/mission/CancelledNotice'
+import { currentTarget, nextAction, outcome, recentCancellation } from '@/features/mission/format'
+import { MissionActions, MissionPanel } from '@/features/mission/MissionPanel'
 import { api } from '@/lib/api'
 import { isDriver, useAdvanceMission, type DriverMissions } from '@/lib/missions'
 import { QK } from '@/lib/queries'
@@ -101,17 +102,24 @@ describe('étapes de la mission', () => {
 
 describe('MissionPanel', () => {
   const props = { now: Date.now(), busy: false, error: null, onAdvance: jest.fn(), onChooseDestination: jest.fn() }
+  const both = (m: Mission) => (
+    <>
+      <MissionPanel mission={m} now={props.now} onChooseDestination={props.onChooseDestination} />
+      <MissionActions {...props} mission={m} />
+    </>
+  )
 
   it('« Je suis sur place » fait avancer la mission', async () => {
-    const { ui } = wrap(<MissionPanel {...props} mission={mission()} />)
+    const { ui } = wrap(both(mission()))
     await render(ui)
     expect(screen.getByText('Rond-point de la Patte d’Oie')).toBeTruthy()
+    expect(screen.getByText('Critique')).toBeTruthy()
     await fireEvent.press(screen.getByLabelText('Je suis sur place'))
     expect(props.onAdvance).toHaveBeenCalledWith('on_site')
   })
 
   it('sur place sans destination : le transport ouvre d’abord le choix de l’hôpital', async () => {
-    const { ui } = wrap(<MissionPanel {...props} mission={mission({ status: 'on_site' })} />)
+    const { ui } = wrap(both(mission({ status: 'on_site' })))
     await render(ui)
     await fireEvent.press(screen.getByLabelText('Choisir l’hôpital et transporter'))
     expect(props.onChooseDestination).toHaveBeenCalled()
@@ -119,12 +127,34 @@ describe('MissionPanel', () => {
   })
 
   it('terminer sans transport demande une confirmation', async () => {
-    const { ui } = wrap(<MissionPanel {...props} mission={mission({ status: 'on_site' })} />)
+    const { ui } = wrap(both(mission({ status: 'on_site' })))
     await render(ui)
     await fireEvent.press(screen.getByText('Terminer sur place (sans transport)'))
     expect(props.onAdvance).not.toHaveBeenCalled()
     await fireEvent.press(screen.getByText('Toucher à nouveau pour terminer sans transport'))
     expect(props.onAdvance).toHaveBeenCalledWith('completed')
+  })
+})
+
+describe('annulation par la régulation', () => {
+  const cancelled = (minutesAgo: number) =>
+    mission({ status: 'cancelled', cancelled_at: new Date(Date.now() - minutesAgo * 60000).toISOString(), cancellation_reason: 'Patient pris en charge par une autre équipe' })
+
+  it('signale une annulation de moins d’une heure, pas une ancienne ni une mission terminée', () => {
+    expect(recentCancellation([cancelled(5)], Date.now())?.id).toBe(12)
+    expect(recentCancellation([cancelled(90)], Date.now())).toBeNull()
+    expect(recentCancellation([mission({ status: 'completed' })], Date.now())).toBeNull()
+    expect(recentCancellation([], Date.now())).toBeNull()
+  })
+
+  it('affiche le motif et se ferme avec « Compris »', async () => {
+    const onDismiss = jest.fn()
+    const { ui } = wrap(<CancelledNotice mission={cancelled(5)} now={Date.now()} onDismiss={onDismiss} />)
+    await render(ui)
+    expect(screen.getByText('Mission n° 12 annulée')).toBeTruthy()
+    expect(screen.getByText('Patient pris en charge par une autre équipe')).toBeTruthy()
+    await fireEvent.press(screen.getByLabelText('Compris'))
+    expect(onDismiss).toHaveBeenCalled()
   })
 })
 
